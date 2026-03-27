@@ -27,7 +27,6 @@ inject_styles()
 render_navbar(active_page="stocks")
 
 from core.data_provider import (  # noqa: E402
-    download_ohlcv, get_asset_info, get_earnings_history,
     get_quarterly_financials,
 )
 
@@ -564,166 +563,6 @@ def _render_performance(ticker: str, hist_close: pd.Series, price, spy_close: pd
                 unsafe_allow_html=True,
             )
 
-
-def _render_eps(earnings_df: pd.DataFrame):
-    """Render Earnings Per Share tab — EPS estimate vs actual trend chart."""
-
-    if earnings_df.empty:
-        st.info("Earnings Per Share data is not available for this asset.")
-        return
-
-    past = earnings_df[earnings_df['Reported EPS'].notna()].tail(4)
-    upcoming = earnings_df[earnings_df['Reported EPS'].isna()]
-    upcoming = upcoming.iloc[[-1]] if not upcoming.empty else pd.DataFrame()
-    combined = pd.concat([past, upcoming]).sort_index()
-    combined = combined[~combined.index.duplicated()]
-
-    if combined.empty:
-        st.info("Not enough EPS data to display.")
-        return
-
-    x_labels = [_quarter_label(dt) for dt in combined.index]
-    estimates = combined['EPS Estimate'].tolist()
-    actuals = combined['Reported EPS'].tolist()
-    is_completed = combined['Reported EPS'].notna().tolist()
-
-    # ── Selected quarter = most recent completed (for header + vline) ──
-    selected_q_label = ""
-    selected_est = None
-    selected_act = None
-    if not past.empty:
-        selected_q_label = _quarter_label(past.index[-1])
-        selected_est = past['EPS Estimate'].iloc[-1]
-        selected_act = past['Reported EPS'].iloc[-1]
-
-    # ── Header row (mirrors Yahoo Finance style) ──────────────────────
-    if selected_q_label:
-        def _eps_str(v):
-            if v is None or not pd.notna(v):
-                return "N/A"
-            sign = "+" if v >= 0 else ""
-            return f"{sign}{v:.2f}"
-
-        est_disp = _eps_str(selected_est)
-        act_disp = _eps_str(selected_act)
-        act_color = "#10B981" if (selected_act is not None and pd.notna(selected_act) and selected_act >= 0) else "#EF4444"
-
-        st.markdown(
-            f'<div style="font-size:0.82rem;margin-bottom:6px;display:flex;'
-            f'align-items:center;gap:20px;flex-wrap:wrap;">'
-            f'<span style="font-weight:700;color:#1E3A5F;font-size:0.95rem;">'
-            f'{selected_q_label}</span>'
-            f'<span style="color:#64748B;display:flex;align-items:center;gap:5px;">'
-            f'<span style="display:inline-block;width:11px;height:11px;border-radius:50%;'
-            f'border:2px solid #94A3B8;"></span>'
-            f'Estimate&nbsp;<span style="color:#1E3A5F;font-weight:600;">{est_disp}</span></span>'
-            f'<span style="color:#64748B;display:flex;align-items:center;gap:5px;">'
-            f'<span style="display:inline-block;width:11px;height:11px;border-radius:50%;'
-            f'background:#10B981;"></span>'
-            f'Actual&nbsp;<span style="color:{act_color};font-weight:600;">{act_disp}</span></span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-    valid_est = [(x, e) for x, e in zip(x_labels, estimates) if pd.notna(e)]
-    valid_act = [(x, a) for x, a, c in zip(x_labels, actuals, is_completed)
-                 if c and pd.notna(a)]
-
-    all_vals = [v for v in estimates + actuals if pd.notna(v)]
-    if all_vals:
-        y_min, y_max = min(all_vals), max(all_vals)
-        y_span = max(y_max - y_min, abs(y_min) * 0.15, 0.3)
-        y_annot = y_min - y_span * 0.55
-        y_low = y_annot - y_span * 0.15
-    else:
-        y_span, y_annot, y_low, y_max = 1.0, -0.6, -0.8, 1.0
-
-    fig = go.Figure()
-
-    # Dashed line through estimates
-    if valid_est:
-        fig.add_trace(go.Scatter(
-            x=[p[0] for p in valid_est], y=[p[1] for p in valid_est],
-            mode='lines',
-            line=dict(color='#CBD5E1', dash='dash', width=1.5),
-            showlegend=False, hoverinfo='skip',
-        ))
-
-    # Open gray circles for estimates
-    if valid_est:
-        fig.add_trace(go.Scatter(
-            x=[p[0] for p in valid_est], y=[p[1] for p in valid_est],
-            mode='markers',
-            marker=dict(symbol='circle-open', size=18, color='#94A3B8',
-                        line=dict(width=2.5, color='#94A3B8')),
-            name='Estimate',
-            hovertemplate='Estimate: $%{y:.2f}<extra></extra>',
-        ))
-
-    # Filled green circles for actuals
-    if valid_act:
-        fig.add_trace(go.Scatter(
-            x=[p[0] for p in valid_act], y=[p[1] for p in valid_act],
-            mode='markers',
-            marker=dict(symbol='circle', size=18, color='#10B981'),
-            name='Actual',
-            hovertemplate='Actual: $%{y:.2f}<extra></extra>',
-        ))
-
-    # Vertical dashed line at selected (most recent completed) quarter
-    if selected_q_label and selected_q_label in x_labels:
-        fig.add_vline(
-            x=selected_q_label,
-            line_dash='dot', line_color='#94A3B8', line_width=1.5,
-        )
-
-    # Horizontal reference line at minimum estimate value
-    est_vals = [e for e in estimates if pd.notna(e)]
-    if est_vals:
-        fig.add_hline(
-            y=min(est_vals),
-            line_dash='dot', line_color='#94A3B8', line_width=1, opacity=0.6,
-        )
-
-    # Beat / Miss / upcoming annotations
-    for i, (x_lbl, est, act, completed) in enumerate(
-            zip(x_labels, estimates, actuals, is_completed)):
-        if completed and pd.notna(est) and pd.notna(act):
-            diff = act - est
-            if diff >= 0:
-                txt = f"Beat<br>+${diff:.2f}"
-                acolor = "#10B981"
-            else:
-                txt = f"Miss<br>-${abs(diff):.2f}"
-                acolor = "#EF4444"
-            fig.add_annotation(
-                x=x_lbl, y=y_annot, text=txt,
-                showarrow=False, font=dict(size=10, color=acolor), align='center',
-            )
-        elif not completed and pd.notna(est):
-            dt_obj = combined.index[i]
-            date_str = dt_obj.strftime("%b ") + str(dt_obj.day)
-            fig.add_annotation(
-                x=x_lbl, y=y_annot, text=f"—<br>{date_str}",
-                showarrow=False, font=dict(size=10, color="#64748B"), align='center',
-            )
-
-    fig.update_layout(
-        height=360,
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=40, r=40, t=20, b=20),
-        showlegend=True,
-        legend=dict(orientation='h', y=1.12, x=1, xanchor='right', font=dict(size=11)),
-        font=dict(family="Inter, sans-serif"),
-        xaxis=dict(gridcolor='#E2E8F0', type='category'),
-        yaxis=dict(
-            gridcolor='#E2E8F0', tickprefix='$',
-            range=[y_low, y_max + y_span * 0.35],
-        ),
-    )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-
 def _render_revenue(fin_df: pd.DataFrame):
     """Render Revenue vs. Earnings tab — grouped bar chart by quarter."""
 
@@ -1076,17 +915,12 @@ def main():
     # Additional data for EQUITY tabs (cached — fast on re-render)
     # ═══════════════════════════════════════════════════════
     spy_close = pd.Series(dtype=float)
-    earnings_df = pd.DataFrame()
     quarterly_fin_df = pd.DataFrame()
 
     if asset_type == "EQUITY":
         try:
             _spy_raw = download_ohlcv('^GSPC', period='max', interval='1d', auto_adjust=False)
             spy_close = _spy_raw['Close'].squeeze().dropna()
-        except Exception:
-            pass
-        try:
-            earnings_df = get_earnings_history(active_ticker)
         except Exception:
             pass
         try:
@@ -1099,16 +933,13 @@ def main():
     # ═══════════════════════════════════════════════════════
 
     if asset_type == "EQUITY":
-        tab_stats, tab_perf, tab_eps, tab_rev = st.tabs([
+        tab_stats, tab_perf, tab_rev = st.tabs([
             "📊 Key Statistics", "📈 Performance",
-            "💰 Earnings Per Share", "📑 Revenue vs. Earnings",
         ])
         with tab_stats:
             _render_key_stats(info, asset_type)
         with tab_perf:
             _render_performance(active_ticker, hist_close, price, spy_close)
-        with tab_eps:
-            _render_eps(earnings_df)
         with tab_rev:
             _render_revenue(quarterly_fin_df)
 
