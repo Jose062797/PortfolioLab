@@ -791,7 +791,12 @@ def _render_analyst_insights(info, price, upgrades_df):
     has_targets = all(v is not None for v in [target_mean, target_low, target_high, price])
 
     if upgrades_df.empty and not has_targets:
-        st.info("Analyst data is not available for this asset.")
+        st.warning(
+            "⚠️ **Analyst data temporarily unavailable.** "
+            "Yahoo Finance limits analyst price targets and upgrade/downgrade history "
+            "from cloud-hosted apps. Try again in a few minutes — the data usually "
+            "becomes available after a brief wait."
+        )
         return
 
     # ── Top Analyst card ─────────────────────────────────────────────────
@@ -907,7 +912,11 @@ def _render_analyst_recommendations(rec_df, upgrades_df):
     """Analyst Recommendations: monthly stacked bar + latest rating table."""
 
     if rec_df.empty and upgrades_df.empty:
-        st.info("Analyst recommendations data is not available for this asset.")
+        st.warning(
+            "⚠️ **Analyst recommendations temporarily unavailable.** "
+            "Yahoo Finance limits analyst consensus data from cloud-hosted apps. "
+            "Try again in a few minutes — the data usually becomes available after a brief wait."
+        )
         return
 
     # ── Monthly stacked bar chart ─────────────────────────────────────────
