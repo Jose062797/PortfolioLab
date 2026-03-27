@@ -479,6 +479,14 @@ def _render_key_stats(info, asset_type):
             ("1y Target Est", _fmt_safe(info.get('target_mean_price'), "${:,.2f}")),
         ]
 
+    # Check if any data is actually available (not all N/A)
+    all_items = left + right
+    has_data = any(v != "N/A" for _, v in all_items)
+
+    if not has_data:
+        st.info("⏳ Market data is temporarily unavailable. This can happen due to rate limiting — please try again in a few seconds.")
+        return
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(_build_stat_table(left), unsafe_allow_html=True)

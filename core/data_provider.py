@@ -185,6 +185,10 @@ def get_asset_info(ticker: str) -> dict:
     Works for stocks, ETFs, crypto, indices — returns whatever is available.
     Never raises on missing fields (returns None for each).
 
+    Strategy: fast_info (lightweight, rate-limit-resistant) is fetched first
+    and used to fill any gaps left by the heavier .info call, which can be
+    throttled on shared hosting environments (e.g. Streamlit Cloud).
+
     Args:
         ticker: Single ticker symbol.
 
@@ -194,21 +198,44 @@ def get_asset_info(ticker: str) -> dict:
     import yfinance as yf
 
     logger.info("Fetching info for %s", ticker)
+    stock = yf.Ticker(ticker)
+
+    # ── fast_info: lightweight endpoint, works even under rate-limiting ────
+    fast = {}
     try:
-        stock = yf.Ticker(ticker)
+        fi = stock.fast_info
+        fast = {
+            'currentPrice':           getattr(fi, 'last_price', None),
+            'previousClose':          getattr(fi, 'previous_close', None),
+            'regularMarketOpen':      getattr(fi, 'open', None),
+            'dayHigh':                getattr(fi, 'day_high', None),
+            'dayLow':                 getattr(fi, 'day_low', None),
+            'marketCap':              getattr(fi, 'market_cap', None),
+            'volume':                 getattr(fi, 'last_volume', None),
+            'averageVolume':          getattr(fi, 'three_month_average_volume', None),
+            'fiftyTwoWeekHigh':       getattr(fi, 'year_high', None),
+            'fiftyTwoWeekLow':        getattr(fi, 'year_low', None),
+            'quoteType':              getattr(fi, 'quote_type', None),
+            'currency':               getattr(fi, 'currency', None),
+            'sharesOutstanding':      getattr(fi, 'shares', None),
+        }
+        fast = {k: v for k, v in fast.items() if v is not None}
+    except Exception as e:
+        logger.warning("fast_info failed for %s: %s", ticker, e)
+
+    # ── full info: richer data, but may be rate-limited on cloud ──────────
+    info = {}
+    try:
         info = stock.info or {}
     except Exception as e:
         logger.warning("Failed to fetch info for %s: %s", ticker, e)
-        info = {}
 
-    # Extract fields safely — never crash on missing data
-    def _get(key, fmt=None):
-        val = info.get(key)
-        if val is None:
-            return None
-        if fmt == 'pct':
-            return val  # caller formats
-        return val
+    # Merge: .info is primary; fast_info fills any None gaps
+    def _get(key):
+        v = info.get(key)
+        if v is None:
+            v = fast.get(key)
+        return v
 
     return {
         # Identity
