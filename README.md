@@ -9,9 +9,9 @@
 ### 📊 Stocks
 Interactive dashboard to explore any asset available on Yahoo Finance (stocks, ETFs, indices, crypto).
 - Real-time pricing, candlestick and line charts with volume
-- Key statistics, earnings trends, revenue vs. earnings charts
-- Analyst consensus, price targets, and monthly recommendation breakdown
-- Period returns (1D, 5D, 1M, 6M, YTD, 1Y, 5Y)
+- Key statistics: price, market cap, volume, 52-week range
+- Revenue vs. earnings quarterly breakdown
+- Period returns (1D, 5D, 1M, 6M, YTD, 1Y, 5Y) benchmarked against S&P 500
 
 ### 📈 Portfolio Optimizer
 Advanced portfolio construction engine supporting two mathematical models:
@@ -33,7 +33,7 @@ Advanced portfolio construction engine supporting two mathematical models:
 
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/PortfolioLab.git
+git clone https://github.com/Jose062797/PortfolioLab.git
 cd PortfolioLab
 
 # 2. Create and activate a virtual environment
