@@ -223,6 +223,20 @@ def get_asset_info(ticker: str) -> dict:
     except Exception as e:
         logger.warning("fast_info failed for %s: %s", ticker, e)
 
+    # ── analyst_price_targets: separate JSON endpoint, more reliable ──────
+    try:
+        apt = stock.analyst_price_targets
+        if isinstance(apt, dict):
+            for src_key, dst_key in [
+                ('mean',   'targetMeanPrice'),
+                ('low',    'targetLowPrice'),
+                ('high',   'targetHighPrice'),
+            ]:
+                if apt.get(src_key) is not None and dst_key not in fast:
+                    fast[dst_key] = apt[src_key]
+    except Exception as e:
+        logger.warning("analyst_price_targets failed for %s: %s", ticker, e)
+
     # ── full info: richer data, but may be rate-limited on cloud ──────────
     info = {}
     try:
@@ -326,21 +340,60 @@ def get_earnings_history(ticker: str) -> pd.DataFrame:
     import yfinance as yf
 
     logger.info("Fetching earnings history for %s", ticker)
+    stock = yf.Ticker(ticker)
+
+    # ── Primary: earnings_dates (estimate + actual, requires lxml) ─────────
     try:
-        stock = yf.Ticker(ticker)
         df = stock.earnings_dates
-        if df is None or df.empty:
+        if df is not None and not df.empty:
+            df = df.copy()
+            if hasattr(df.index, 'tz') and df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
+            df = df.sort_index(ascending=True)
+            df = df[df['EPS Estimate'].notna() | df['Reported EPS'].notna()]
+            if not df.empty:
+                return df
+    except Exception as e:
+        logger.warning("earnings_dates failed for %s, trying fallback: %s", ticker, e)
+
+    # ── Fallback: extract Diluted/Basic EPS from quarterly_income_stmt ─────
+    # Works via JSON endpoint — no lxml needed. Returns actuals only (no estimates).
+    try:
+        stmt = stock.quarterly_income_stmt
+        if stmt is None or stmt.empty:
             return pd.DataFrame()
-        df = df.copy()
-        # Normalize index to timezone-naive
+
+        eps_row = None
+        for row in stmt.index:
+            rl = str(row).lower()
+            if 'diluted eps' in rl or ('diluted' in rl and 'eps' in rl):
+                eps_row = row
+                break
+        if eps_row is None:
+            for row in stmt.index:
+                rl = str(row).lower()
+                if 'basic eps' in rl or ('basic' in rl and 'eps' in rl):
+                    eps_row = row
+                    break
+
+        if eps_row is None:
+            return pd.DataFrame()
+
+        eps_series = stmt.loc[eps_row].dropna()
+        df = pd.DataFrame({
+            'EPS Estimate': pd.NA,
+            'Reported EPS': eps_series,
+            'Surprise(%)':  pd.NA,
+        }, index=eps_series.index)
+        df.index = pd.DatetimeIndex(df.index)
         if hasattr(df.index, 'tz') and df.index.tz is not None:
             df.index = df.index.tz_localize(None)
+        df['EPS Estimate'] = df['EPS Estimate'].astype(object)
+        df['Surprise(%)']  = df['Surprise(%)'].astype(object)
         df = df.sort_index(ascending=True)
-        # Keep only rows with at least one value
-        df = df[df['EPS Estimate'].notna() | df['Reported EPS'].notna()]
         return df
     except Exception as e:
-        logger.warning("Failed to fetch earnings history for %s: %s", ticker, e)
+        logger.warning("EPS fallback via income_stmt failed for %s: %s", ticker, e)
         return pd.DataFrame()
 
 
