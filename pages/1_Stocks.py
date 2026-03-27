@@ -27,7 +27,7 @@ inject_styles()
 render_navbar(active_page="stocks")
 
 from core.data_provider import (  # noqa: E402
-    get_quarterly_financials,
+    download_ohlcv, get_asset_info, get_quarterly_financials,
 )
 
 logger = logging.getLogger(__name__)
