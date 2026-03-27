@@ -934,7 +934,7 @@ def main():
 
     if asset_type == "EQUITY":
         tab_stats, tab_perf, tab_rev = st.tabs([
-            "📊 Key Statistics", "📈 Performance",
+            "📊 Key Statistics", "📈 Performance", "📑 Revenue vs. Earnings",
         ])
         with tab_stats:
             _render_key_stats(info, asset_type)
