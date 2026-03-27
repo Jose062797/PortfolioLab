@@ -900,13 +900,13 @@ def main():
         else:
             color, pct_str = "#94A3B8", "—"
         cells += (
-            '<div style="text-align:center;flex:1;padding:8px 4px;">'
-            f'<div style="font-size:0.7rem;color:#64748B;text-transform:uppercase;">{label}</div>'
-            f'<div style="font-size:0.85rem;font-weight:600;color:{color};">{pct_str}</div>'
+            '<div style="text-align:center;flex:1;min-width:38px;padding:6px 3px;">'
+            f'<div style="font-size:0.65rem;color:#64748B;text-transform:uppercase;white-space:nowrap;">{label}</div>'
+            f'<div style="font-size:0.78rem;font-weight:600;color:{color};white-space:nowrap;">{pct_str}</div>'
             '</div>'
         )
     st.markdown(
-        '<div style="display:flex;border:1px solid #E2E8F0;border-radius:8px;'
+        '<div style="display:flex;flex-wrap:wrap;border:1px solid #E2E8F0;border-radius:8px;'
         f'background:white;margin:0.5rem 0 1rem 0;">{cells}</div>',
         unsafe_allow_html=True
     )

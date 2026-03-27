@@ -924,22 +924,43 @@ def get_shared_css() -> str:
 
     /* ===== Mobile Responsiveness (PWA) ===== */
     @media (max-width: 768px) {
+        /* Reduce lateral padding so charts and content have room */
+        .block-container,
+        [data-testid="stAppViewBlockContainer"],
+        [data-testid="stMainBlockContainer"],
+        .stMainBlockContainer {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+
         .bl-navbar {
             padding: 0.75rem 1rem;
         }
         .bl-navbar-links {
-            gap: 1rem;
+            gap: 0.25rem;
         }
         .bl-navbar-links a {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
+            padding: 0.4rem 0.6rem;
         }
         .page-title {
             font-size: 2rem;
+        }
+        /* Hero title: reduce size so long words don't break mid-character */
+        .bl-hero h1 {
+            font-size: 2.5rem;
+            word-break: keep-all;
+            overflow-wrap: break-word;
         }
         .step-header {
             flex-direction: column;
             align-items: flex-start;
             gap: 0.5rem;
+        }
+        /* Smaller tab text to fit more tabs */
+        .stTabs [data-baseweb="tab"] {
+            font-size: 0.78rem !important;
+            padding: 0.4rem 0.55rem !important;
         }
         /* Make columns stack gracefully in Streamlit */
         [data-testid="column"] {
@@ -956,14 +977,30 @@ def get_shared_css() -> str:
             font-size: 1.75rem;
         }
     }
-    
+
     @media (max-width: 480px) {
+        /* Prevent any residual horizontal overflow */
+        body, .stApp {
+            overflow-x: hidden !important;
+        }
         .bl-navbar {
             flex-direction: column;
             gap: 0.5rem;
         }
+        .bl-navbar-links a {
+            font-size: 0.72rem;
+            padding: 0.35rem 0.5rem;
+        }
         .page-title {
             font-size: 1.75rem;
+        }
+        .bl-hero h1 {
+            font-size: 2rem;
+        }
+        /* Even smaller tabs on very narrow screens */
+        .stTabs [data-baseweb="tab"] {
+            font-size: 0.72rem !important;
+            padding: 0.35rem 0.45rem !important;
         }
     }
 </style>
