@@ -1079,6 +1079,11 @@ def inject_critical_css() -> None:
             padding-right: 3rem !important;
             max-width: none !important; /* Completely destroy Streamlit max width limits */
         }
+
+        /* Prevent browser pinch-to-zoom on Plotly charts on mobile */
+        .stPlotlyChart, .js-plotly-plot, .js-plotly-plot .plotly {
+            touch-action: pan-y !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
