@@ -48,8 +48,7 @@ def create_correlation_heatmap(cov_matrix: np.ndarray, tickers: list) -> go.Figu
         height=500,
         font=dict(family="Inter, sans-serif", color="#0A1628"),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        dragmode=False,
+        plot_bgcolor="rgba(0,0,0,0)"
     )
 
     return fig
@@ -118,8 +117,7 @@ def create_returns_comparison(
             y=1.02,
             xanchor="right",
             x=1
-        ),
-        dragmode=False,
+        )
     )
 
     return fig
@@ -184,8 +182,7 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
             y=-0.2,
             xanchor="center",
             x=0.5
-        ),
-        dragmode=False,
+        )
     )
 
     return fig
@@ -301,8 +298,7 @@ def create_efficient_frontier_chart(ef_data: dict, selected_portfolio: dict = No
             y=1.02,
             xanchor="center",
             x=0.5
-        ),
-        dragmode=False,
+        )
     )
 
     return fig
@@ -357,8 +353,7 @@ def create_risk_return_scatter(
         font=dict(family="Inter, sans-serif", color="#0A1628"),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        showlegend=False,
-        dragmode=False,
+        showlegend=False
     )
 
     return fig
@@ -611,8 +606,7 @@ def create_historical_performance_chart(
                 showarrow=False,
                 font=dict(size=12, color="#64748B"),
                 xanchor='center'
-            )],
-            dragmode=False,
+            )]
         )
 
         return fig, bt_result
@@ -626,7 +620,7 @@ def create_historical_performance_chart(
             showarrow=False,
             font=dict(size=14, color='red')
         )
-        fig.update_layout(height=400, dragmode=False)
+        fig.update_layout(height=400)
         return fig, None
 
 
