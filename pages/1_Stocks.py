@@ -28,7 +28,7 @@ render_navbar(active_page="stocks")
 
 from core.data_provider import (  # noqa: E402
     download_ohlcv, get_asset_info, get_earnings_history,
-    get_quarterly_financials, get_recommendations, get_upgrades_downgrades,
+    get_quarterly_financials,
 )
 
 logger = logging.getLogger(__name__)
@@ -781,286 +781,6 @@ def _render_revenue(fin_df: pd.DataFrame):
     )
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-
-def _render_analyst_insights(info, price, upgrades_df):
-    """Analyst Insights tab: Top Analyst card + Price Target range chart."""
-
-    target_mean = info.get('target_mean_price')
-    target_low  = info.get('target_low_price')
-    target_high = info.get('target_high_price')
-    has_targets = all(v is not None for v in [target_mean, target_low, target_high, price])
-
-    if upgrades_df.empty and not has_targets:
-        st.warning(
-            "⚠️ **Analyst data temporarily unavailable.** "
-            "Yahoo Finance limits analyst price targets and upgrade/downgrade history "
-            "from cloud-hosted apps. Try again in a few minutes — the data usually "
-            "becomes available after a brief wait."
-        )
-        return
-
-    # ── Top Analyst card ─────────────────────────────────────────────────
-    if not upgrades_df.empty:
-        latest   = upgrades_df.iloc[0]
-        firm     = str(latest.get('Firm', ''))     if 'Firm'     in upgrades_df.columns else ''
-        to_grade = str(latest.get('ToGrade', ''))  if 'ToGrade'  in upgrades_df.columns else ''
-
-        if firm or to_grade:
-            g = to_grade.lower()
-            if any(x in g for x in ['strong buy', 'outperform', 'overweight', 'buy', 'positive']):
-                badge_bg, badge_fg = '#DCFCE7', '#16A34A'
-            elif any(x in g for x in ['hold', 'neutral', 'market perform', 'equal weight',
-                                       'in-line', 'sector perform', 'sector weight']):
-                badge_bg, badge_fg = '#FEF9C3', '#A16207'
-            else:
-                badge_bg, badge_fg = '#FEE2E2', '#DC2626'
-
-            st.markdown("**Top Analyst**")
-            st.markdown(
-                f'<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;'
-                f'padding:18px 22px;margin-bottom:24px;display:inline-block;min-width:240px;">'
-                f'<div style="font-size:1.1rem;font-weight:700;color:#1E3A5F;margin-bottom:12px;">'
-                f'{firm}</div>'
-                f'<div style="font-size:0.75rem;color:#64748B;margin-bottom:6px;">Latest Rating</div>'
-                f'<span style="background:{badge_bg};color:{badge_fg};padding:5px 14px;'
-                f'border-radius:6px;font-size:0.85rem;font-weight:700;letter-spacing:0.03em;">'
-                f'{to_grade.upper()}</span>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-
-    # ── Analyst Price Targets range chart ────────────────────────────────
-    if not has_targets:
-        return
-
-    st.markdown("**Analyst Price Targets**")
-
-    rng = target_high - target_low
-    pad = max(rng * 0.15, 5)
-
-    fig = go.Figure()
-
-    # Gray track line
-    fig.add_shape(type='line', x0=target_low, y0=0, x1=target_high, y1=0,
-                  line=dict(color='#94A3B8', width=6))
-
-    # Endpoint dots
-    fig.add_trace(go.Scatter(
-        x=[target_low, target_high], y=[0, 0], mode='markers',
-        marker=dict(size=10, color='#94A3B8'),
-        hoverinfo='skip', showlegend=False,
-    ))
-
-    # Current price marker — white circle with gray border
-    fig.add_trace(go.Scatter(
-        x=[price], y=[0], mode='markers',
-        marker=dict(size=18, color='white', line=dict(color='#94A3B8', width=2.5)),
-        hovertemplate=f'Current: ${price:,.2f}<extra></extra>',
-        showlegend=False,
-    ))
-
-    # Average marker — blue filled circle
-    fig.add_trace(go.Scatter(
-        x=[target_mean], y=[0], mode='markers',
-        marker=dict(size=14, color='#3B82F6', line=dict(color='white', width=2)),
-        hovertemplate=f'Average: ${target_mean:,.2f}<extra></extra>',
-        showlegend=False,
-    ))
-
-    # Popup box above Average
-    fig.add_annotation(
-        x=target_mean, y=0.25,
-        text=f'<b>${target_mean:,.2f}</b><br>Average',
-        showarrow=True, arrowhead=2, arrowsize=0.6, ax=0, ay=-28,
-        arrowcolor='#3B82F6',
-        bgcolor='#1E3A5F', bordercolor='#1E3A5F', borderpad=5,
-        font=dict(color='white', size=11),
-    )
-
-    # Popup box below Current
-    fig.add_annotation(
-        x=price, y=-0.25,
-        text=f'<b>${price:,.2f}</b><br>Current',
-        showarrow=True, arrowhead=2, arrowsize=0.6, ax=0, ay=30,
-        arrowcolor='#94A3B8',
-        bgcolor='white', bordercolor='#CBD5E1', borderpad=5,
-        font=dict(color='#1E3A5F', size=11),
-    )
-
-    # Low / High labels at endpoints
-    fig.add_annotation(x=target_low,  y=-0.85, showarrow=False,
-                       text=f'<b>${target_low:,.2f}</b><br>Low',
-                       font=dict(color='#94A3B8', size=12))
-    fig.add_annotation(x=target_high, y=-0.85, showarrow=False,
-                       text=f'<b>${target_high:,.2f}</b><br>High',
-                       font=dict(color='#94A3B8', size=12))
-
-    fig.update_layout(
-        height=240,
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=20, r=20, t=80, b=80),
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False,
-                   range=[target_low - pad, target_high + pad]),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False,
-                   range=[-2.0, 2.0]),
-        font=dict(family="Inter, sans-serif"),
-    )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-
-def _render_analyst_recommendations(rec_df, upgrades_df):
-    """Analyst Recommendations: monthly stacked bar + latest rating table."""
-
-    if rec_df.empty and upgrades_df.empty:
-        st.warning(
-            "⚠️ **Analyst recommendations temporarily unavailable.** "
-            "Yahoo Finance limits analyst consensus data from cloud-hosted apps. "
-            "Try again in a few minutes — the data usually becomes available after a brief wait."
-        )
-        return
-
-    # ── Monthly stacked bar chart ─────────────────────────────────────────
-    if not rec_df.empty:
-        today = _dt.date.today()
-
-        df = rec_df.tail(4).copy()
-
-        # Build month labels from period offsets, sorted chronologically
-        month_labels = []
-        for p in df['period'].tolist():
-            offset = int(str(p).replace('m', ''))
-            m, y = today.month + offset, today.year
-            while m <= 0:
-                m += 12
-                y -= 1
-            month_labels.append(_dt.date(y, m, 1).strftime('%b'))
-        month_labels = month_labels[::-1]   # oldest → newest
-
-        # Order: bottom→top = Sell → Strong Buy (last added = top of stack)
-        col_config = [
-            ('strongSell', 'Sell',          '#EF4444'),
-            ('sell',       'Underperform',  '#FB923C'),
-            ('hold',       'Hold',          '#F59E0B'),
-            ('buy',        'Buy',           '#86EFAC'),
-            ('strongBuy',  'Strong Buy',    '#22C55E'),
-        ]
-
-        fig = go.Figure()
-        # Collect present columns and their values first
-        present_cols = []
-        col_vals_map = {}
-        for col_key, display_name, color in col_config:
-            if col_key in df.columns:
-                vals = df[col_key].tolist()[::-1]
-                present_cols.append(col_key)
-                col_vals_map[col_key] = (display_name, color, vals)
-
-        # Per-bar totals (needed to compute the 20% threshold per position)
-        totals = []
-        if present_cols:
-            totals = [
-                sum(col_vals_map[c][2][i] for c in present_cols)
-                for i in range(len(month_labels))
-            ]
-
-        for col_key, (display_name, color, vals) in col_vals_map.items():
-            # Show label only when segment is >= 20% of bar total (avoids clutter on tiny slices)
-            text_vals = [
-                str(int(v)) if (totals[i] > 0 and v / totals[i] >= 0.20) else ''
-                for i, v in enumerate(vals)
-            ]
-            fig.add_trace(go.Bar(
-                name=display_name,
-                x=month_labels,
-                y=vals,
-                marker_color=color,
-                text=text_vals,
-                textposition='inside',
-                insidetextanchor='middle',
-                textfont=dict(color='white', size=11, family='Inter, sans-serif'),
-                hovertemplate=f'<b>{display_name}</b>: %{{y}}<extra></extra>',
-            ))
-
-        # Totals above bars — offset by 8% of max total for clean spacing
-        max_total = max(totals) if totals else 1
-        y_offset = max_total * 0.08
-        for month, total in zip(month_labels, totals):
-            if total > 0:
-                fig.add_annotation(
-                    x=month, y=total + y_offset,
-                    text=f'<b>{int(total)}</b>',
-                    showarrow=False, font=dict(size=12, color='#1E3A5F'),
-                )
-
-        fig.update_layout(
-            barmode='stack', height=340,
-            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=20, r=160, t=40, b=20),
-            bargap=0.75,  # narrow bars, Yahoo Finance style
-            legend=dict(orientation='v', x=1.02, y=1, xanchor='left',
-                        font=dict(size=11), traceorder='reversed'),
-            font=dict(family="Inter, sans-serif"),
-            xaxis=dict(gridcolor='#E2E8F0'),
-            yaxis=dict(
-                showgrid=False, showticklabels=False,
-                range=[0, max_total * 1.18],  # headroom for the total label
-            ),
-        )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-    # ── Latest Rating table ───────────────────────────────────────────────
-    if not upgrades_df.empty:
-        st.markdown("**Latest Rating**")
-        latest   = upgrades_df.iloc[0]
-        date_val = upgrades_df.index[0]
-
-        def _col(key):
-            return str(latest.get(key, '')) if key in upgrades_df.columns else ''
-
-        firm          = _col('Firm')
-        action        = _col('Action')
-        to_grade      = _col('ToGrade')
-        from_grade    = _col('FromGrade')
-        price_action  = _col('priceTargetAction')
-        cur_pt        = latest.get('currentPriceTarget')  if 'currentPriceTarget'  in upgrades_df.columns else None
-        prior_pt      = latest.get('priorPriceTarget')    if 'priorPriceTarget'    in upgrades_df.columns else None
-
-        action_map = {'main': 'Reiterates', 'up': 'Upgrades', 'down': 'Downgrades',
-                      'init': 'Initiates',  'reit': 'Reiterates'}
-        action_display = action_map.get(action.lower(), action.title()) if action else 'N/A'
-
-        pt_display = None
-        if cur_pt is not None and not pd.isna(cur_pt):
-            if prior_pt is not None and not pd.isna(prior_pt):
-                pt_display = f'{prior_pt:,.0f} → {cur_pt:,.0f}'
-            else:
-                pt_display = f'${cur_pt:,.0f}'
-
-        date_str = date_val.strftime('%m/%d/%Y') if hasattr(date_val, 'strftime') else str(date_val)
-
-        rows = [("Date", date_str), ("Analyst", firm or 'N/A'),
-                ("Rating Action", action_display), ("Rating", to_grade or 'N/A')]
-        if from_grade and from_grade not in ('nan', '', to_grade):
-            rows.append(("Previous Rating", from_grade))
-        if price_action and price_action not in ('nan', ''):
-            rows.append(("Price Action", price_action.title()))
-        if pt_display:
-            rows.append(("Price Target", pt_display))
-
-        rows_html = ''.join(
-            f'<div style="display:flex;justify-content:space-between;padding:10px 0;'
-            f'border-bottom:1px solid #F1F5F9;">'
-            f'<span style="color:#64748B;font-size:0.9rem;">{label}</span>'
-            f'<span style="color:#1E3A5F;font-weight:500;font-size:0.9rem;">{value}</span></div>'
-            for label, value in rows
-        )
-        st.markdown(
-            f'<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;'
-            f'padding:16px 22px;margin-top:8px;">' + rows_html + '</div>',
-            unsafe_allow_html=True,
-        )
-
-
 def _render_fund_details(info):
     """Render Fund Details tab (ETFs only)."""
     items = [
@@ -1358,8 +1078,6 @@ def main():
     spy_close = pd.Series(dtype=float)
     earnings_df = pd.DataFrame()
     quarterly_fin_df = pd.DataFrame()
-    rec_df = pd.DataFrame()
-    upgrades_df = pd.DataFrame()
 
     if asset_type == "EQUITY":
         try:
@@ -1375,24 +1093,15 @@ def main():
             quarterly_fin_df = get_quarterly_financials(active_ticker)
         except Exception:
             pass
-        try:
-            rec_df = get_recommendations(active_ticker)
-        except Exception:
-            pass
-        try:
-            upgrades_df = get_upgrades_downgrades(active_ticker)
-        except Exception:
-            pass
 
     # ═══════════════════════════════════════════════════════
     # Adaptive Tabs
     # ═══════════════════════════════════════════════════════
 
     if asset_type == "EQUITY":
-        tab_stats, tab_perf, tab_eps, tab_rev, tab_insights, tab_rec = st.tabs([
+        tab_stats, tab_perf, tab_eps, tab_rev = st.tabs([
             "📊 Key Statistics", "📈 Performance",
             "💰 Earnings Per Share", "📑 Revenue vs. Earnings",
-            "💡 Analyst Insights", "📋 Analyst Recommendations",
         ])
         with tab_stats:
             _render_key_stats(info, asset_type)
@@ -1402,10 +1111,6 @@ def main():
             _render_eps(earnings_df)
         with tab_rev:
             _render_revenue(quarterly_fin_df)
-        with tab_insights:
-            _render_analyst_insights(info, price, upgrades_df)
-        with tab_rec:
-            _render_analyst_recommendations(rec_df, upgrades_df)
 
     elif asset_type == "ETF":
         tab_stats, tab_fund = st.tabs(["📊 Market Data", "🏦 Fund Details"])
