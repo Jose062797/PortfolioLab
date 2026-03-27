@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Generated files
+*.pdf
+
+# AI assistant config
+CLAUDE.md
+
+# Internal docs (not needed for public repo)
+GUIA_TESTEO_MANUAL.txt
+
+# Test cache
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Data outputs
+data/*.json
+data/*.pdf

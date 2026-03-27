@@ -1,0 +1,17 @@
+{
+    "name": "PortfolioLab",
+    "short_name": "PortfolioLab",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#F8FAFC",
+    "theme_color": "#0A1628",
+    "description": "Financial Portfolio Optimization Laboratory",
+    "icons": [
+        {
+            "src": "./PortfolioLab.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
