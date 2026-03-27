@@ -250,6 +250,7 @@ def _create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=
         xaxis_rangeslider_visible=False,
         showlegend=False,
         font=dict(family="Inter, sans-serif"),
+        dragmode=False,
     )
 
     if prev_close and is_intraday:
@@ -617,8 +618,9 @@ def _render_revenue(fin_df: pd.DataFrame):
             gridcolor='#E2E8F0',
             tickprefix='$', ticksuffix=suffix, tickformat='.2f',
         ),
+        dragmode=False,
     )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
 
 def _render_fund_details(info):
     """Render Fund Details tab (ETFs only)."""
@@ -868,7 +870,7 @@ def main():
     st.plotly_chart(
         _create_price_chart(ohlcv, active_ticker, chart_type,
                             prev_close=info.get('previous_close'), is_intraday=is_intraday),
-        width='stretch', config={'displayModeBar': False}
+        width='stretch', config={'displayModeBar': False, 'scrollZoom': False}
     )
 
     # ═══════════════════════════════════════════════════════

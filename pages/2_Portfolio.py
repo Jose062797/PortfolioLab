@@ -487,7 +487,7 @@ def main():
                 # Pie chart
                 weights = result.get('weights', {})
                 fig_pie = create_allocation_pie(weights)
-                st.plotly_chart(fig_pie, width='stretch')
+                st.plotly_chart(fig_pie, width='stretch', config={'displayModeBar': False, 'scrollZoom': False})
 
             with col2:
                 st.markdown("#### Optimal Weights")
@@ -526,7 +526,7 @@ def main():
                     # Use columns to center the fixed-width plot
                     col_left, col_center, col_right = st.columns([1, 6, 1])
                     with col_center:
-                        st.plotly_chart(fig_ef, width='content')
+                        st.plotly_chart(fig_ef, width='content', config={'displayModeBar': False, 'scrollZoom': False})
                 else:
                     st.info("Efficient Frontier data is not available for this run.")
 
@@ -544,7 +544,7 @@ def main():
                     posterior=posterior,
                     views=viewdict if viewdict else None
                 )
-                st.plotly_chart(fig_returns, width='stretch')
+                st.plotly_chart(fig_returns, width='stretch', config={'displayModeBar': False, 'scrollZoom': False})
 
                 # Show numerical comparison
                 st.markdown("#### Numerical Comparison")
@@ -617,7 +617,7 @@ def main():
                     model_type=model_type,
                 )
 
-                st.plotly_chart(fig_historical, width='stretch')
+                st.plotly_chart(fig_historical, width='stretch', config={'displayModeBar': False, 'scrollZoom': False})
 
                 # Backtest metrics (matching PDF Historical Performance section)
                 if bt_result is not None:
@@ -662,7 +662,7 @@ def main():
                 try:
                     cov_matrix = np.array(result['covariance_matrix'])
                     fig_corr = create_correlation_heatmap(cov_matrix, result['tickers'])
-                    st.plotly_chart(fig_corr, width='stretch')
+                    st.plotly_chart(fig_corr, width='stretch', config={'displayModeBar': False, 'scrollZoom': False})
                 except Exception as e:
                     st.warning(f"Could not display correlation matrix: {e}")
             else:
