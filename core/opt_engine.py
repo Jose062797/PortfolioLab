@@ -174,10 +174,13 @@ def download_market_caps(tickers: list) -> dict:
     yf = _get_yf()
     mcaps = {}
     max_retries = 3
-    # Delays per attempt: first try is immediate; retries wait progressively longer.
-    # Yahoo Finance rate-limits /v10/quoteSummary/ aggressively right after a
-    # batch price download — the initial pause gives the limiter time to reset.
-    retry_delays = [0, 10, 25]
+    # Inter-ticker pause: space out individual .info calls to avoid triggering
+    # Yahoo Finance's per-IP rate limit on /v10/quoteSummary/.
+    # The original [1, 4, 8] delays worked because attempt-0 sleep(1) naturally
+    # paced each ticker 1s apart. Removing that spacing caused burst failures.
+    inter_ticker_pause = 1.5  # seconds between each ticker's first request
+    # Retry delays for subsequent attempts after a failure (not applied on attempt 0)
+    retry_delays = [0, 8, 20]
 
     logger.info("Downloading market caps for %d tickers...", len(tickers))
     # Brief pause so the price-download rate limit window has time to clear
@@ -190,10 +193,13 @@ def download_market_caps(tickers: list) -> dict:
 
         for attempt in range(max_retries):
             try:
-                if attempt > 0:
+                if attempt == 0:
+                    # Natural pacing between tickers on first attempt
+                    time.sleep(inter_ticker_pause)
+                else:
                     logger.info("Retrying market cap for %s (attempt %d/%d)...",
                                 ticker, attempt + 1, max_retries)
-                time.sleep(retry_delays[attempt])
+                    time.sleep(retry_delays[attempt])
                 info = yf.Ticker(ticker).info
                 # totalAssets (AUM) first — consistent for ETFs/funds.
                 # marketCap fallback for individual stocks.
