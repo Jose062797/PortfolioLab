@@ -147,9 +147,12 @@ def download_market_caps(tickers: list) -> dict:
     """
     Download market capitalizations for a list of tickers.
 
-    Raises DataDownloadError immediately if any ticker fails or returns no
-    market cap — no silent fallbacks. Only called for Black-Litterman, where
+    Raises DataDownloadError if any ticker's market cap cannot be fetched after
+    all retries — no silent fallbacks. Only called for Black-Litterman, where
     an incorrect market cap directly corrupts the market-implied prior returns.
+
+    Retries with increasing delays to handle Yahoo Finance rate-limiting that
+    commonly occurs immediately after a price data download.
 
     Args:
         tickers: List of ticker symbols.
@@ -158,30 +161,45 @@ def download_market_caps(tickers: list) -> dict:
         Dict mapping ticker → market cap (float).
 
     Raises:
-        DataDownloadError: If any ticker's market cap is unavailable.
+        DataDownloadError: If any ticker's market cap is unavailable after retries.
     """
+    import time
     yf = _get_yf()
     mcaps = {}
+    max_retries = 3
+    retry_delays = [1, 4, 8]
+
     logger.info("Downloading market caps for %d tickers...", len(tickers))
 
     for ticker in tickers:
-        try:
-            info = yf.Ticker(ticker).info
-            cap = info.get("marketCap")
-            if not cap:
-                raise DataDownloadError(
-                    f"Market cap unavailable for '{ticker}'. "
-                    "Yahoo Finance may be rate-limiting requests — please try again in a moment."
-                )
-            mcaps[ticker] = cap
-            logger.debug("  %s: $%,.0f", ticker, cap)
-        except DataDownloadError:
-            raise
-        except Exception as e:
+        cap = None
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    logger.info("Retrying market cap for %s (attempt %d/%d)...",
+                                ticker, attempt + 1, max_retries)
+                time.sleep(retry_delays[attempt])
+                info = yf.Ticker(ticker).info
+                cap = info.get("marketCap")
+                if cap:
+                    break
+                last_error = f"marketCap field missing or zero for '{ticker}'"
+            except Exception as e:
+                last_error = str(e)
+                logger.warning("Market cap attempt %d failed for %s: %s",
+                               attempt + 1, ticker, e)
+
+        if not cap:
             raise DataDownloadError(
-                f"Could not fetch market cap for '{ticker}': {e}. "
-                "Please try again."
-            ) from e
+                f"Could not fetch market cap for '{ticker}' after {max_retries} attempts. "
+                f"Yahoo Finance may be rate-limiting — please try again in a moment. "
+                f"(Last error: {last_error})"
+            )
+
+        mcaps[ticker] = cap
+        logger.debug("  %s: $%,.0f", ticker, cap)
 
     return mcaps
 
