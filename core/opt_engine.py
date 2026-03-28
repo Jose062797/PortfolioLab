@@ -437,8 +437,10 @@ def calculate_allocation(weights, prices, portfolio_value):
     logger.info("Calculating discrete allocation for $%.0f", portfolio_value)
 
     try:
-        # Use latest price per asset (matches notebook: prices.iloc[-1])
-        latest_prices = prices.iloc[-1].dropna()
+        # Forward-fill then take last row so every ticker has a valid price
+        # even if the most recent date has NaN (partial data for today).
+        # Matches notebook intent: prices.iloc[-1] on already-clean data.
+        latest_prices = prices.ffill().iloc[-1]
         latest_prices = latest_prices[list(weights.keys())]
 
         for ticker in weights.keys():
@@ -467,5 +469,5 @@ def calculate_allocation(weights, prices, portfolio_value):
         return allocation, leftover
 
     except Exception as e:
-        logger.error("Error calculating allocation: %s", e)
-        return {}, portfolio_value
+        logger.error("Error calculating allocation: %s", e, exc_info=True)
+        raise OptimizationError(f"Share allocation failed: {e}") from e
