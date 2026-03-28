@@ -14,6 +14,7 @@ import streamlit as st
 
 from core.opt_engine import (
     download_data,
+    download_market_caps,
     calculate_prior,
     run_black_litterman,
     calculate_markowitz_inputs,
@@ -40,6 +41,8 @@ def _download_data_from_tuples(tickers_tuple, date_range_tuple):
     """
     Wrapper for download_data that accepts tuples (from Streamlit UI).
     Always downloads fresh data from yfinance, matching notebook behavior.
+    Returns (prices, market_prices) — market caps are downloaded separately
+    via download_market_caps(), only when needed (Black-Litterman path).
     """
     tickers = list(tickers_tuple)
     date_range = list(date_range_tuple) if date_range_tuple else None
@@ -168,11 +171,11 @@ def run_optimization(
                 viewdict[ticker] = view_data['expected']
                 intervals[ticker] = (view_data.get('lower', 0), view_data.get('upper', 0))
 
-        # Step 1: Download fresh data (no cache — matches notebook behavior)
-        update_progress(f"Downloading data for {len(tickers)} tickers...")
+        # Step 1: Download price data (no cache — matches notebook behavior)
+        update_progress(f"Downloading price data for {len(tickers)} tickers...")
         tickers_tuple = tuple(sorted(tickers))
         date_range_tuple = tuple(date_range) if date_range else None
-        prices, market_prices, mcaps = _download_data_from_tuples(tickers_tuple, date_range_tuple)
+        prices, market_prices = _download_data_from_tuples(tickers_tuple, date_range_tuple)
 
         S = None
         delta = None
@@ -191,13 +194,18 @@ def run_optimization(
             # Now add SPY back safely for downstream tracking/plotting
             prices_clean[BENCHMARK_TICKER] = spy_aligned
         else:
-            # Step 2: Calculate market prior (pairwise covariance, returns cleaned prices for downstream)
+            # Step 2: Download market caps — fail fast if any ticker is unavailable.
+            # An incorrect market cap corrupts the BL market-implied prior returns.
+            update_progress("Downloading market caps...")
+            mcaps = download_market_caps(tickers)
+
+            # Step 3: Calculate market prior (pairwise covariance, returns cleaned prices for downstream)
             update_progress("Calculating market equilibrium...")
             S, delta, market_prior, prices_clean2 = calculate_prior(prices, market_prices, mcaps)
             # Ensure we use identically cleaned
             prices_clean = prices_clean2
-            
-            # Step 3: Run Black-Litterman model
+
+            # Step 4: Run Black-Litterman model
             if viewdict:
                 update_progress(f"Incorporating {len(viewdict)} investment views...")
             else:
@@ -322,7 +330,7 @@ def run_backtest(
             price_data.index = pd.to_datetime(price_data.index)
 
             if BENCHMARK_TICKER not in price_data.columns:
-                print(f"[WARNING] {BENCHMARK_TICKER} not found in prices_clean, downloading...")
+                logger.warning("%s not found in prices_clean, downloading separately...", BENCHMARK_TICKER)
                 spy_data = yf.download(
                     BENCHMARK_TICKER,
                     start=price_data.index[0].strftime('%Y-%m-%d'),
@@ -335,12 +343,12 @@ def run_backtest(
                     price_data[BENCHMARK_TICKER] = spy_data['Adj Close']
                 price_data = price_data.dropna()
 
-            print(f"[Backtest] Reusing cleaned data from optimization: {len(price_data)} days")
+            logger.info("Backtest: reusing cleaned data from optimization (%d days)", len(price_data))
         else:
             # Fallback: Download data if not available
             from core.data_provider import download_prices
 
-            print("[Backtest] Downloading data (prices_clean not available in result)")
+            logger.info("Backtest: prices_clean not in result, downloading fresh data")
 
             if date_range:
                 start_date_str, end_date_str = date_range
@@ -374,8 +382,6 @@ def run_backtest(
         return bt_result.to_dict() if bt_result else None
 
     except Exception as e:
-        print(f"Backtest error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error("Backtest error: %s", e, exc_info=True)
         return None
 

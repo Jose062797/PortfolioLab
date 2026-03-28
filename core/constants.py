@@ -15,7 +15,6 @@ MAX_PORTFOLIO_VALUE = 1e9  # 1 billion USD
 
 # Financial Constants
 RISK_FREE_RATE = 0.03  # 3.0% annual (US Treasury 10-year average)
-DEFAULT_MARKET_CAP = 1e9  # Default market cap if data unavailable
 MIN_WEIGHT_THRESHOLD = 0.001  # Minimum portfolio weight to display (0.1%)
 MAX_VIEW_THRESHOLD = 2.0  # 200% sanity check for views
 TRADING_DAYS_PER_YEAR = 252  # Trading days for annualization

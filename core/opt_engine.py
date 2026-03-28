@@ -17,8 +17,7 @@ from datetime import datetime, timedelta
 
 from core.constants import (
     RISK_FREE_RATE, MIN_DATA_POINTS,
-    DEFAULT_MARKET_CAP, MIN_WEIGHT_THRESHOLD,
-    BENCHMARK_TICKER, DEFAULT_PORTFOLIO_VALUE,
+    MIN_WEIGHT_THRESHOLD, BENCHMARK_TICKER, DEFAULT_PORTFOLIO_VALUE,
     OptimizationError, DataDownloadError, InsufficientDataError
 )
 
@@ -142,26 +141,50 @@ def download_data(tickers, date_range):
             else:
                 logger.warning("Market data download failed: %s", e)
 
-    # Get market caps
-    logger.info("Downloading market caps...")
+    return prices, market_prices
+
+
+def download_market_caps(tickers: list) -> dict:
+    """
+    Download market capitalizations for a list of tickers.
+
+    Raises DataDownloadError immediately if any ticker fails or returns no
+    market cap — no silent fallbacks. Only called for Black-Litterman, where
+    an incorrect market cap directly corrupts the market-implied prior returns.
+
+    Args:
+        tickers: List of ticker symbols.
+
+    Returns:
+        Dict mapping ticker → market cap (float).
+
+    Raises:
+        DataDownloadError: If any ticker's market cap is unavailable.
+    """
+    yf = _get_yf()
     mcaps = {}
-    failed_tickers = []
+    logger.info("Downloading market caps for %d tickers...", len(tickers))
 
     for ticker in tickers:
         try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            mcaps[ticker] = info.get("marketCap", DEFAULT_MARKET_CAP)
-            logger.debug("  %s: $%,.0f", ticker, mcaps[ticker])
-        except Exception:
-            logger.warning("  %s: using default market cap (data unavailable)", ticker)
-            mcaps[ticker] = DEFAULT_MARKET_CAP
-            failed_tickers.append(ticker)
+            info = yf.Ticker(ticker).info
+            cap = info.get("marketCap")
+            if not cap:
+                raise DataDownloadError(
+                    f"Market cap unavailable for '{ticker}'. "
+                    "Yahoo Finance may be rate-limiting requests — please try again in a moment."
+                )
+            mcaps[ticker] = cap
+            logger.debug("  %s: $%,.0f", ticker, cap)
+        except DataDownloadError:
+            raise
+        except Exception as e:
+            raise DataDownloadError(
+                f"Could not fetch market cap for '{ticker}': {e}. "
+                "Please try again."
+            ) from e
 
-    if failed_tickers:
-        logger.warning("Could not fetch market cap for: %s", ', '.join(failed_tickers))
-
-    return prices, market_prices, mcaps
+    return mcaps
 
 
 def calculate_prior(prices, market_prices, mcaps):
