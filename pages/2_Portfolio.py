@@ -3,6 +3,7 @@ Portfolio Page - Black-Litterman Streamlit App
 Modern layout: no sidebar, top navbar, clean card-based UI
 """
 
+import logging
 import os
 import io
 from datetime import datetime, timedelta
@@ -25,10 +26,12 @@ from utils.visualizations import (
     create_historical_performance_chart
 )
 
+logger = logging.getLogger(__name__)
+
 # Page configuration
 st.set_page_config(
     page_title="Portfolio – PortfolioLab",
-    page_icon="BL",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -99,6 +102,13 @@ def _apply_pending_restore():
         if h_result['model_type'] in model_options:
             st.session_state['model_type_select'] = h_result['model_type']
 
+    # Restore Markowitz objective (only relevant when model is Markowitz)
+    if h_result.get('model_type') == 'Markowitz' and 'obj_function' in h_result:
+        obj_options = ["Min Variance", "Max Sharpe",
+                       "Maximise Return for a Given Risk", "Minimise Risk for a Given Return"]
+        if h_result['obj_function'] in obj_options:
+            st.session_state['obj_function_select'] = h_result['obj_function']
+
 
 def main():
     """Main optimizer page - modern, clean layout."""
@@ -143,6 +153,7 @@ def main():
                 "Optimization Objective",
                 options=["Min Variance", "Max Sharpe", "Maximise Return for a Given Risk", "Minimise Risk for a Given Return"],
                 index=0,
+                key="obj_function_select",
                 help="Objective function to minimize/maximize. Min Variance seeks the lowest possible risk. Max Sharpe seeks the best risk-adjusted return (using L2 gamma for diversification). Maximise Return for a Given Risk lets you specify a volatility ceiling. Minimise Risk for a Given Return minimizes risk given a return goal."
             )
             
@@ -728,9 +739,8 @@ def main():
                 type="primary"
             )
         except Exception as e:
-            st.error(f"Error generating PDF: {str(e)}")
-            import traceback
-            st.code(traceback.format_exc())
+            logger.error("PDF generation failed: %s", e, exc_info=True)
+            st.error("❌ Could not generate the PDF report. Please try again or contact support if the issue persists.")
 
     elif result and not result.get('success'):
         error_msg = result.get('error', 'Unknown error')

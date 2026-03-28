@@ -101,6 +101,13 @@ def generate_portfolio_pdf(result_data, logo_path=None):
     historical_data = result_data.get('historical_data', None)
     covariance = result_data.get('covariance_matrix', None)
 
+    # Latest prices per ticker — extracted from prices_clean (last date row)
+    latest_prices = {}
+    prices_clean_dict = result_data.get('prices_clean', {})
+    if prices_clean_dict:
+        last_date = sorted(prices_clean_dict.keys())[-1]
+        latest_prices = prices_clean_dict[last_date]  # {ticker: price}
+
     # Date ranges
     date_range = result_data.get('date_range', None)
     if date_range and len(date_range) == 2:
@@ -130,7 +137,7 @@ def generate_portfolio_pdf(result_data, logo_path=None):
     _add_allocation_title(pdf)
     add_chart_to_pdf(pdf, create_allocation_chart(weights), width_scale=0.75)
     add_chart_description(pdf, 'allocation')
-    _add_allocation_table(pdf, weights, allocation, portfolio_value)
+    _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_prices)
 
     # ── PAGE 3: Returns Analysis (Tab 2) — only for Black-Litterman ──
     if model_type != "Markowitz" and len(market_prior) > 0:
@@ -240,7 +247,7 @@ def _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
     start_x = pdf.l_margin
     start_y = pdf.get_y()
 
-    labels = ['Expected Return', 'Volatility', 'Sharpe Ratio',
+    labels = ['Expected Return', 'Volatility', 'Sharpe (Ex-Ante)',
               'Portfolio Value', 'Assets']
     values = [
         f'{expected_return * 100:.2f}%',
@@ -270,6 +277,15 @@ def _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
 
     pdf.set_text_color(0, 0, 0)
     pdf.set_y(start_y + card_height + 5)
+
+    # Footnote: clarify ex-ante vs ex-post Sharpe for readers
+    pdf.set_font('helvetica', 'I', 7)
+    pdf.set_text_color(130, 130, 130)
+    pdf.cell(0, 4,
+             'Sharpe (Ex-Ante): model estimate from expected returns. '
+             'Sharpe (Ex-Post): realised ratio from historical backtest (see Historical Performance).',
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_text_color(0, 0, 0)
 
 
 def _add_executive_summary(pdf, portfolio_value, n_assets,
@@ -321,34 +337,59 @@ def _add_allocation_title(pdf):
     pdf.ln(2)
 
 
-def _add_allocation_table(pdf, weights, allocation, portfolio_value):
-    """Add intro text and allocation table: Asset | Weight | Shares | Value."""
+def _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_prices=None):
+    """Add intro text and allocation table: Asset | Weight | Shares | Price | Actual Value.
+
+    Mirrors the web UI's allocation table (visualizations.create_allocation_table).
+    'Actual Value' = shares × latest price, matching exactly what the user would pay.
+    Falls back to weight × portfolio_value when prices are unavailable.
+    """
     pdf.set_font('helvetica', '', 9)
     available_width = pdf.w - pdf.l_margin - pdf.r_margin
     pdf.multi_cell(available_width, 5,
                    "Optimal portfolio weights and discrete share allocation:")
     pdf.ln(2)
 
-    col_widths = [25, 28, 22, 38]
-    pdf.set_font('helvetica', 'B', 9)
-    pdf.cell(col_widths[0], 6, 'Asset', border=1, align='C', new_x=XPos.RIGHT)
-    pdf.cell(col_widths[1], 6, 'Weight', border=1, align='C', new_x=XPos.RIGHT)
-    pdf.cell(col_widths[2], 6, 'Shares', border=1, align='C', new_x=XPos.RIGHT)
-    pdf.cell(col_widths[3], 6, 'Value', border=1, align='C',
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    prices = latest_prices or {}
+    has_prices = bool(prices)
+
+    if has_prices:
+        col_widths = [22, 25, 18, 28, 38]  # Asset | Weight | Shares | Price | Actual Value
+        pdf.set_font('helvetica', 'B', 9)
+        pdf.cell(col_widths[0], 6, 'Asset',        border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[1], 6, 'Weight',        border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[2], 6, 'Shares',        border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[3], 6, 'Price ($)',     border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[4], 6, 'Actual Value',  border=1, align='C',
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    else:
+        col_widths = [25, 28, 22, 38]  # Asset | Weight | Shares | Target Value
+        pdf.set_font('helvetica', 'B', 9)
+        pdf.cell(col_widths[0], 6, 'Asset',         border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[1], 6, 'Weight',         border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[2], 6, 'Shares',         border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[3], 6, 'Target Value',   border=1, align='C',
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.set_font('helvetica', '', 8)
     sorted_weights = sorted(weights.items(), key=lambda x: x[1], reverse=True)
 
     for ticker, weight in sorted_weights:
         if weight > MIN_WEIGHT_THRESHOLD:
-            amount = weight * portfolio_value
             shares = allocation.get(ticker, 0)
-            pdf.cell(col_widths[0], 6, ticker, border=1, align='C', new_x=XPos.RIGHT)
+            pdf.cell(col_widths[0], 6, ticker,           border=1, align='C', new_x=XPos.RIGHT)
             pdf.cell(col_widths[1], 6, f'{weight*100:.2f}%', border=1, align='C', new_x=XPos.RIGHT)
-            pdf.cell(col_widths[2], 6, str(shares), border=1, align='C', new_x=XPos.RIGHT)
-            pdf.cell(col_widths[3], 6, f'${amount:,.2f}', border=1, align='C',
-                     new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.cell(col_widths[2], 6, str(shares),      border=1, align='C', new_x=XPos.RIGHT)
+            if has_prices:
+                price = prices.get(ticker, 0) or 0
+                actual_value = shares * price if shares > 0 else 0
+                pdf.cell(col_widths[3], 6, f'${price:,.2f}',        border=1, align='C', new_x=XPos.RIGHT)
+                pdf.cell(col_widths[4], 6, f'${actual_value:,.2f}', border=1, align='C',
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            else:
+                target_value = weight * portfolio_value
+                pdf.cell(col_widths[3], 6, f'${target_value:,.2f}', border=1, align='C',
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(5)
 

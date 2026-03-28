@@ -356,10 +356,9 @@ def add_chart_to_pdf(pdf, image_bytes: bytes, width_scale: float = 1.0) -> None:
         return
 
     from PIL import Image
-    import tempfile
-    import os
 
-    img = Image.open(io.BytesIO(image_bytes))
+    img_io = io.BytesIO(image_bytes)
+    img = Image.open(img_io)
     img_width, img_height = img.size
     aspect_ratio = img_height / img_width
 
@@ -376,15 +375,9 @@ def add_chart_to_pdf(pdf, image_bytes: bytes, width_scale: float = 1.0) -> None:
     pdf.ln(3)
     x_position = pdf.l_margin + (available_width - chart_width) / 2
 
-    # Use tempfile for safe cleanup
-    fd, temp_path = tempfile.mkstemp(suffix='.png')
-    try:
-        os.close(fd)
-        img.save(temp_path, 'PNG')
-        pdf.image(temp_path, x=x_position, y=pdf.get_y(), w=chart_width)
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+    # Pass BytesIO directly — fpdf2 supports file-like objects, no temp file needed
+    img_io.seek(0)
+    pdf.image(img_io, x=x_position, y=pdf.get_y(), w=chart_width)
 
     pdf.set_y(pdf.get_y() + chart_height + 3)
 
@@ -456,11 +449,11 @@ def add_historical_metrics(pdf, historical_data: dict) -> None:
     _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
                       'Annualized Volatility', f'{spy_vol:.2f}%')
     start_y += card_height + 2
-    # Row 3: Sharpe Ratio
+    # Row 3: Sharpe Ratio (ex-post — realised from backtest returns)
     _draw_metric_card(pdf, start_x, start_y, col_width, card_height,
-                      'Sharpe Ratio', f'{portfolio_sharpe:.2f}')
+                      'Sharpe (Ex-Post)', f'{portfolio_sharpe:.2f}')
     _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
-                      'Sharpe Ratio', f'{spy_sharpe:.2f}')
+                      'Sharpe (Ex-Post)', f'{spy_sharpe:.2f}')
     start_y += card_height + 2
     # Row 4: Max Drawdown
     _draw_metric_card(pdf, start_x, start_y, col_width, card_height,
