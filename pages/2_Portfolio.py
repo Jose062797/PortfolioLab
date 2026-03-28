@@ -188,10 +188,9 @@ def main():
                 max_value=2.0,
                 value=gamma_default,
                 step=0.1,
-                help="Diversification penalty. "
-                     "Markowitz default: 0.0 (pure textbook). "
-                     "Black-Litterman default: 1.0 (matches PyPortfolioOpt cookbook). "
-                     "Increase to reduce concentration in few assets."
+                help="Controls weight concentration. At 0 the optimizer allocates freely; "
+                     "higher values spread weights more evenly, reducing concentration in a few assets. "
+                     "Default: 0.0 for Markowitz, 1.0 for Black-Litterman."
             )
 
         st.markdown("<br>", unsafe_allow_html=True)
