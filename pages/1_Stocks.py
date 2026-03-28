@@ -900,15 +900,15 @@ def main():
         else:
             color, pct_str = "#94A3B8", "—"
         cells += (
-            '<div style="text-align:center;flex:0 0 auto;width:68px;padding:7px 4px;">'
+            '<div style="text-align:center;flex:1 1 0;min-width:60px;padding:7px 4px;">'
             f'<div style="font-size:0.68rem;color:#64748B;text-transform:uppercase;letter-spacing:0.04em;">{label}</div>'
             f'<div style="font-size:0.82rem;font-weight:600;color:{color};white-space:nowrap;">{pct_str}</div>'
             '</div>'
         )
     st.markdown(
-        '<div style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;'
-        'border:1px solid #E2E8F0;border-radius:8px;background:white;'
-        f'margin:0.5rem 0 1rem 0;scrollbar-width:none;">{cells}</div>',
+        '<div style="display:flex;justify-content:space-evenly;overflow-x:auto;'
+        '-webkit-overflow-scrolling:touch;border:1px solid #E2E8F0;border-radius:8px;'
+        f'background:white;margin:0.5rem 0 1rem 0;scrollbar-width:none;">{cells}</div>',
         unsafe_allow_html=True
     )
 
