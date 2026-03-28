@@ -8,7 +8,6 @@ Centralizing constants ensures consistency and makes maintenance easier.
 # Data Validation Constants
 MIN_TICKERS = 2
 MAX_TICKERS = 20
-MIN_DATE_RANGE_DAYS = 60
 MIN_DATA_POINTS = 20
 MIN_PORTFOLIO_VALUE = 100
 MAX_PORTFOLIO_VALUE = 1e9  # 1 billion USD
@@ -21,22 +20,14 @@ TRADING_DAYS_PER_YEAR = 252  # Trading days for annualization
 
 # Application Constants
 BENCHMARK_TICKER = "SPY"  # S&P 500 ETF for market data
-RESULTS_FILENAME = "bl_results.json"  # Output file for optimization results
-DEFAULT_PORTFOLIO_VALUE = 10000  # Default portfolio value in USD
-HEADER_WIDTH = 70  # Character width for console headers
 
 # Historical Analysis Constants
 HISTORICAL_PERIOD_YEARS = 5  # Years for historical validation
 
 # Reporting Constants
-LOGO_FILENAMES = ['PortfolioLab.png', 'Finance for all.png', 'logo.png']
-
 # Comparison Tolerance Constants
 RETURN_COMPARISON_TOLERANCE = 1.0  # Percentage points for return similarity
 SHARPE_COMPARISON_TOLERANCE = 0.1  # Absolute difference for Sharpe ratio
-
-# Auto-cleanup Constants
-MAX_SAVED_OPTIMIZATIONS = 20  # Maximum number of saved optimization JSON files
 
 
 # ===== Domain Exceptions =====

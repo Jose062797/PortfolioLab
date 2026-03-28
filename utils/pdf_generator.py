@@ -198,8 +198,8 @@ def _add_cover_page(pdf, portfolio_value, data_start, data_end,
     if logo_path and os.path.exists(logo_path):
         try:
             pdf.image(logo_path, x=10, y=10, w=40)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Could not add logo to PDF cover: %s", e)
 
     pdf.set_font('helvetica', 'B', 24)
     pdf.set_y(40)

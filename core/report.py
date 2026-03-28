@@ -18,8 +18,8 @@ from fpdf.enums import XPos, YPos
 # Import constants — supports both `python core/report.py` and `from core.report import ...`
 try:
     from constants import (
-        BENCHMARK_TICKER, HEADER_WIDTH, HISTORICAL_PERIOD_YEARS,
-        MIN_DATA_POINTS, MIN_WEIGHT_THRESHOLD, RISK_FREE_RATE,
+        BENCHMARK_TICKER, HISTORICAL_PERIOD_YEARS,
+        MIN_WEIGHT_THRESHOLD, RISK_FREE_RATE,
         TRADING_DAYS_PER_YEAR
     )
     from pdf_shared import (
@@ -30,8 +30,8 @@ try:
     )
 except ImportError:
     from core.constants import (
-        BENCHMARK_TICKER, HEADER_WIDTH, HISTORICAL_PERIOD_YEARS,
-        MIN_DATA_POINTS, MIN_WEIGHT_THRESHOLD, RISK_FREE_RATE,
+        BENCHMARK_TICKER, HISTORICAL_PERIOD_YEARS,
+        MIN_WEIGHT_THRESHOLD, RISK_FREE_RATE,
         TRADING_DAYS_PER_YEAR
     )
     from core.pdf_shared import (

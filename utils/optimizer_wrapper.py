@@ -29,7 +29,6 @@ from core.constants import (
     MIN_PORTFOLIO_VALUE,
     MAX_PORTFOLIO_VALUE,
     MIN_WEIGHT_THRESHOLD,
-    DEFAULT_PORTFOLIO_VALUE,
     BENCHMARK_TICKER,
     TRADING_DAYS_PER_YEAR
 )
@@ -290,7 +289,6 @@ def run_optimization(
 
 def run_backtest(
     result: Dict[str, Any],
-    backtest_years: int = None,
     date_range: Tuple[str, str] = None
 ) -> Optional[Dict[str, Any]]:
     """
@@ -301,9 +299,7 @@ def run_backtest(
 
     Args:
         result: Optimization result dictionary
-        backtest_years: Number of years to backtest (deprecated, use date_range instead)
         date_range: Tuple of (start_date, end_date) as strings in 'YYYY-MM-DD' format
-                   If provided, this takes precedence over backtest_years
 
     Returns:
         Dictionary with backtest results, or None if failed.
@@ -352,11 +348,6 @@ def run_backtest(
 
             if date_range:
                 start_date_str, end_date_str = date_range
-            elif backtest_years:
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=backtest_years * 365 + 30)
-                start_date_str = start_date.strftime('%Y-%m-%d')
-                end_date_str = end_date.strftime('%Y-%m-%d')
             else:
                 end_date = datetime.now()
                 start_date = end_date - timedelta(days=10 * 365 + 30)

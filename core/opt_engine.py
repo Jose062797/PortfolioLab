@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 from core.constants import (
     RISK_FREE_RATE, MIN_DATA_POINTS,
-    MIN_WEIGHT_THRESHOLD, BENCHMARK_TICKER, DEFAULT_PORTFOLIO_VALUE,
+    MIN_WEIGHT_THRESHOLD, BENCHMARK_TICKER,
     OptimizationError, DataDownloadError, InsufficientDataError
 )
 
@@ -42,7 +42,7 @@ def _get_pypfopt():
         from pypfopt import (
             BlackLittermanModel, risk_models, black_litterman,
             EfficientFrontier, objective_functions, DiscreteAllocation,
-            expected_returns, CLA
+            expected_returns
         )
         _pypfopt = type('pypfopt', (), {
             'BlackLittermanModel': BlackLittermanModel,
@@ -52,7 +52,6 @@ def _get_pypfopt():
             'objective_functions': objective_functions,
             'DiscreteAllocation': DiscreteAllocation,
             'expected_returns': expected_returns,
-            'CLA': CLA,
         })
     return _pypfopt
 
@@ -331,8 +330,8 @@ def calculate_efficient_frontier(mu, S, points=100):
                 ret, vol, _ = ef.portfolio_performance()
                 mus.append(ret)
                 sigmas.append(vol)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Skipping frontier point at target_ret=%.4f: %s", target_ret, e)
         
         # Extract individual asset expected returns and volatilities
         asset_mu = mu.to_dict()
