@@ -174,9 +174,15 @@ def download_market_caps(tickers: list) -> dict:
     yf = _get_yf()
     mcaps = {}
     max_retries = 3
-    retry_delays = [1, 4, 8]
+    # Delays per attempt: first try is immediate; retries wait progressively longer.
+    # Yahoo Finance rate-limits /v10/quoteSummary/ aggressively right after a
+    # batch price download — the initial pause gives the limiter time to reset.
+    retry_delays = [0, 10, 25]
 
     logger.info("Downloading market caps for %d tickers...", len(tickers))
+    # Brief pause so the price-download rate limit window has time to clear
+    # before we start hitting the (stricter) quoteSummary endpoint.
+    time.sleep(3)
 
     for ticker in tickers:
         cap = None
