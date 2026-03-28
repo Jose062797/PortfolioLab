@@ -73,7 +73,6 @@ The app will open at `http://localhost:8501`.
 │   ├── pdf_generator.py      # Web PDF export
 │   └── session_manager.py    # Streamlit session state
 ├── tests/                    # pytest test suite
-├── scripts/                  # CLI diagnostic tools
 ├── static/                   # Images and PWA assets
 └── assets/                   # Logo
 ```
@@ -83,7 +82,7 @@ The app will open at `http://localhost:8501`.
 ## Running Tests
 
 ```powershell
-python -m pytest tests/ -v
+.\.venv\Scripts\python.exe -m pytest tests\ -v
 ```
 
 ---
