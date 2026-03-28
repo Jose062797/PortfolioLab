@@ -259,14 +259,14 @@ def get_asset_info(ticker: str) -> dict:
         'industry': _get('industry'),
         'currency': _get('currency'),
         'description': _get('longBusinessSummary'),
-        # Trading data
-        'price': _get('currentPrice') or _get('regularMarketPrice'),
-        'previous_close': _get('previousClose') or _get('regularMarketPreviousClose'),
-        'open_price': _get('regularMarketOpen') or _get('open'),
-        'day_high': _get('dayHigh') or _get('regularMarketDayHigh'),
-        'day_low': _get('dayLow') or _get('regularMarketDayLow'),
-        'market_cap': _get('marketCap'),
-        'volume': _get('volume') or _get('regularMarketVolume'),
+        # Trading data — fast_info wins for real-time fields (more current than .info)
+        'price':        fast.get('currentPrice')      or info.get('currentPrice')      or info.get('regularMarketPrice'),
+        'previous_close': fast.get('previousClose')   or info.get('previousClose')     or info.get('regularMarketPreviousClose'),
+        'open_price':   fast.get('regularMarketOpen') or info.get('regularMarketOpen') or info.get('open'),
+        'day_high':     fast.get('dayHigh')           or info.get('dayHigh')           or info.get('regularMarketDayHigh'),
+        'day_low':      fast.get('dayLow')            or info.get('dayLow')            or info.get('regularMarketDayLow'),
+        'market_cap':   fast.get('marketCap')         or info.get('marketCap'),
+        'volume':       fast.get('volume')            or info.get('volume')            or info.get('regularMarketVolume'),
         'avg_volume': _get('averageVolume'),
         'shares_outstanding': _get('sharesOutstanding'),
         # 52-week range
