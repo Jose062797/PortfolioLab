@@ -147,14 +147,17 @@ def quick_report(tickers_str, portfolio_value=10000, output_filename="bl_portfol
     prices = ohlc["Close"]
     market_prices = yf.download(BENCHMARK_TICKER, period="max", progress=False)["Close"]
 
-    # Get market caps
+    # Get market caps (totalAssets for ETFs, marketCap for stocks — no silent fallback)
     mcaps = {}
     for t in tickers:
-        try:
-            stock = yf.Ticker(t)
-            mcaps[t] = stock.info["marketCap"]
-        except Exception:
-            mcaps[t] = 1e9
+        info = yf.Ticker(t).info
+        cap = info.get("totalAssets") or info.get("marketCap")
+        if not cap:
+            raise ValueError(
+                f"Could not fetch market size for '{t}'. "
+                "Yahoo Finance may be rate-limiting — please try again."
+            )
+        mcaps[t] = cap
 
     # Calculate prior
     print("Calculating market prior...")

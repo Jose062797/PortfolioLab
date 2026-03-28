@@ -98,7 +98,7 @@ def download_data(tickers, date_range):
                 prices = ohlc["Close"]
 
             if len(prices) < MIN_DATA_POINTS:
-                raise ValueError(f"Insufficient data: only {len(prices)} days (need at least {MIN_DATA_POINTS})")
+                raise InsufficientDataError(f"Insufficient data: only {len(prices)} days (need at least {MIN_DATA_POINTS})")
 
             logger.info("Downloaded %d days of data (%s to %s)",
                         len(prices), prices.index[0].date(), prices.index[-1].date())
