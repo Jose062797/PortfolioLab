@@ -145,11 +145,18 @@ def download_data(tickers, date_range):
 
 def download_market_caps(tickers: list) -> dict:
     """
-    Download market capitalizations for a list of tickers.
+    Download market sizes for a list of tickers for use as BL market weights.
 
-    Raises DataDownloadError if any ticker's market cap cannot be fetched after
-    all retries — no silent fallbacks. Only called for Black-Litterman, where
-    an incorrect market cap directly corrupts the market-implied prior returns.
+    Field priority per asset type:
+      - ETFs/funds: totalAssets (AUM) — marketCap is inconsistent or missing
+      - Stocks:     marketCap — standard BL assumption
+
+    Uses totalAssets → marketCap fallback chain so ETFs and stocks are handled
+    consistently with a single call per ticker.
+
+    Raises DataDownloadError if a ticker's size cannot be fetched after all
+    retries — no silent fallbacks. Only called for Black-Litterman, where
+    incorrect market weights directly corrupt the market-implied prior returns.
 
     Retries with increasing delays to handle Yahoo Finance rate-limiting that
     commonly occurs immediately after a price data download.
@@ -158,10 +165,10 @@ def download_market_caps(tickers: list) -> dict:
         tickers: List of ticker symbols.
 
     Returns:
-        Dict mapping ticker → market cap (float).
+        Dict mapping ticker → market size (float, in USD).
 
     Raises:
-        DataDownloadError: If any ticker's market cap is unavailable after retries.
+        DataDownloadError: If any ticker's market size is unavailable after retries.
     """
     import time
     yf = _get_yf()
@@ -182,10 +189,14 @@ def download_market_caps(tickers: list) -> dict:
                                 ticker, attempt + 1, max_retries)
                 time.sleep(retry_delays[attempt])
                 info = yf.Ticker(ticker).info
-                cap = info.get("marketCap")
+                # totalAssets (AUM) first — consistent for ETFs/funds.
+                # marketCap fallback for individual stocks.
+                cap = info.get("totalAssets") or info.get("marketCap")
                 if cap:
+                    logger.debug("  %s: $%,.0f (field=%s)", ticker, cap,
+                                 "totalAssets" if info.get("totalAssets") else "marketCap")
                     break
-                last_error = f"marketCap field missing or zero for '{ticker}'"
+                last_error = f"neither totalAssets nor marketCap available for '{ticker}'"
             except Exception as e:
                 last_error = str(e)
                 logger.warning("Market cap attempt %d failed for %s: %s",
@@ -193,7 +204,7 @@ def download_market_caps(tickers: list) -> dict:
 
         if not cap:
             raise DataDownloadError(
-                f"Could not fetch market cap for '{ticker}' after {max_retries} attempts. "
+                f"Could not fetch market size for '{ticker}' after {max_retries} attempts. "
                 f"Yahoo Finance may be rate-limiting — please try again in a moment. "
                 f"(Last error: {last_error})"
             )
