@@ -406,19 +406,19 @@ def add_historical_metrics(pdf, historical_data: dict) -> None:
     col_width = (available_width - gap) / 2
     card_height = 14
 
-    portfolio_return = float(historical_data.get("return") or 0)
-    portfolio_vol = float(historical_data.get("volatility") or 0)
-    portfolio_sharpe = float(historical_data.get("sharpe") or 0)
-    portfolio_md = float(historical_data.get("max_drawdown") or 0)
-    portfolio_sortino = float(historical_data.get("sortino") or 0)
-    portfolio_calmar = float(historical_data.get("calmar") or 0)
+    portfolio_return   = float(historical_data["return"])
+    portfolio_vol      = float(historical_data["volatility"])
+    portfolio_sharpe   = float(historical_data["sharpe"])
+    portfolio_md       = float(historical_data["max_drawdown"])
+    portfolio_sortino  = float(historical_data["sortino"])
+    portfolio_calmar   = float(historical_data["calmar"])
 
-    spy_return = float(historical_data.get("spy_return") or 0)
-    spy_vol = float(historical_data.get("spy_volatility") or 0)
-    spy_sharpe = float(historical_data.get("spy_sharpe") or 0)
-    spy_md = float(historical_data.get("spy_max_drawdown") or 0)
-    spy_sortino = float(historical_data.get("spy_sortino") or 0)
-    spy_calmar = float(historical_data.get("spy_calmar") or 0)
+    spy_return  = float(historical_data["spy_return"])
+    spy_vol     = float(historical_data["spy_volatility"])
+    spy_sharpe  = float(historical_data["spy_sharpe"])
+    spy_md      = float(historical_data["spy_max_drawdown"])
+    spy_sortino = float(historical_data["spy_sortino"])
+    spy_calmar  = float(historical_data["spy_calmar"])
 
     # Column titles (match web: BL Portfolio | SPY Benchmark)
     pdf.ln(2)

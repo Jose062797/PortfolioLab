@@ -381,10 +381,12 @@ def _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_pric
             pdf.cell(col_widths[1], 6, f'{weight*100:.2f}%', border=1, align='C', new_x=XPos.RIGHT)
             pdf.cell(col_widths[2], 6, str(shares),      border=1, align='C', new_x=XPos.RIGHT)
             if has_prices:
-                price = prices.get(ticker, 0) or 0
-                actual_value = shares * price if shares > 0 else 0
-                pdf.cell(col_widths[3], 6, f'${price:,.2f}',        border=1, align='C', new_x=XPos.RIGHT)
-                pdf.cell(col_widths[4], 6, f'${actual_value:,.2f}', border=1, align='C',
+                price = prices.get(ticker)
+                actual_value = shares * price if (price and shares > 0) else None
+                price_str  = f'${price:,.2f}'        if price        else 'N/A'
+                value_str  = f'${actual_value:,.2f}' if actual_value else 'N/A'
+                pdf.cell(col_widths[3], 6, price_str, border=1, align='C', new_x=XPos.RIGHT)
+                pdf.cell(col_widths[4], 6, value_str, border=1, align='C',
                          new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             else:
                 target_value = weight * portfolio_value
