@@ -265,7 +265,7 @@ def get_asset_info(ticker: str) -> dict:
         'open_price':   fast.get('regularMarketOpen') or info.get('regularMarketOpen') or info.get('open'),
         'day_high':     fast.get('dayHigh')           or info.get('dayHigh')           or info.get('regularMarketDayHigh'),
         'day_low':      fast.get('dayLow')            or info.get('dayLow')            or info.get('regularMarketDayLow'),
-        'market_cap':   fast.get('marketCap')         or info.get('marketCap'),
+        'market_cap':   info.get('marketCap')         or fast.get('marketCap'),
         'volume':       fast.get('volume')            or info.get('volume')            or info.get('regularMarketVolume'),
         'avg_volume': _get('averageVolume'),
         'shares_outstanding': _get('sharesOutstanding'),
@@ -292,7 +292,7 @@ def get_asset_info(ticker: str) -> dict:
         'return_on_equity': _get('returnOnEquity'),
         'return_on_assets': _get('returnOnAssets'),
         # Dividends
-        'dividend_yield': _get('trailingAnnualDividendYield') or _get('dividendYield'),
+        'dividend_yield': _get('dividendYield') or _get('trailingAnnualDividendYield'),
         'dividend_rate': _get('dividendRate'),
         'ex_dividend_date': _get('exDividendDate'),
         # Analyst consensus
