@@ -259,14 +259,18 @@ def get_asset_info(ticker: str) -> dict:
         'industry': _get('industry'),
         'currency': _get('currency'),
         'description': _get('longBusinessSummary'),
-        # Trading data — fast_info wins for real-time fields (more current than .info)
-        'price':        fast.get('currentPrice')      or info.get('currentPrice')      or info.get('regularMarketPrice'),
-        'previous_close': fast.get('previousClose')   or info.get('previousClose')     or info.get('regularMarketPreviousClose'),
-        'open_price':   fast.get('regularMarketOpen') or info.get('regularMarketOpen') or info.get('open'),
-        'day_high':     fast.get('dayHigh')           or info.get('dayHigh')           or info.get('regularMarketDayHigh'),
-        'day_low':      fast.get('dayLow')            or info.get('dayLow')            or info.get('regularMarketDayLow'),
-        'market_cap':   info.get('marketCap')         or fast.get('marketCap'),
-        'volume':       fast.get('volume')            or info.get('volume')            or info.get('regularMarketVolume'),
+        # Trading data — source priority per field:
+        # fast_info wins for intraday fields (day range, volume, current price):
+        #   reliable and current across all asset types (stocks, ETFs, crypto)
+        # info wins for session-boundary fields (open, previous close):
+        #   fast_info is inconsistent for ETFs/funds on these fields
+        'price':          fast.get('currentPrice')      or info.get('currentPrice')      or info.get('regularMarketPrice'),
+        'previous_close': info.get('previousClose')     or info.get('regularMarketPreviousClose') or fast.get('previousClose'),
+        'open_price':     info.get('regularMarketOpen') or info.get('open')              or fast.get('regularMarketOpen'),
+        'day_high':       fast.get('dayHigh')           or info.get('dayHigh')           or info.get('regularMarketDayHigh'),
+        'day_low':        fast.get('dayLow')            or info.get('dayLow')            or info.get('regularMarketDayLow'),
+        'market_cap':     info.get('marketCap')         or fast.get('marketCap'),
+        'volume':         fast.get('volume')            or info.get('volume')            or info.get('regularMarketVolume'),
         'avg_volume': _get('averageVolume'),
         'shares_outstanding': _get('sharesOutstanding'),
         # 52-week range
