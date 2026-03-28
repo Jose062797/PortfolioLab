@@ -449,17 +449,17 @@ def add_historical_metrics(pdf, historical_data: dict) -> None:
     _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
                       'Annualized Volatility', f'{spy_vol:.2f}%')
     start_y += card_height + 2
-    # Row 3: Sharpe Ratio (ex-post — realised from backtest returns)
-    _draw_metric_card(pdf, start_x, start_y, col_width, card_height,
-                      'Sharpe (Ex-Post)', f'{portfolio_sharpe:.2f}')
-    _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
-                      'Sharpe (Ex-Post)', f'{spy_sharpe:.2f}')
-    start_y += card_height + 2
-    # Row 4: Max Drawdown
+    # Row 3: Max Drawdown
     _draw_metric_card(pdf, start_x, start_y, col_width, card_height,
                       'Max Drawdown', f'{portfolio_md:.2f}%')
     _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
                       'Max Drawdown', f'{spy_md:.2f}%')
+    start_y += card_height + 2
+    # Row 4: Sharpe Ratio (ex-post — realised from backtest returns)
+    _draw_metric_card(pdf, start_x, start_y, col_width, card_height,
+                      'Sharpe (Ex-Post)', f'{portfolio_sharpe:.2f}')
+    _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
+                      'Sharpe (Ex-Post)', f'{spy_sharpe:.2f}')
     start_y += card_height + 2
     # Row 5: Sortino Ratio
     _draw_metric_card(pdf, start_x, start_y, col_width, card_height,

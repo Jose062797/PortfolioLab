@@ -640,8 +640,8 @@ def main():
                         pm = bt_result.portfolio_metrics
                         st.metric("Annualized Return", f"{pm.annualized_return:.2f}%")
                         st.metric("Annualized Volatility", f"{pm.annualized_volatility:.2f}%")
-                        st.metric("Sharpe Ratio", f"{pm.sharpe_ratio:.2f}")
                         st.metric("Max Drawdown", f"{pm.max_drawdown:.2f}%")
+                        st.metric("Sharpe Ratio", f"{pm.sharpe_ratio:.2f}")
                         st.metric("Sortino Ratio", f"{pm.sortino_ratio:.2f}")
                         st.metric("Calmar Ratio", f"{pm.calmar_ratio:.2f}")
                     with col_spy:
@@ -649,8 +649,8 @@ def main():
                         bm = bt_result.benchmark_metrics
                         st.metric("Annualized Return", f"{bm.annualized_return:.2f}%")
                         st.metric("Annualized Volatility", f"{bm.annualized_volatility:.2f}%")
-                        st.metric("Sharpe Ratio", f"{bm.sharpe_ratio:.2f}")
                         st.metric("Max Drawdown", f"{bm.max_drawdown:.2f}%")
+                        st.metric("Sharpe Ratio", f"{bm.sharpe_ratio:.2f}")
                         st.metric("Sortino Ratio", f"{bm.sortino_ratio:.2f}")
                         st.metric("Calmar Ratio", f"{bm.calmar_ratio:.2f}")
 
