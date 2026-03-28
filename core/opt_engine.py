@@ -464,10 +464,16 @@ def calculate_allocation(weights, prices, portfolio_value):
                              ticker, price, fractional_shares, target_value)
 
         da = pp.DiscreteAllocation(weights, latest_prices, total_portfolio_value=portfolio_value)
-        allocation, leftover = da.lp_portfolio()
 
-        if not allocation or len(allocation) == 0:
-            logger.warning("LP method returned no allocations, trying greedy method...")
+        # lp_portfolio() requires the ECOS_BB solver (mixed-integer LP).
+        # On environments where ECOS_BB is not installed (e.g. Streamlit Cloud),
+        # fall back to greedy_portfolio() which has no solver dependency.
+        try:
+            allocation, leftover = da.lp_portfolio()
+            if not allocation or len(allocation) == 0:
+                raise ValueError("LP returned empty allocation")
+        except Exception as lp_err:
+            logger.warning("LP allocation failed (%s), falling back to greedy method.", lp_err)
             allocation, leftover = da.greedy_portfolio()
 
         if allocation and len(allocation) > 0:
