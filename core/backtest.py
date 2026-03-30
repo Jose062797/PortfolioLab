@@ -116,7 +116,7 @@ def _calculate_annualized_metrics(
     excess_returns = daily_returns - daily_rf
     excess_std = excess_returns.std()
     sharpe = (excess_returns.mean() / excess_std * np.sqrt(TRADING_DAYS_PER_YEAR)
-              if excess_std > 0 else 0)
+              if excess_std > 1e-10 else 0)
 
     # Sortino Ratio (downside risk only)
     downside_returns = excess_returns[excess_returns < 0]

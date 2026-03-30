@@ -207,6 +207,11 @@ def main():
         # Parse tickers
         tickers = [t.strip().upper() for t in tickers_input.split(',') if t.strip()]
 
+        # Detect non-equity tickers (crypto, forex, bonds/commodities by known suffixes)
+        _crypto_tickers  = [t for t in tickers if t.endswith("-USD") or t.endswith("-BTC")]
+        _forex_tickers   = [t for t in tickers if t.endswith("=X")]
+        _non_equity      = _crypto_tickers + _forex_tickers
+
         # Validation
         if len(tickers) == 0:
             st.info("Enter 2 to 20 stock tickers to begin")
@@ -216,6 +221,15 @@ def main():
             st.warning("Maximum 20 tickers allowed")
         else:
             st.success(f"{len(tickers)} tickers selected: {', '.join(tickers)}")
+
+        if _non_equity:
+            st.warning(
+                f"**Model limitation:** {', '.join(_non_equity)} "
+                f"{'is' if len(_non_equity) == 1 else 'are'} not equity instruments. "
+                "Both CAPM (Markowitz) and Black-Litterman are designed for equity portfolios — "
+                "they use SPY as the market proxy and assume equity-factor betas. "
+                "Results for crypto or forex assets may be theoretically inconsistent."
+            )
 
         # Portfolio value
         portfolio_value = st.number_input(
