@@ -36,9 +36,12 @@ def main():
     # Images are served from Streamlit's static route (enableStaticServing)
     # instead of inline base64: the browser caches them and the page DOM
     # drops from ~2 MB to a few KB on every rerun.
-    hero_bg = "/app/static/hero_background.png"
-    stocks_thumb = "/app/static/thumbnail_stocks_blue.png"
-    port_thumb = "/app/static/thumbnail_portfolio_blue.png"
+    # RELATIVE paths are required: Streamlit Cloud mounts the app under the
+    # /~/+/ prefix, so an absolute /app/static/... escapes the app and the
+    # edge returns HTML instead of the image (blank images in production).
+    hero_bg = "./app/static/hero_background.png"
+    stocks_thumb = "./app/static/thumbnail_stocks_blue.png"
+    port_thumb = "./app/static/thumbnail_portfolio_blue.png"
 
     st.markdown(f"""
     <div class="bl-hero-bg" style="background-image: url('{hero_bg}');">

@@ -1154,24 +1154,29 @@ def inject_pwa_support() -> None:
     pwa_script = """
     <script>
     if (!parent.document.getElementById('pwa-manifest')) {
+        // Resolve against the app's real base URL: on Streamlit Cloud the
+        // app is mounted under /~/+/, so absolute /app/static/... paths
+        // escape the prefix and return HTML instead of the asset.
+        const staticBase = new URL('./app/static/', parent.document.baseURI).href;
+
         const manifest = parent.document.createElement('link');
         manifest.id = 'pwa-manifest';
         manifest.rel = 'manifest';
-        manifest.href = '/app/static/manifest.json';
+        manifest.href = staticBase + 'manifest.json';
         parent.document.head.appendChild(manifest);
 
         const theme = parent.document.createElement('meta');
         theme.name = 'theme-color';
         theme.content = '#0A1628';
         parent.document.head.appendChild(theme);
-        
+
         const appleIcon = parent.document.createElement('link');
         appleIcon.rel = 'apple-touch-icon';
-        appleIcon.href = '/app/static/PortfolioLab.png';
+        appleIcon.href = staticBase + 'PortfolioLab.png';
         parent.document.head.appendChild(appleIcon);
 
         if ('serviceWorker' in parent.navigator) {
-            parent.navigator.serviceWorker.register('/app/static/sw.js')
+            parent.navigator.serviceWorker.register(staticBase + 'sw.js')
             .then(() => console.log('PortfolioLab PWA Service Worker registered'))
             .catch((err) => console.log('Service Worker registration failed:', err));
         }
