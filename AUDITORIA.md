@@ -33,9 +33,10 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 
 - ✅ D3.1 URGENTE: migrar `st.components.v1.html` → `st.iframe` (eliminación
   anunciada para después del 2026-06-01 — fecha ya vencida).
-- ⬜ D3.2 Pinning exacto en requirements.txt + política de actualización
-  deliberada. (Pendiente a propósito: decisión del dueño — congelar versiones
-  exactas cambia cómo se actualiza el deploy en Streamlit Cloud.)
+- ✅ D3.2 Pinning exacto en requirements.txt + política de actualización
+  deliberada. (Decidido e implementado 2026-07-16: versiones exactas
+  verificadas por la suite; ritual de actualización documentado en el
+  propio requirements.txt.)
 - ✅ D3.3 Test de humo de PyPortfolioOpt 1.5.6 sobre pandas 3 — cubierto de
   sobra por la suite de paridad (D1.1), que ejercita todos los caminos de
   pypfopt sobre el stack actual.
@@ -262,10 +263,20 @@ tickers (optimización exitosa, caption greedy visible, PDF generado).
 
 ## Estado final
 
-Las 4 fases completadas el 2026-07-16. Suite: 35 → 68 tests.
+Las 4 fases completadas el 2026-07-16. Suite: 35 → 69 tests.
 Fixes de código: st.iframe, rechazo de tickers sin datos, allowlist de
 símbolos, método de allocation visible, imágenes estáticas (−95% DOM),
-disclaimer web. Deuda documentada sin acción (decisión consciente):
-convención Sortino, caching TTL opcional en Stocks, pinning exacto de
-requirements (D3.2 — pendiente de decisión del dueño), logo navbar en
-base64.
+disclaimer web.
+
+Los 3 ítems abiertos se decidieron e implementaron el mismo día:
+1. **Pinning exacto** en requirements.txt con las versiones verificadas
+   por la suite + ritual de actualización documentado (D3.2).
+2. **Cache TTL en Stocks** (D6.1): `st.cache_data` con TTL 300s (60s
+   para intradía, 600s para financials trimestrales) SOLO en la página
+   de exploración; el optimizador sigue descargando fresco por diseño.
+   Verificado: un rerun completo de la página no genera descargas.
+3. **Sortino → convención Sortino–van der Meer** (desviación downside
+   sobre N total): valores comparables con la industria; guardado con
+   test de valores a mano que además rechaza la convención anterior.
+
+Deuda restante (menor, sin plan): logo del navbar en base64 (~70 KB).

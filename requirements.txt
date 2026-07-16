@@ -1,15 +1,26 @@
-﻿streamlit>=1.31.0
-plotly>=5.18.0
-pandas>=2.1.0
-numpy>=1.24.0
-yfinance>=0.2.35
+# Exact pins (audit D3.2, 2026-07-16): every deploy installs exactly the
+# stack verified by the test suite — including the PyPortfolioOpt parity
+# suite (tests/test_parity.py) and the frozen numeric snapshots
+# (tests/test_regression_frozen.py).
+#
+# Update ritual: bump versions here -> pip install -r requirements.txt ->
+# run `pytest tests/ -v`. If all tests pass (especially parity + frozen
+# snapshots), the upgrade is mathematically inert and safe to deploy.
+streamlit==1.59.2
+plotly==6.9.0
+pandas==3.0.3
+numpy==2.5.1
+yfinance==1.5.1
 # pypfopt pinned to v1.5.6 for reproducibility
 git+https://github.com/robertmartin8/PyPortfolioOpt.git@v1.5.6
-scikit-learn>=1.3.0
-matplotlib>=3.8.0
-seaborn>=0.12.0
-fpdf2>=2.7.8
-Pillow>=10.2.0
-cvxpy>=1.3.0
-ecos>=2.0.12
-pytest>=7.4.0
+scikit-learn==1.9.0
+matplotlib==3.11.0
+seaborn==0.13.2
+fpdf2==2.8.7
+Pillow==12.3.0
+cvxpy==1.9.2
+# ecos: needed on Streamlit Cloud for the exact LP allocation (ECOS_BB).
+# Optional locally — no cp314 wheel exists and building needs MSVC; the
+# app falls back to greedy allocation and says so in the UI.
+ecos==2.0.14
+pytest==9.1.1

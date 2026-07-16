@@ -57,6 +57,32 @@ class TestCalculateAnnualizedMetrics:
         expected_cagr = ((1 + total_return) ** (1 / n_years) - 1) * 100
         assert metrics.annualized_return == pytest.approx(expected_cagr, rel=1e-12)
 
+    def test_sortino_van_der_meer_convention(self):
+        """Downside deviation averages squared negatives over ALL N days.
+
+        Hand-computed guard for the Sortino–van der Meer convention
+        (audit item: industry-comparable Sortino).
+        """
+        np.random.seed(11)
+        daily_returns = pd.Series(np.random.normal(0.0006, 0.011, 378))
+        cumulative_values = (1 + daily_returns).cumprod() * 10000
+
+        metrics = _calculate_annualized_metrics(
+            daily_returns, cumulative_values, 0.10, n_years=1.5
+        )
+
+        daily_rf = 0.03 / 252
+        excess = daily_returns - daily_rf
+        downside_dev = np.sqrt((excess.clip(upper=0) ** 2).mean())  # over all N
+        expected_sortino = excess.mean() / downside_dev * np.sqrt(252)
+        assert metrics.sortino_ratio == pytest.approx(expected_sortino, rel=1e-12)
+
+        # And it must NOT match the negative-days-only convention
+        neg_only = excess[excess < 0]
+        wrong_dev = np.sqrt((neg_only ** 2).mean())
+        wrong_sortino = excess.mean() / wrong_dev * np.sqrt(252)
+        assert metrics.sortino_ratio != pytest.approx(wrong_sortino, rel=1e-6)
+
     def test_zero_years(self):
         """Zero years should produce zero return."""
         daily_returns = pd.Series([0.01, -0.01, 0.02])

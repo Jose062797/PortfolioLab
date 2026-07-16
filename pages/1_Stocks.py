@@ -33,6 +33,34 @@ from core.data_provider import (  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+
+# ── Cached data layer (audit D6.1) ──
+# Yahoo data is already ~15 min delayed for many exchanges, so a short TTL
+# loses no real freshness while removing repeat downloads (and rate-limit
+# exposure) when switching periods or revisiting a ticker. Applies ONLY to
+# this exploration page — the Portfolio optimizer always downloads fresh
+# by design (notebook fidelity).
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_ohlcv(ticker: str, **kwargs):
+    return download_ohlcv(ticker, **kwargs)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_ohlcv_intraday(ticker: str, **kwargs):
+    """Shorter TTL so 1D/5D minute charts stay lively."""
+    return download_ohlcv(ticker, **kwargs)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_asset_info(ticker: str):
+    return get_asset_info(ticker)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_quarterly_financials(ticker: str):
+    return get_quarterly_financials(ticker)
+
 PERIOD_MAP = {
     "1D": ("1d", "1m"),
     "5D": ("5d", "5m"),
@@ -731,8 +759,8 @@ def main():
 
     try:
         with st.spinner(f"Loading {active_ticker}..."):
-            ohlcv = download_ohlcv(active_ticker, period=yf_period, interval=yf_interval)
-            info = get_asset_info(active_ticker)
+            ohlcv = _cached_ohlcv(active_ticker, period=yf_period, interval=yf_interval)
+            info = _cached_asset_info(active_ticker)
     except ValueError as e:
         st.error(f"❌ {e}")
         return
@@ -836,13 +864,14 @@ def main():
             use_prepost = (period_label in ("1D", "5D")) and (asset_type != "CRYPTOCURRENCY")
             # For 5D: use start=today-5days (Yahoo Finance counts 120h back from now,
             # not 5 trading days from last close — avoids showing one extra day on weekends)
+            _dl = _cached_ohlcv_intraday if is_intraday else _cached_ohlcv
             if period_label == "5D":
                 _start_5d = (_dt.datetime.now() - _dt.timedelta(days=5)).strftime("%Y-%m-%d")
-                ohlcv = download_ohlcv(active_ticker, start=_start_5d,
-                                       interval=yf_interval, prepost=use_prepost)
+                ohlcv = _dl(active_ticker, start=_start_5d,
+                            interval=yf_interval, prepost=use_prepost)
             else:
-                ohlcv = download_ohlcv(active_ticker, period=yf_period,
-                                       interval=yf_interval, prepost=use_prepost)
+                ohlcv = _dl(active_ticker, period=yf_period,
+                            interval=yf_interval, prepost=use_prepost)
             if is_intraday and ohlcv.index.tz is not None:
                 try:
                     ohlcv.index = ohlcv.index.tz_convert('America/New_York').tz_localize(None)
@@ -886,7 +915,7 @@ def main():
     # ═══════════════════════════════════════════════════════
     hist_close = pd.Series(dtype=float)
     try:
-        hist_raw = download_ohlcv(active_ticker, period="max", interval="1d", auto_adjust=False)
+        hist_raw = _cached_ohlcv(active_ticker, period="max", interval="1d", auto_adjust=False)
         hist_close = hist_raw["Close"].squeeze().dropna()
         rets = _calculate_returns(hist_close, current_price=price)
     except Exception:
@@ -928,12 +957,12 @@ def main():
 
     if asset_type == "EQUITY":
         try:
-            _spy_raw = download_ohlcv('^GSPC', period='max', interval='1d', auto_adjust=False)
+            _spy_raw = _cached_ohlcv('^GSPC', period='max', interval='1d', auto_adjust=False)
             spy_close = _spy_raw['Close'].squeeze().dropna()
         except Exception:
             pass
         try:
-            quarterly_fin_df = get_quarterly_financials(active_ticker)
+            quarterly_fin_df = _cached_quarterly_financials(active_ticker)
         except Exception:
             pass
 

@@ -117,9 +117,11 @@ def _calculate_annualized_metrics(
     sharpe = (excess_returns.mean() / excess_std * np.sqrt(TRADING_DAYS_PER_YEAR)
               if excess_std > 1e-10 else 0)
 
-    # Sortino Ratio (downside risk only)
-    downside_returns = excess_returns[excess_returns < 0]
-    downside_std = np.sqrt((downside_returns ** 2).mean())
+    # Sortino Ratio (downside risk only), Sortino–van der Meer convention:
+    # squared downside deviations averaged over ALL observations (not just
+    # negative days) — the original paper's definition and the one used by
+    # Morningstar et al., so our values are comparable with industry tools.
+    downside_std = np.sqrt((excess_returns.clip(upper=0) ** 2).mean())
     sortino = (excess_returns.mean() / downside_std * np.sqrt(TRADING_DAYS_PER_YEAR)
                if downside_std > 0 else 0)
 
