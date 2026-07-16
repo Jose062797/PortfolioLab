@@ -2,12 +2,11 @@
 Unified backtest engine for Black-Litterman portfolios.
 
 Consolidates the backtest logic that was previously duplicated in:
-  - core/report.py (_calculate_historical_performance)
   - utils/optimizer_wrapper.py (run_backtest)
   - utils/visualizations.py (create_historical_performance_chart — data calc)
 
-All three consumers now call this module for calculations and handle
-presentation (PDF, dict, Plotly chart) themselves.
+All consumers call this module for calculations and handle
+presentation (dict, Plotly chart) themselves.
 """
 
 import logging
@@ -154,7 +153,7 @@ def run_backtest(
     Run a historical backtest on a weighted portfolio vs a benchmark.
 
     This is the SINGLE SOURCE OF TRUTH for backtest calculations.
-    All consumers (report.py, optimizer_wrapper.py, visualizations.py)
+    All consumers (optimizer_wrapper.py, visualizations.py)
     should call this function instead of implementing their own.
 
     Args:

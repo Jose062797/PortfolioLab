@@ -1,0 +1,175 @@
+====================================================
+  CÓMO CORRER Y TESTEAR MANUALMENTE LA APP
+  PortfolioLab — Streamlit Portfolio Optimizer
+====================================================
+
+1. LEVANTAR LA APLICACIÓN
+====================================================
+
+  cd "C:\Users\jose\OneDrive - Universidad Católica de Chile\black-litterman-project\web"
+
+  .venv\Scripts\Activate.ps1
+  streamlit run streamlit_app.py
+
+  Se abre en: http://localhost:8501
+  Click en "Portfolio Optimizer" para entrar.
+
+
+2. CORRER LOS TESTS AUTOMATIZADOS
+====================================================
+
+  .venv\Scripts\python.exe -m pytest tests/ -v
+
+
+====================================================
+  ESCENARIOS DE TESTEO MANUAL
+====================================================
+
+Los resultados dependen de los datos de mercado descargados.
+Para comparar con los notebooks, usa los mismos tickers y
+configuración, y verifica que los resultados sean razonables
+(no idénticos, porque los datos cambian cada día).
+
+
+------------------------------------------------------
+ESCENARIO 1: MARKOWITZ — Min Variance
+Ref: 2-Mean-Variance-Optimisation.ipynb (Section 1)
+------------------------------------------------------
+Modelo:            Markowitz
+Objetivo:          Min Variance
+Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
+Portfolio Value:   $20,000
+Fecha:             Sin rango (usar todos los datos)
+L2 Gamma:          0.0 (default para Markowitz, slider en "Advanced Optimization Settings")
+
+Qué verificar:
+  - El portafolio debe tener la MENOR volatilidad posible
+  - En el gráfico EF, el rombo amber (resultado) debe coincidir
+    con el rombo azul (Min Variance de referencia)
+  - Los pesos se concentran en activos de baja volatilidad
+
+
+------------------------------------------------------
+ESCENARIO 2: MARKOWITZ — Max Sharpe
+Ref: 2-Mean-Variance-Optimisation.ipynb (Section 2)
+------------------------------------------------------
+Modelo:            Markowitz
+Objetivo:          Max Sharpe
+Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
+Portfolio Value:   $20,000
+Fecha:             Sin rango
+L2 Gamma:          0.0
+
+Qué verificar:
+  - Sharpe ratio debe ser el máximo alcanzable
+  - En el gráfico EF, el rombo amber debe coincidir con
+    el círculo verde (Max Sharpe de referencia)
+  - Pesos concentrados en pocos activos de alto retorno/riesgo
+
+
+------------------------------------------------------
+ESCENARIO 3: MARKOWITZ — Maximise Return for a Given Risk
+Ref: 2-Mean-Variance-Optimisation.ipynb (Section 3)
+------------------------------------------------------
+Modelo:            Markowitz
+Objetivo:          Maximise Return for a Given Risk
+Target Volatility: 0.20 (20%)
+Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
+Portfolio Value:   $20,000
+Fecha:             Sin rango
+L2 Gamma:          0.0
+
+Qué verificar:
+  - La volatilidad reportada DEBE ser ≤ 20% (el target)
+  - Si el target es mayor que el Max Sharpe, el retorno debe
+    ser mayor que Max Sharpe (está más arriba en la frontera)
+  - En el gráfico EF, el rombo amber debe estar sobre la
+    curva a la altura del risk level indicado
+
+
+------------------------------------------------------
+ESCENARIO 4: MARKOWITZ — Minimise Risk for a Given Return
+Ref: 2-Mean-Variance-Optimisation.ipynb (Section 4)
+------------------------------------------------------
+Modelo:            Markowitz
+Objetivo:          Minimise Risk for a Given Return
+Target Return:     0.10 (10%, default)
+Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
+Portfolio Value:   $20,000
+Fecha:             Sin rango
+L2 Gamma:          0.0
+
+Qué verificar:
+  - El retorno reportado debe ser ≥ 10% (el target)
+  - La volatilidad debe ser la mínima posible para ese retorno
+  - NOTA: si el target return es infactible (mayor que el max
+    return del universo), el optimizador dará error. Usa un
+    target razonable (ej: 0.10 o 0.12)
+
+
+------------------------------------------------------
+ESCENARIO 5: BLACK-LITTERMAN — Con Views (Caso MIT)
+Ref: 4-Black-Litterman-Allocation.ipynb
+------------------------------------------------------
+Modelo:            Black-Litterman
+Tickers:           MSFT, AMZN, NAT, BAC, DPZ, DIS, KO, MCD, COST, SBUX
+Portfolio Value:   $20,000
+Fecha:             Sin rango
+L2 Gamma:          1.0 (default para Black-Litterman, replica el notebook)
+
+Views (activar "Add Views" y añadir uno por uno):
+  MSFT:  Expected 0.10,  Lower 0.08,  Upper 0.12
+  AMZN:  Expected 0.10,  Lower 0.00,  Upper 0.25
+  NAT:   Expected 0.50,  Lower 0.10,  Upper 0.90
+  BAC:   Expected 0.30,  Lower 0.10,  Upper 0.40
+  DPZ:   Expected 0.20,  Lower 0.15,  Upper 0.25
+  DIS:   Expected 0.05,  Lower -0.05, Upper 0.10
+  KO:    Expected -0.05, Lower -0.10, Upper 0.00
+  MCD:   Expected 0.15,  Lower 0.10,  Upper 0.20
+  COST:  Expected 0.05,  Lower -0.10, Upper 0.15
+  SBUX:  Expected 0.10,  Lower 0.00,  Upper 0.30
+
+Qué verificar:
+  - Tab "Returns Analysis" muestra Prior vs Posterior
+  - Los retornos posteriores se mueven hacia las views
+  - KO debe tener peso ≈ 0% (view negativo)
+  - AMZN y BAC deben tener los mayores pesos
+
+
+------------------------------------------------------
+ESCENARIO 6: BLACK-LITTERMAN — Sin Views
+------------------------------------------------------
+Modelo:            Black-Litterman
+Tickers:           MSFT, AMZN, KO, MA, COST, JPM
+Portfolio Value:   $10,000
+Fecha:             Sin rango
+L2 Gamma:          1.0 (default para Black-Litterman)
+Views:             NO activar "Add Views"
+
+Qué verificar:
+  - Posterior = Prior (sin views, el modelo usa solo
+    el equilibrio de mercado)
+  - Los pesos reflejan capitalización de mercado
+
+
+====================================================
+  NOTAS IMPORTANTES
+====================================================
+
+- Los resultados EXACTOS del notebook no son replicables
+  porque yfinance descarga datos actualizados cada vez.
+  Lo importante es que la ESTRUCTURA y COMPORTAMIENTO
+  sea consistente (ej: Min Variance tiene menor vol que
+  Max Sharpe, Target Risk respeta el target, etc.)
+
+- Si un escenario da error, verifica que:
+  1. El target return/risk sea factible para el universo
+  2. Los tickers existan en Yahoo Finance
+  3. Haya suficientes datos históricos
+
+- El L2 Gamma tiene defaults distintos por modelo:
+  - Markowitz: 0.0 (sin regularización, resultados puros de textbook)
+  - Black-Litterman: 1.0 (replica el notebook de PyPortfolioOpt)
+  Puedes cambiarlo manualmente en "Advanced Optimization Settings".
+
+====================================================

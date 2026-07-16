@@ -6,7 +6,6 @@ All functions accept data and return results.
 Diagnostics go through the logging module (not print).
 
 Consumers:
-  - core/opt_cli.py (CLI interface)
   - utils/optimizer_wrapper.py (Streamlit bridge)
 """
 

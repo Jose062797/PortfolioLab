@@ -16,9 +16,6 @@ env/
 CLAUDE.md
 .claude/
 
-# Internal docs (not needed for public repo)
-GUIA_TESTEO_MANUAL.txt
-
 # Test cache
 .pytest_cache/
 
@@ -32,7 +29,3 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
-
-# Data outputs
-data/*.json
-data/*.pdf

@@ -65,7 +65,6 @@ The app will open at `http://localhost:8501`.
 │   ├── backtest.py           # Historical simulation
 │   ├── data_provider.py      # yfinance data layer
 │   ├── pdf_shared.py         # Shared PDF chart builders
-│   ├── report.py             # PDF report generation
 │   └── constants.py          # Centralized constants
 ├── utils/                    # Streamlit integration layer
 │   ├── styles.py             # Design system & CSS

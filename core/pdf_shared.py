@@ -2,8 +2,7 @@
 Shared PDF utilities for Black-Litterman Portfolio Reports.
 
 This module contains reusable chart generation and PDF section builders
-used by both the CLI report generator (core/report.py) and the web PDF
-generator (utils/pdf_generator.py).
+used by the web PDF generator (utils/pdf_generator.py).
 
 All chart functions return PNG image bytes (in-memory via BytesIO).
 All PDF section functions accept an FPDF instance and modify it in place.
