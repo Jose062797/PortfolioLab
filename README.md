@@ -1,6 +1,14 @@
 # PortfolioLab
 
-**PortfolioLab** is an open-source financial platform built with Streamlit. It provides professional-grade tools for stock exploration, portfolio construction, and performance analysis — all running locally to keep your financial data private.
+[![Tests](https://github.com/Jose062797/PortfolioLab/actions/workflows/tests.yml/badge.svg)](https://github.com/Jose062797/PortfolioLab/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue.svg)](https://www.python.org/)
+
+**PortfolioLab** is an open-source financial platform built with Streamlit. It provides professional-grade tools for stock exploration, portfolio construction, and performance analysis.
+
+### 🚀 [Try the live demo](https://portfoliolab-qzrhvh2p5ls7xqhyx38smv.streamlit.app/)
+
+> For educational and informational purposes only — not investment advice.
 
 ---
 
@@ -15,10 +23,16 @@ Interactive dashboard to explore any asset available on Yahoo Finance (stocks, E
 
 ### 📈 Portfolio Optimizer
 Advanced portfolio construction engine supporting two mathematical models:
-- **Markowitz (Mean-Variance)**: Optimize for Max Sharpe, Min Variance, Target Risk, or Target Return
+- **Markowitz (Mean-Variance)**: Optimize for Max Sharpe, Min Variance, Target Risk, or Target Return — with a choice of expected-returns estimator (CAPM or historical mean, for non-equity assets)
 - **Black-Litterman**: Bayesian optimization combining market equilibrium with custom investor views
 - Efficient frontier visualization, historical backtesting, and correlation analysis
+- Overlapping-holdings detection (flags near-perfectly correlated assets, e.g. an ETF held alongside its own constituents)
 - Downloadable PDF reports with full breakdown
+
+The mathematical engine is verified to produce output **identical to raw
+[PyPortfolioOpt](https://pyportfolioopt.readthedocs.io/)** across all
+optimization paths — enforced permanently by a parity test suite and frozen
+numeric regression snapshots.
 
 ---
 
@@ -72,9 +86,10 @@ The app will open at `http://localhost:8501`.
 │   ├── optimizer_wrapper.py  # UI ↔ core bridge
 │   ├── pdf_generator.py      # Web PDF export
 │   └── session_manager.py    # Streamlit session state
-├── tests/                    # pytest test suite
+├── tests/                    # pytest test suite (parity, regression, edge cases)
 ├── static/                   # Images and PWA assets
-└── assets/                   # Logo
+├── assets/                   # Logo
+└── .github/workflows/        # CI (pytest on Python 3.12 & 3.14)
 ```
 
 ---
@@ -82,14 +97,27 @@ The app will open at `http://localhost:8501`.
 ## Running Tests
 
 ```powershell
+pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest tests\ -v
 ```
+
+The suite (75+ tests) runs fully offline against synthetic fixtures and covers:
+mathematical parity with raw PyPortfolioOpt, frozen numeric regression
+snapshots, numerical edge cases, data-layer failure modes, input validation,
+PDF/visualization outputs, and backtest conventions. It also runs automatically
+on every push via GitHub Actions (Python 3.12 and 3.14).
 
 ---
 
 ## Privacy
 
-All calculations run **locally** on your machine. No portfolio data or investment views are sent to external servers. The only external connection is to Yahoo Finance to fetch historical price data.
+When you **run PortfolioLab locally**, all calculations happen on your machine:
+no portfolio data or investment views are sent to external servers, and the
+only external connection is to Yahoo Finance for historical price data.
+
+The hosted demo runs on Streamlit Community Cloud, so inputs entered there are
+processed on Streamlit's servers (nothing is persisted by the app — results
+live only in the browser session).
 
 ---
 
@@ -110,3 +138,9 @@ All calculations run **locally** on your machine. No portfolio data or investmen
 - **Black-Litterman Model**: Fischer Black & Robert Litterman (1992)
 - **Markowitz Model**: Harry Markowitz (1952)
 - Mathematical implementation follows the [PyPortfolioOpt cookbook](https://pyportfolioopt.readthedocs.io/en/latest/Cookbook.html)
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).

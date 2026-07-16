@@ -1,0 +1,2 @@
+# Development / testing dependencies (not installed in production deploys)
+pytest==9.1.1

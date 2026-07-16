@@ -23,4 +23,3 @@ cvxpy==1.9.2
 # Optional locally — no cp314 wheel exists and building needs MSVC; the
 # app falls back to greedy allocation and says so in the UI.
 ecos==2.0.14
-pytest==9.1.1
