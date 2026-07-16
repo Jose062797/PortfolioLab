@@ -30,6 +30,33 @@ class TestCalculateAnnualizedMetrics:
         assert metrics.annualized_volatility > 0
         assert isinstance(metrics.sharpe_ratio, float)
 
+    def test_annualization_factor_exact(self):
+        """Volatility and Sharpe must annualize with exactly sqrt(252).
+
+        Hand-computed against the canonical formulas — this is the guard
+        that catches a silent change of the trading-days convention.
+        """
+        np.random.seed(7)
+        daily_returns = pd.Series(np.random.normal(0.0008, 0.012, 504))
+        cumulative_values = (1 + daily_returns).cumprod() * 10000
+        total_return = float(cumulative_values.iloc[-1] / 10000 - 1)
+        n_years = 2.0
+
+        metrics = _calculate_annualized_metrics(
+            daily_returns, cumulative_values, total_return, n_years
+        )
+
+        expected_vol = daily_returns.std() * np.sqrt(252) * 100
+        assert metrics.annualized_volatility == pytest.approx(expected_vol, rel=1e-12)
+
+        daily_rf = 0.03 / 252
+        excess = daily_returns - daily_rf
+        expected_sharpe = excess.mean() / excess.std() * np.sqrt(252)
+        assert metrics.sharpe_ratio == pytest.approx(expected_sharpe, rel=1e-12)
+
+        expected_cagr = ((1 + total_return) ** (1 / n_years) - 1) * 100
+        assert metrics.annualized_return == pytest.approx(expected_cagr, rel=1e-12)
+
     def test_zero_years(self):
         """Zero years should produce zero return."""
         daily_returns = pd.Series([0.01, -0.01, 0.02])
