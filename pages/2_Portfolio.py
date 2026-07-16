@@ -15,7 +15,7 @@ import pandas as pd
 import numpy as np
 
 from utils.session_manager import init_session_state, save_config, save_result, get_result, get_history
-from utils.optimizer_wrapper import run_optimization
+from utils.optimizer_wrapper import run_optimization, find_highly_correlated_pairs
 from core.constants import MIN_WEIGHT_THRESHOLD
 from utils.visualizations import (
     create_correlation_heatmap,
@@ -181,6 +181,21 @@ def main():
                 )
             
         with st.expander("Advanced Optimization Settings"):
+            returns_estimator = "capm"
+            if model_type == "Markowitz":
+                _estimator_label = st.selectbox(
+                    "Expected Returns Estimator",
+                    options=["CAPM vs. market (cookbook default)", "Historical mean"],
+                    index=0,
+                    key="returns_estimator_select",
+                    help="CAPM derives expected returns from each asset's beta against "
+                         "SPY — the PyPortfolioOpt cookbook default, designed for equities. "
+                         "Historical mean uses each asset's own compounded average return: "
+                         "less stable, but asset-class agnostic — prefer it when the "
+                         "portfolio includes crypto, commodities or other non-equity assets."
+                )
+                returns_estimator = "historical" if _estimator_label.startswith("Historical") else "capm"
+
             gamma_default = 0.0 if model_type == "Markowitz" else 1.0
             l2_gamma = st.slider(
                 "L2 Regularization (Gamma)",
@@ -222,13 +237,29 @@ def main():
         else:
             st.success(f"{len(tickers)} tickers selected: {', '.join(tickers)}")
 
-        if _non_equity:
+        # Black-Litterman is mathematically undefined for forex (no market
+        # capitalization exists to build the equilibrium prior) — block it.
+        _bl_forex_blocked = bool(_forex_tickers) and model_type == "Black-Litterman"
+        if _bl_forex_blocked:
+            st.error(
+                f"**Black-Litterman cannot be used with forex pairs** "
+                f"({', '.join(_forex_tickers)}): the model builds its market-equilibrium "
+                f"prior from market capitalizations, and currencies have none. "
+                f"Switch to the **Markowitz** model to include forex."
+            )
+        elif _non_equity:
+            _estimator_hint = (
+                " Tip: in *Advanced Optimization Settings*, switch the Expected "
+                "Returns Estimator to **Historical mean**, which does not assume "
+                "equity-market betas." if model_type == "Markowitz" else ""
+            )
             st.warning(
                 f"**Model limitation:** {', '.join(_non_equity)} "
                 f"{'is' if len(_non_equity) == 1 else 'are'} not equity instruments. "
                 "Both CAPM (Markowitz) and Black-Litterman are designed for equity portfolios — "
                 "they use SPY as the market proxy and assume equity-factor betas. "
                 "Results for crypto or forex assets may be theoretically inconsistent."
+                + _estimator_hint
             )
 
         # Portfolio value
@@ -373,7 +404,7 @@ def main():
             "Run Optimization",
             type="primary",
             width='stretch',
-            disabled=(len(tickers) < 2 or len(tickers) > 20)
+            disabled=(len(tickers) < 2 or len(tickers) > 20 or _bl_forex_blocked)
         )
 
     # Run optimization
@@ -413,7 +444,8 @@ def main():
             obj_function=obj_function,
             target_volatility=target_volatility,
             target_return=target_return if model_type == "Markowitz" else 0.15,
-            l2_gamma=l2_gamma
+            l2_gamma=l2_gamma,
+            returns_estimator=returns_estimator
         )
 
         # Clear progress
@@ -482,6 +514,36 @@ def main():
             st.metric(
                 label="Assets",
                 value=f"{num_assets}"
+            )
+
+        # Overlap check: near-perfectly correlated pairs (e.g. an ETF held
+        # alongside its own dominant constituents) look like diversification
+        # to the optimizer but aren't. Uses the EMPIRICAL correlation from
+        # prices — the stored Ledoit-Wolf covariance deliberately shrinks
+        # correlations (VOO-IVV: 0.9997 empirical vs ~0.949 shrunk) and
+        # would mask true overlaps.
+        _overlap_pairs = []
+        try:
+            if result.get('prices_clean'):
+                _pc = pd.DataFrame.from_dict(result['prices_clean'], orient='index')
+                _pc = _pc[[t for t in result.get('tickers', []) if t in _pc.columns]]
+                if _pc.shape[1] >= 2:
+                    _emp_corr = _pc.pct_change().corr()
+                    _overlap_pairs = find_highly_correlated_pairs(
+                        _emp_corr.values, list(_emp_corr.columns)
+                    )
+        except Exception:
+            pass  # a failed overlap check must never break the results page
+        if _overlap_pairs:
+            _pairs_txt = "; ".join(
+                f"**{a}** ↔ **{b}** ({c:.2f})" for a, b, c in _overlap_pairs[:5]
+            )
+            st.info(
+                f"🔗 **Possible overlapping holdings** — these assets are almost "
+                f"perfectly correlated (≥ 0.95): {_pairs_txt}. The optimizer "
+                f"treats them as separate assets, but the diversification "
+                f"between them is largely illusory (e.g. an ETF held alongside "
+                f"its own top constituents)."
             )
 
         st.markdown("<br>", unsafe_allow_html=True)

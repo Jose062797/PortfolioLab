@@ -54,7 +54,8 @@ def validate_inputs(
     tickers: List[str],
     portfolio_value: float,
     date_range: Optional[Tuple] = None,
-    views: Optional[Dict] = None
+    views: Optional[Dict] = None,
+    model_type: Optional[str] = None
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate optimization inputs.
@@ -64,6 +65,8 @@ def validate_inputs(
         portfolio_value: Portfolio value in USD
         date_range: Optional (start_date, end_date) tuple
         views: Optional investment views dict
+        model_type: Optional model name; enables model-specific checks
+            (Black-Litterman is invalid for forex pairs)
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -84,6 +87,20 @@ def validate_inputs(
     invalid = [t for t in tickers if not re.fullmatch(r"[A-Z0-9.\-^=]{1,15}", t)]
     if invalid:
         return False, f"Invalid ticker symbol(s): {', '.join(invalid)}"
+
+    # Black-Litterman's equilibrium prior is built from market-cap weights.
+    # Forex pairs have no market capitalization of any kind, so the model
+    # is mathematically undefined for them (and the market-cap download
+    # would fail with a confusing error). Markowitz remains available.
+    if model_type == "Black-Litterman":
+        forex = [t for t in tickers if t.endswith("=X")]
+        if forex:
+            return False, (
+                f"Black-Litterman cannot be used with forex pairs "
+                f"({', '.join(forex)}): the model requires market "
+                f"capitalizations to build its equilibrium prior, and "
+                f"currencies have none. Use the Markowitz model instead."
+            )
 
     # Validate portfolio value
     if portfolio_value < MIN_PORTFOLIO_VALUE:
@@ -128,7 +145,8 @@ def run_optimization(
     obj_function: str = "Max Sharpe",
     target_volatility: float = 0.20,
     target_return: float = 0.15,
-    l2_gamma: float = 0.0
+    l2_gamma: float = 0.0,
+    returns_estimator: str = "capm"
 ) -> Dict[str, Any]:
     """
     Execute portfolio optimization (Markowitz or Black-Litterman).
@@ -149,6 +167,9 @@ def run_optimization(
         target_volatility: Target volatility for 'Maximise Return for a Given Risk' (default 0.20)
         target_return: Target return for 'Minimise Risk for a Given Return' (default 0.15)
         l2_gamma: L2 regularization strength (0.0=none/default, higher=more diversified)
+        returns_estimator: Markowitz only — "capm" (cookbook default) or
+                           "historical" (asset-class agnostic; recommended
+                           when the portfolio includes non-equity assets)
 
     Returns:
         Dictionary with 'success', 'metrics', 'weights', 'allocation', etc.
@@ -161,7 +182,7 @@ def run_optimization(
     try:
         # Validate inputs
         update_progress("Validating inputs...")
-        is_valid, error_msg = validate_inputs(tickers, portfolio_value, date_range, views)
+        is_valid, error_msg = validate_inputs(tickers, portfolio_value, date_range, views, model_type)
         if not is_valid:
             return {
                 'success': False,
@@ -196,7 +217,10 @@ def run_optimization(
 
             # CAPM needs market prices for beta calculation, but SPY must NOT
             # be included in `prices_clean` or it becomes an allocatable asset.
-            mu, S_bl = calculate_markowitz_inputs(prices_clean, market_prices=spy_aligned)
+            mu, S_bl = calculate_markowitz_inputs(
+                prices_clean, market_prices=spy_aligned,
+                returns_estimator=returns_estimator,
+            )
             ret_bl = mu
 
             # Now add SPY back safely for downstream tracking/plotting
@@ -276,6 +300,7 @@ def run_optimization(
             'risk_free_rate': RISK_FREE_RATE,
             'benchmark': BENCHMARK_TICKER,
             'obj_function': obj_function,
+            'returns_estimator': returns_estimator if model_type == "Markowitz" else None,
             'ef_data': ef_data,
             # Include cleaned price data for consistent backtesting
             'prices_clean': prices_clean.to_dict('index')  # Convert to dict for JSON serialization
@@ -386,3 +411,43 @@ def run_backtest(
         logger.error("Backtest error: %s", e, exc_info=True)
         return None
 
+
+
+def find_highly_correlated_pairs(cov_matrix, tickers, threshold: float = 0.95):
+    """
+    Detect asset pairs whose return correlation exceeds `threshold`.
+
+    Used to warn about redundant holdings — e.g. an ETF held alongside its
+    own dominant constituents (AAPL next to QQQ), where the optimizer sees
+    two assets but the diversification between them is illusory.
+
+    Args:
+        cov_matrix: Covariance matrix (nested list or ndarray, as stored in
+                    the result dict under 'covariance_matrix')
+        tickers: Asset names matching the matrix order
+        threshold: Correlation cutoff (default 0.95)
+
+    Returns:
+        List of (ticker_a, ticker_b, correlation) tuples, highest first.
+    """
+    import numpy as np
+
+    try:
+        cov = np.asarray(cov_matrix, dtype=float)
+        if cov.ndim != 2 or cov.shape[0] != cov.shape[1] or cov.shape[0] != len(tickers):
+            return []
+        std = np.sqrt(np.diag(cov))
+        if (std <= 0).any():
+            return []
+        corr = cov / np.outer(std, std)
+
+        pairs = []
+        n = len(tickers)
+        for i in range(n):
+            for j in range(i + 1, n):
+                if corr[i, j] >= threshold:
+                    pairs.append((tickers[i], tickers[j], float(corr[i, j])))
+        return sorted(pairs, key=lambda p: p[2], reverse=True)
+    except Exception:
+        logger.warning("Could not compute correlation overlap check", exc_info=True)
+        return []

@@ -123,6 +123,23 @@ class TestMarkowitzInputsParity:
         pd.testing.assert_series_equal(mu_eng, mu_raw)
         pd.testing.assert_frame_equal(S_eng, S_raw)
 
+    def test_historical_estimator_parity(self, portfolio_prices, spy_prices):
+        """returns_estimator='historical' == raw mean_historical_return."""
+        mu_eng, S_eng = calculate_markowitz_inputs(
+            portfolio_prices, spy_prices, returns_estimator="historical"
+        )
+
+        mu_raw = expected_returns.mean_historical_return(portfolio_prices)
+        S_raw = risk_models.CovarianceShrinkage(portfolio_prices).ledoit_wolf()
+
+        pd.testing.assert_series_equal(mu_eng, mu_raw)
+        pd.testing.assert_frame_equal(S_eng, S_raw)
+
+        # And the two estimators must actually differ (guard against the
+        # parameter being silently ignored).
+        mu_capm, _ = calculate_markowitz_inputs(portfolio_prices, spy_prices)
+        assert not mu_eng.equals(mu_capm)
+
 
 class TestOptimizationParity:
     """The four objectives + L2, engine vs raw EfficientFrontier."""

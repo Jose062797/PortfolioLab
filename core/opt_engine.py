@@ -323,6 +323,7 @@ def run_black_litterman(S, delta, mcaps, market_prior, viewdict, intervals):
 def calculate_markowitz_inputs(
     prices: pd.DataFrame,
     market_prices: pd.DataFrame = None,
+    returns_estimator: str = "capm",
 ) -> tuple[pd.Series, pd.DataFrame]:
     """
     Calculate standard Markowitz Mean-Variance Optimization inputs.
@@ -330,25 +331,33 @@ def calculate_markowitz_inputs(
     Args:
         prices: Cleaned historical prices dataframe (portfolio tickers only)
         market_prices: Optional market benchmark prices (e.g. SPY) for CAPM beta
+        returns_estimator: "capm" (cookbook default — beta vs the equity market)
+            or "historical" (compounded mean historical return). Use
+            "historical" for portfolios with non-equity assets (crypto,
+            commodities), where an equity-market beta is not meaningful.
 
     Returns:
         tuple containing:
-            - mu (pd.Series): Expected CAPM returns
+            - mu (pd.Series): Expected returns (per the chosen estimator)
             - S (pd.DataFrame): Covariance matrix using Ledoit-Wolf shrinkage
     """
     pypfopt = _get_pypfopt()
 
     logger.debug(f"[Engine] Calculating Markowitz inputs for {prices.shape[1]} assets over {prices.shape[0]} days")
 
-    # Use CAPM returns as recommended by the PyPortfolioOpt cookbook
-    # (2-Mean-Variance-Optimisation.ipynb). CAPM returns are more stable
-    # than simple mean historical returns for portfolio optimization.
     try:
-        mu = pypfopt.expected_returns.capm_return(
-            prices, market_prices=market_prices, risk_free_rate=RISK_FREE_RATE
-        )
+        if returns_estimator == "historical":
+            # Compounded mean historical return — asset-class agnostic.
+            mu = pypfopt.expected_returns.mean_historical_return(prices)
+        else:
+            # CAPM returns as recommended by the PyPortfolioOpt cookbook
+            # (2-Mean-Variance-Optimisation.ipynb). More stable than raw
+            # historical means — for equity portfolios.
+            mu = pypfopt.expected_returns.capm_return(
+                prices, market_prices=market_prices, risk_free_rate=RISK_FREE_RATE
+            )
         S = pypfopt.risk_models.CovarianceShrinkage(prices).ledoit_wolf()
-        logger.debug("[Engine] Markowitz inputs calculated successfully.")
+        logger.debug("[Engine] Markowitz inputs calculated successfully (estimator=%s).", returns_estimator)
         return mu, S
     except Exception as e:
         logger.error(f"[Engine] Error calculating Markowitz inputs: {str(e)}")
