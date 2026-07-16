@@ -138,7 +138,7 @@ class TestOptimizePortfolio:
         S, delta, market_prior, _ = calculate_prior(prices, market_prices, sample_mcaps)
         _, ret_bl, S_bl = run_black_litterman(S, delta, sample_mcaps, market_prior, None, None)
         weights, metrics = optimize_portfolio(
-            ret_bl, S_bl, obj_function="Target Risk", target_volatility=0.20
+            ret_bl, S_bl, obj_function="Maximise Return for a Given Risk", target_volatility=0.20
         )
 
         total = sum(weights.values())

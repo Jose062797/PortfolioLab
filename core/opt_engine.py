@@ -330,7 +330,9 @@ def calculate_markowitz_inputs(
     # (2-Mean-Variance-Optimisation.ipynb). CAPM returns are more stable
     # than simple mean historical returns for portfolio optimization.
     try:
-        mu = pypfopt.expected_returns.capm_return(prices, market_prices=market_prices)
+        mu = pypfopt.expected_returns.capm_return(
+            prices, market_prices=market_prices, risk_free_rate=RISK_FREE_RATE
+        )
         S = pypfopt.risk_models.CovarianceShrinkage(prices).ledoit_wolf()
         logger.debug("[Engine] Markowitz inputs calculated successfully.")
         return mu, S
@@ -349,13 +351,13 @@ def calculate_efficient_frontier(mu, S, points=100):
     try:
         # 1. Optimal tangency portfolio
         ef_sharpe = pp.EfficientFrontier(mu, S)
-        ef_sharpe.max_sharpe()
-        optimal_ret, optimal_risk, sharpe_max = ef_sharpe.portfolio_performance()
-        
+        ef_sharpe.max_sharpe(risk_free_rate=RISK_FREE_RATE)
+        optimal_ret, optimal_risk, sharpe_max = ef_sharpe.portfolio_performance(risk_free_rate=RISK_FREE_RATE)
+
         # 2. Min volatility portfolio
         ef_min = pp.EfficientFrontier(mu, S)
         ef_min.min_volatility()
-        min_ret, min_vol, _ = ef_min.portfolio_performance()
+        min_ret, min_vol, _ = ef_min.portfolio_performance(risk_free_rate=RISK_FREE_RATE)
         
         max_ret = mu.max()
         
@@ -410,7 +412,7 @@ def optimize_portfolio(ret_bl, S_bl, obj_function="Max Sharpe", target_volatilit
         if obj_function == "Min Variance":
             ef.min_volatility()
         elif obj_function == "Max Sharpe":
-            ef.max_sharpe()
+            ef.max_sharpe(risk_free_rate=RISK_FREE_RATE)
         elif obj_function == "Maximise Return for a Given Risk":
             ef.efficient_risk(target_volatility=target_volatility)
         elif obj_function == "Minimise Risk for a Given Return":

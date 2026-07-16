@@ -24,7 +24,8 @@ Advanced portfolio construction engine supporting two mathematical models:
 
 ## Requirements
 
-- **Python 3.12** (Python 3.13 is not yet supported by PyPortfolioOpt)
+- **Python 3.12 or newer** (verified working on Python 3.14)
+- On Windows without MSVC build tools, `ecos` may fail to install on Python ≥3.13 — it is safe to skip it locally; the app falls back to a greedy allocation method
 - Internet connection (to fetch market data from Yahoo Finance)
 
 ---
