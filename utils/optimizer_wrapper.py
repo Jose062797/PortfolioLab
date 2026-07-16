@@ -9,6 +9,8 @@ error handling and result formatting.
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 import logging
+import re
+
 import pandas as pd
 import streamlit as st
 
@@ -75,6 +77,13 @@ def validate_inputs(
 
     if len(tickers) != len(set(tickers)):
         return False, "Duplicate tickers found"
+
+    # Yahoo Finance symbols: letters/digits plus . - ^ = (BRK-B, BF.B,
+    # ^GSPC, BTC-USD, EURUSD=X). Anything else is a typo — reject early,
+    # and never let arbitrary text flow further down the pipeline.
+    invalid = [t for t in tickers if not re.fullmatch(r"[A-Z0-9.\-^=]{1,15}", t)]
+    if invalid:
+        return False, f"Invalid ticker symbol(s): {', '.join(invalid)}"
 
     # Validate portfolio value
     if portfolio_value < MIN_PORTFOLIO_VALUE:
@@ -231,7 +240,7 @@ def run_optimization(
         update_progress("Calculating share allocation...")
         # Exclude SPY from prices for allocation (only need portfolio tickers)
         prices_for_allocation = prices_clean[[t for t in tickers if t in prices_clean.columns]]
-        allocation, leftover = calculate_allocation(weights, prices_for_allocation, portfolio_value)
+        allocation, leftover, allocation_method = calculate_allocation(weights, prices_for_allocation, portfolio_value)
 
         # Extract date ranges:
         # - Full data range: used for covariance estimation (pairwise, max data)
@@ -251,6 +260,7 @@ def run_optimization(
             },
             'weights': weights,
             'allocation': allocation,
+            'allocation_method': allocation_method,
             'leftover': float(leftover),
             'market_prior': market_prior.to_dict() if market_prior is not None else {},
             'posterior': ret_bl.to_dict() if hasattr(ret_bl, 'to_dict') else {},

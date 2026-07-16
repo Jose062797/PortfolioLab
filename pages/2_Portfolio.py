@@ -532,6 +532,14 @@ def main():
                     df_weights = pd.DataFrame(weights_data)
                     st.dataframe(df_weights, width='stretch', hide_index=True)
 
+                if result.get('allocation_method') == 'greedy':
+                    st.caption(
+                        "ℹ️ Share counts were computed with the greedy method "
+                        "(the exact integer-optimization solver is not available "
+                        "in this environment). Weights are unaffected; whole-share "
+                        "rounding may differ slightly from the exact optimum."
+                    )
+
         if "Efficient Frontier" in tab_mapping:
             with tab_mapping["Efficient Frontier"]:
                 st.markdown("### Efficient Frontier")

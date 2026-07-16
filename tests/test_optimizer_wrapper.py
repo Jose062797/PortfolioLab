@@ -74,6 +74,24 @@ class TestValidateInputs:
         assert is_valid is False
         assert "before" in error.lower()
 
+    def test_invalid_ticker_format_rejected(self):
+        """Arbitrary text must never flow past validation (audit D7.1)."""
+        for bad in ["<SCRIPT>", "AA PL", "TICKER!", "A" * 16, "😀"]:
+            is_valid, error = validate_inputs(
+                tickers=["AAPL", bad],
+                portfolio_value=10000,
+            )
+            assert is_valid is False, f"{bad!r} should be rejected"
+            assert "Invalid ticker" in error
+
+    def test_exotic_but_valid_symbols_accepted(self):
+        """Yahoo's real symbol zoo must keep working."""
+        is_valid, error = validate_inputs(
+            tickers=["BRK-B", "BF.B", "^GSPC", "BTC-USD", "EURUSD=X"],
+            portfolio_value=10000,
+        )
+        assert is_valid is True, error
+
     def test_view_for_unknown_ticker(self):
         """View for non-existent ticker should fail."""
         is_valid, error = validate_inputs(

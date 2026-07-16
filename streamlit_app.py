@@ -33,15 +33,15 @@ def main():
     """Main landing page - tool hub with card-based interface."""
 
     # ── Hero Section ──
-    from utils.styles import get_base64_of_bin_file
-    
-    # Pre-load base64 images for the layout
-    hero_bg = get_base64_of_bin_file("static/hero_background.png")
-    stocks_thumb = get_base64_of_bin_file("static/thumbnail_stocks_blue.png")
-    port_thumb = get_base64_of_bin_file("static/thumbnail_portfolio_blue.png")
+    # Images are served from Streamlit's static route (enableStaticServing)
+    # instead of inline base64: the browser caches them and the page DOM
+    # drops from ~2 MB to a few KB on every rerun.
+    hero_bg = "/app/static/hero_background.png"
+    stocks_thumb = "/app/static/thumbnail_stocks_blue.png"
+    port_thumb = "/app/static/thumbnail_portfolio_blue.png"
 
     st.markdown(f"""
-    <div class="bl-hero-bg" style="background-image: url('data:image/png;base64,{hero_bg}');">
+    <div class="bl-hero-bg" style="background-image: url('{hero_bg}');">
         <div class="bl-hero-overlay"></div>
         <div class="bl-hero bl-animate">
             <h1>PortfolioLab</h1>
@@ -61,7 +61,7 @@ def main():
         st.markdown(f"""
         <a href="/Stocks" target="_self" class="bl-image-card bl-animate bl-animate-delay-1">
             <div class="bl-image-card-header-wrap">
-                <div class="bl-image-card-header" style="background-image: url('data:image/png;base64,{stocks_thumb}');"></div>
+                <div class="bl-image-card-header" style="background-image: url('{stocks_thumb}');"></div>
             </div>
             <div class="bl-image-card-body">
                 <h3>Stocks</h3>
@@ -81,7 +81,7 @@ def main():
         st.markdown(f"""
         <a href="/Portfolio" target="_self" class="bl-image-card bl-animate bl-animate-delay-2">
             <div class="bl-image-card-header-wrap">
-                <div class="bl-image-card-header" style="background-image: url('data:image/png;base64,{port_thumb}');"></div>
+                <div class="bl-image-card-header" style="background-image: url('{port_thumb}');"></div>
             </div>
             <div class="bl-image-card-body">
                 <h3>Portfolio</h3>

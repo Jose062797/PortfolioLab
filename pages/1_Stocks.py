@@ -4,6 +4,7 @@ Stocks – Yahoo Finance-inspired adaptive asset explorer.
 
 import sys
 import os
+import re
 import logging
 import datetime as _dt
 
@@ -693,11 +694,18 @@ def main():
 
     # Validate: reject multiple symbols (comma/space separated)
     _is_multi = len([t for t in ticker_input.replace(',', ' ').split() if t]) > 1
+    # Yahoo Finance symbol allowlist (BRK-B, BF.B, ^GSPC, BTC-USD, EURUSD=X).
+    # Rejecting anything else avoids a pointless network round-trip and keeps
+    # arbitrary text out of the page.
+    _is_valid_symbol = bool(re.fullmatch(r"[A-Z0-9.\-^=]{1,15}", ticker_input))
 
     # Track searched ticker in session state
     if search_clicked and ticker_input:
         if _is_multi:
             st.warning("⚠️ Please enter **one symbol at a time** (e.g. `AAPL`). This tool analyses a single asset.")
+            st.session_state['stocks_ticker'] = None
+        elif not _is_valid_symbol:
+            st.warning(f"⚠️ **{ticker_input}** is not a valid ticker symbol. Use letters, digits and `.` `-` `^` `=` only (e.g. `AAPL`, `BRK-B`, `^GSPC`, `BTC-USD`).")
             st.session_state['stocks_ticker'] = None
         else:
             st.session_state['stocks_ticker'] = ticker_input

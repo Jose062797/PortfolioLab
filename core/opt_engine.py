@@ -484,6 +484,7 @@ def calculate_allocation(weights, prices, portfolio_value):
         # lp_portfolio() requires the ECOS_BB solver (mixed-integer LP).
         # On environments where ECOS_BB is not installed (e.g. Streamlit Cloud),
         # fall back to greedy_portfolio() which has no solver dependency.
+        method = "lp"
         try:
             allocation, leftover = da.lp_portfolio()
             if not allocation or len(allocation) == 0:
@@ -491,6 +492,7 @@ def calculate_allocation(weights, prices, portfolio_value):
         except Exception as lp_err:
             logger.warning("LP allocation failed (%s), falling back to greedy method.", lp_err)
             allocation, leftover = da.greedy_portfolio()
+            method = "greedy"
 
         if allocation and len(allocation) > 0:
             total_invested = sum(allocation[t] * latest_prices[t] for t in allocation)
@@ -500,7 +502,7 @@ def calculate_allocation(weights, prices, portfolio_value):
             logger.warning("No shares could be allocated (portfolio too small for share prices)")
             leftover = portfolio_value
 
-        return allocation, leftover
+        return allocation, leftover, method
 
     except Exception as e:
         logger.error("Error calculating allocation: %s", e, exc_info=True)

@@ -47,21 +47,21 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 
 ## Dimensión 5: Robustez y manejo de errores 🟡
 
-- ⬜ D5.1 Todo error termina en mensaje claro en la UI (nunca traceback).
-- ⬜ D5.2 Fallbacks comunicados al usuario, no solo al log.
-- ⬜ D5.3 Entradas absurdas en tickers rechazadas con gracia.
+- ✅ D5.1 Todo error termina en mensaje claro en la UI (nunca traceback).
+- ✅ D5.2 Fallbacks comunicados al usuario, no solo al log.
+- ✅ D5.3 Entradas absurdas en tickers rechazadas con gracia.
 
 ## Dimensión 6: Rendimiento y UX 🟡
 
-- ⬜ D6.1 Decisión consciente sobre caching (st.cache_data con TTL vs frescura).
-- ⬜ D6.2 Peso del home (~1.5 MB de imágenes base64 inline); objetivo < 3s en frío.
-- ⬜ D6.3 Responsividad móvil del CSS de styles.py.
+- ✅ D6.1 Decisión consciente sobre caching (st.cache_data con TTL vs frescura).
+- ✅ D6.2 Peso del home (~1.5 MB de imágenes base64 inline); objetivo < 3s en frío.
+- ✅ D6.3 Responsividad móvil del CSS de styles.py.
 
 ## Dimensión 7: Seguridad 🟡
 
-- ⬜ D7.1 Auditar todos los `unsafe_allow_html` (ninguna entrada de usuario → HTML).
-- ⬜ D7.2 `pip-audit` de dependencias.
-- ⬜ D7.3 Sin secretos en historial de git; secrets.toml fuera del repo.
+- ✅ D7.1 Auditar todos los `unsafe_allow_html` (ninguna entrada de usuario → HTML).
+- ✅ D7.2 `pip-audit` de dependencias.
+- ✅ D7.3 Sin secretos en historial de git; secrets.toml fuera del repo.
 
 ## Dimensión 8: Mantenibilidad y documentación 🟢
 
@@ -75,7 +75,7 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 |------|-------|--------|
 | 1 | D3.1 + Dimensión 1 completa | ✅ 2026-07-16 |
 | 2 | Dimensiones 2 y 4 | ✅ 2026-07-16 |
-| 3 | Dimensiones 5, 6 y 7 | ⬜ |
+| 3 | Dimensiones 5, 6 y 7 | ✅ 2026-07-16 |
 | 4 | Dimensión 8 + re-verificación final | ⬜ |
 
 ## Registro de hallazgos
@@ -168,3 +168,57 @@ fija pesos exactos y métricas (rel 1e-9) de Min Variance y BL-con-view
 sobre el fixture seed-42, bajo el stack verificado por paridad. Si una
 actualización de dependencias cambia los números silenciosamente, estos
 tests lo delatan.
+
+### Fase 3 (2026-07-16)
+
+**D7.1 — Vector XSS endurecido.** De los 34 `unsafe_allow_html`, los
+únicos con entrada de usuario interpolada son los que renderizan el
+ticker (1_Stocks línea ~800, tablas de 2_Portfolio). Explotabilidad
+real baja (el render exige descarga exitosa → símbolo Yahoo válido; los
+`st.error` escapan HTML), pero se aplicó defensa en profundidad:
+allowlist de formato `[A-Z0-9.\-^=]{1,15}` en `validate_inputs` y en la
+entrada de Stocks. Beneficio lateral: un typo se rechaza al instante
+sin ir a la red. Verificado en navegador con `FAKE<>!!` y `BAD!TICKER`;
+símbolos exóticos reales (BRK-B, BF.B, ^GSPC, BTC-USD, EURUSD=X)
+cubiertos por test.
+
+**D7.2 — pip-audit: sin vulnerabilidades conocidas** (2026-07-16).
+Nota operativa: pip-audit necesita `PYTHONUTF8=1` en esta máquina (la
+"ó" de la ruta rompe su detección de pip).
+
+**D7.3 — Sin secretos.** Historial de git limpio de patrones de
+credenciales; `secrets.toml` no está trackeado.
+
+**D5.1/D5.3 — Verificado en navegador.** Ticker inválido en Stocks →
+warning inmediato y escapado; en Portfolio → mensaje del validador
+nombrando el símbolo. Los errores de datos/optimización ya tenían
+mensajes categorizados en la UI (líneas 429-435 de 2_Portfolio).
+
+**D5.2 — Fallback greedy ahora visible.** `calculate_allocation`
+devuelve el método usado (`lp`/`greedy`); el result dict lo incluye
+(`allocation_method`) y la pestaña Allocation muestra un caption cuando
+se usó greedy (antes solo quedaba en el log del servidor).
+
+**D6.2 — HALLAZGO CORREGIDO: home 2.09 MB → 0.11 MB de DOM (−95%).**
+Las 3 imágenes grandes (hero + 2 thumbnails) iban inline como base64 y
+viajaban por el websocket en cada rerun. Ahora se sirven desde
+`/app/static/` (enableStaticServing ya estaba activo para la PWA) con
+caché del navegador. Verificado: 200 OK en las 3, layout intacto.
+El logo del navbar (53 KB) sigue en base64 — compartido por todas las
+páginas vía styles.py, impacto menor.
+
+**D6.3 — Móvil OK.** Sin overflow horizontal en home ni Portfolio a
+375px; las tarjetas del home se apilan verticalmente; el hero se adapta.
+
+**D6.1 — Decisión de caching (documentada, no implementada).** El
+optimizador descarga datos frescos en cada corrida por diseño (fidelidad
+al notebook y datos al día para decisiones) — se mantiene. Mejora
+opcional futura: `st.cache_data(ttl=300)` en la página Stocks
+(exploración rápida de varios tickers re-descarga todo al volver a uno
+ya visto); no aplica al optimizador.
+
+**Observación colateral (Fase 4):** los screenshots del navegador hacen
+timeout en todas las páginas — probablemente animaciones CSS infinitas
+(`bl-animate`) mantienen el renderer ocupado. No afecta usuarios, pero
+dificulta tooling; candidato a `animation-iteration-count` finita o
+`prefers-reduced-motion`.

@@ -226,7 +226,8 @@ class TestCalculateAllocation:
         weights, _ = optimize_portfolio(ret_bl, S_bl)
 
         prices_for_alloc = prices_clean[[t for t in tickers if t in prices_clean.columns]]
-        allocation, leftover = calculate_allocation(weights, prices_for_alloc, 50000)
+        allocation, leftover, method = calculate_allocation(weights, prices_for_alloc, 50000)
+        assert method in ("lp", "greedy")
 
         assert isinstance(allocation, dict)
         assert leftover >= 0
