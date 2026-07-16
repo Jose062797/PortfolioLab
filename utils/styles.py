@@ -3,6 +3,30 @@ Shared Design System for PortfolioLab Platform
 
 Modern design: clean, bold, no sidebar.
 Top navigation bar, blue gradient accents matching logo, generous whitespace.
+
+MAINTENANCE MAP — Streamlit-internal selectors this module overrides
+(these are the ONLY parts that can break when Streamlit updates; audit
+them first after any `streamlit` version bump):
+
+  - inject_critical_css():
+      header[data-testid="stHeader"], [data-testid="stSidebar"],
+      [data-testid="collapsedControl"], [data-testid="stToolbar"],
+      section[data-testid="stSidebarNav"] — hide Streamlit chrome/sidebar.
+      [data-testid="stAppViewContainer"] / [data-testid="stMain"] /
+      .block-container — full-width breakout (max-width: none, negative
+      margins, 3rem side padding, 30px top gap).
+  - get_shared_css():
+      [data-testid="stMetric*"] (metric cards), [data-testid="stTabs"]
+      internals, .stPlotlyChart (touch-action), plus the same
+      .block-container overrides for pages.
+  - Everything prefixed `bl-` (navbar, hero, cards, footer, stats) is
+      OUR namespace and does not depend on Streamlit internals.
+
+Split decision (audit D8.1, 2026-07): kept as one module. The CSS is a
+single coherent design system injected as one <style> block; splitting
+into files would not reduce the Streamlit-version coupling (the risk
+lives in the selectors above, not in file size) and would add import
+ordering pitfalls between critical and shared CSS.
 """
 
 import streamlit as st
@@ -1174,7 +1198,11 @@ def render_footer() -> None:
     """Renders the global footer at the bottom of the page."""
     st.markdown("""
     <div class="bl-footer">
-        &copy; 2026 PortfolioLab. Professional Financial Analysis Platform.
+        &copy; 2026 PortfolioLab. Professional Financial Analysis Platform.<br>
+        <span style="font-size:0.78rem;color:#94A3B8;">
+            For educational and informational purposes only — not investment advice.
+            Market data provided by Yahoo Finance.
+        </span>
     </div>
     """, unsafe_allow_html=True)
 

@@ -33,8 +33,12 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 
 - ✅ D3.1 URGENTE: migrar `st.components.v1.html` → `st.iframe` (eliminación
   anunciada para después del 2026-06-01 — fecha ya vencida).
-- ⬜ D3.2 Pinning exacto en requirements.txt + política de actualización deliberada.
-- ⬜ D3.3 Test de humo de PyPortfolioOpt 1.5.6 sobre pandas 3.
+- ⬜ D3.2 Pinning exacto en requirements.txt + política de actualización
+  deliberada. (Pendiente a propósito: decisión del dueño — congelar versiones
+  exactas cambia cómo se actualiza el deploy en Streamlit Cloud.)
+- ✅ D3.3 Test de humo de PyPortfolioOpt 1.5.6 sobre pandas 3 — cubierto de
+  sobra por la suite de paridad (D1.1), que ejercita todos los caminos de
+  pypfopt sobre el stack actual.
 
 ## Dimensión 4: Calidad del testing 🟠
 
@@ -65,9 +69,9 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 
 ## Dimensión 8: Mantenibilidad y documentación 🟢
 
-- ⬜ D8.1 Evaluar partición de styles.py y documentar selectores de Streamlit atacados.
-- ⬜ D8.2 Docstrings y CLAUDE.md 100% consistentes con la realidad.
-- ⬜ D8.3 Disclaimer educativo visible en web y PDF.
+- ✅ D8.1 Evaluar partición de styles.py y documentar selectores de Streamlit atacados.
+- ✅ D8.2 Docstrings y CLAUDE.md 100% consistentes con la realidad.
+- ✅ D8.3 Disclaimer educativo visible en web y PDF.
 
 ## Fases
 
@@ -76,7 +80,7 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 | 1 | D3.1 + Dimensión 1 completa | ✅ 2026-07-16 |
 | 2 | Dimensiones 2 y 4 | ✅ 2026-07-16 |
 | 3 | Dimensiones 5, 6 y 7 | ✅ 2026-07-16 |
-| 4 | Dimensión 8 + re-verificación final | ⬜ |
+| 4 | Dimensión 8 + re-verificación final | ✅ 2026-07-16 |
 
 ## Registro de hallazgos
 
@@ -222,3 +226,46 @@ timeout en todas las páginas — probablemente animaciones CSS infinitas
 (`bl-animate`) mantienen el renderer ocupado. No afecta usuarios, pero
 dificulta tooling; candidato a `animation-iteration-count` finita o
 `prefers-reduced-motion`.
+
+### Fase 4 (2026-07-16) — cierre
+
+**D8.3 — Disclaimer web agregado.** El PDF ya tenía página completa de
+disclaimers, pero la web no tenía ninguno. El footer global ahora
+incluye "For educational and informational purposes only — not
+investment advice" en todas las páginas. Verificado en navegador.
+
+**D8.1 — styles.py: documentado, no particionado.** Se agregó un
+"maintenance map" al docstring con el inventario exacto de selectores
+internos de Streamlit que el CSS sobreescribe (los únicos puntos que se
+rompen con actualizaciones de Streamlit — auditar tras cada bump).
+Decisión razonada: NO partir el módulo; el riesgo vive en esos
+selectores, no en el tamaño del archivo, y partirlo agregaría problemas
+de orden de inyección entre CSS crítico y compartido.
+
+**D8.2 — Docs consistentes.** CLAUDE.md actualizado: árbol con los 8
+archivos de test y AUDITORIA.md, firma nueva de calculate_allocation
+(3-tupla con método), allowlist de tickers, imágenes desde /app/static,
+disclaimer. Cero referencias restantes a web/, CLI, DEFAULT_MARKET_CAP
+o components.html.
+
+**Corrección de la observación colateral:** las animaciones bl-animate
+son finitas (fadeInUp 0.5s, una pasada) — la hipótesis de animaciones
+infinitas era incorrecta. El timeout de screenshots persiste con el DOM
+liviano; es un artefacto de la herramienta de captura frente al
+websocket persistente de Streamlit / service worker PWA, sin impacto en
+usuarios. Sin acción.
+
+**Re-verificación final:** 68/68 tests; recorrido completo en
+navegador: home (disclaimer, imágenes estáticas 200 OK), Stocks con
+BTC-USD (allowlist no rompió símbolos exóticos), Portfolio con 4
+tickers (optimización exitosa, caption greedy visible, PDF generado).
+
+## Estado final
+
+Las 4 fases completadas el 2026-07-16. Suite: 35 → 68 tests.
+Fixes de código: st.iframe, rechazo de tickers sin datos, allowlist de
+símbolos, método de allocation visible, imágenes estáticas (−95% DOM),
+disclaimer web. Deuda documentada sin acción (decisión consciente):
+convención Sortino, caching TTL opcional en Stocks, pinning exacto de
+requirements (D3.2 — pendiente de decisión del dueño), logo navbar en
+base64.
