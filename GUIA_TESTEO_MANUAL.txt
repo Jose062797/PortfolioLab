@@ -6,7 +6,7 @@
 1. LEVANTAR LA APLICACIÓN
 ====================================================
 
-  cd "C:\Users\jose\OneDrive - Universidad Católica de Chile\black-litterman-project\web"
+  cd "C:\Users\jose_\OneDrive - Universidad Católica de Chile\Financial Project"
 
   .venv\Scripts\Activate.ps1
   streamlit run streamlit_app.py
