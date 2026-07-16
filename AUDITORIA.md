@@ -23,11 +23,11 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 
 ## Dimensión 2: Calidad y resiliencia de datos (yfinance) 🔴
 
-- ⬜ D2.1 Ticker inexistente / deslistado a mitad de rango / historiales desiguales.
-- ⬜ D2.2 Fallback de market cap a $1e9: hacerlo visible en la UI (hoy es silencioso
-  y distorsiona los priors de Black-Litterman).
-- ⬜ D2.3 Confirmar precios ajustados (splits/dividendos) en todos los caminos.
-- ⬜ D2.4 Validación del formato yfinance 1.5.x (salto desde 0.2.x sin revisión).
+- ✅ D2.1 Ticker inexistente / deslistado a mitad de rango / historiales desiguales.
+- ✅ D2.2 Fallback de market cap a $1e9: ya no existe — el motor lanza
+  `DataDownloadError` sin fallback silencioso (mejor que lo planeado).
+- ✅ D2.3 Confirmar precios ajustados (splits/dividendos) en todos los caminos.
+- ✅ D2.4 Validación del formato yfinance 1.5.x (salto desde 0.2.x sin revisión).
 
 ## Dimensión 3: Compatibilidad y deuda de dependencias 🟠
 
@@ -38,11 +38,12 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 
 ## Dimensión 4: Calidad del testing 🟠
 
-- ⬜ D4.1 Tests para módulos sin cobertura: pdf_generator/pdf_shared,
-  visualizations, session_manager.
-- ⬜ D4.2 Auditoría de calidad de tests existentes (verificación por mutación
-  de 4-5 puntos clave del motor).
-- ⬜ D4.3 Tests de regresión con valores numéricos congelados (seed fijo).
+- ✅ D4.1 Tests para módulos sin cobertura: pdf_generator/pdf_shared,
+  visualizations, session_manager (+ run_optimization end-to-end).
+- ✅ D4.2 Auditoría de calidad de tests existentes (verificación por mutación
+  de 5 puntos clave del motor — las 5 detectadas tras cerrar 1 brecha).
+- ✅ D4.3 Tests de regresión con valores numéricos congelados (seed fijo,
+  `tests/test_regression_frozen.py`).
 
 ## Dimensión 5: Robustez y manejo de errores 🟡
 
@@ -73,7 +74,7 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 | Fase | Ítems | Estado |
 |------|-------|--------|
 | 1 | D3.1 + Dimensión 1 completa | ✅ 2026-07-16 |
-| 2 | Dimensiones 2 y 4 | ⬜ |
+| 2 | Dimensiones 2 y 4 | ✅ 2026-07-16 |
 | 3 | Dimensiones 5, 6 y 7 | ⬜ |
 | 4 | Dimensión 8 + re-verificación final | ⬜ |
 
@@ -120,3 +121,50 @@ y optimización válida.
 **Datos colaterales observados (para Fase 2):** "Sin rango" descarga el
 historial completo (16.241 días ≈ 64 años para el universo de 15 tickers)
 — relevante para D2/D6 (volumen de descarga y ventana de covarianza).
+
+### Fase 2 (2026-07-16)
+
+**D2.1 — HALLAZGO CORREGIDO (el más importante de la fase).** Un ticker
+inexistente o deslistado pasaba la validación de la UI, llegaba de
+yfinance como columna 100% NaN y producía `mu = NaN` → el usuario veía
+errores crípticos de solver ("Problem data contains NaN or Inf") y un
+resultado vacío. Fix en `download_data`: detecta columnas todo-NaN y
+lanza `DataDownloadError` nombrando el ticker; los errores de datos
+deterministas ya no se reintentan (antes se reintentaba 3 veces algo
+irreparable). Verificado end-to-end con datos reales y cubierto con
+tests offline mockeados.
+
+**D2.2 — Ya resuelto en el código.** El fallback silencioso a $1e9
+documentado en CLAUDE.md ya no existe: `download_market_caps` lanza
+`DataDownloadError` tras reintentos (correcto — un market cap inventado
+corrompe los priors de BL). CLAUDE.md actualizado.
+
+**D2.3 — Precios ajustados confirmados.** yfinance 1.5.1 usa
+`auto_adjust=True` por defecto; verificado empíricamente (AAPL
+2020-01-02: raw 75.09 vs ajustado 72.33). Todos los caminos usan `Close`
+del download por defecto → ajustado por splits/dividendos.
+
+**D2.4 — Formato yfinance 1.5.x validado.** Las sondas empíricas y los
+6 escenarios de la guía funcionaron sin incidencias sobre el salto
+0.2.x → 1.5.1. Dato: Yahoo ya NO entrega historial de tickers
+deslistados (ATVI devuelve vacío) — un deslistado se comporta igual que
+un inexistente, y el fix de D2.1 cubre ambos.
+
+**D4.1 — Cobertura nueva (12 tests).** `tests/test_report_outputs.py`:
+run_optimization end-to-end (contrato del result dict + contrato de
+error), pdf_generator (bytes %PDF válidos desde el pipeline real),
+visualizations (diagonal de correlación = 1, pie de allocation,
+frontera eficiente, gráfico histórico) y session_manager (roundtrips).
+
+**D4.2 — Verificación por mutación: 5/5 detectadas.** Mutaciones
+probadas: omega /2→/4, max_sharpe sin rf, √252→√365, min_volatility→
+max_sharpe, ledoit_wolf→sample_cov. La primera pasada reveló que
+√252→√365 NO era detectada (los tests de backtest no fijaban el factor
+de anualización) — brecha cerrada con
+`test_annualization_factor_exact` (valores a mano, rel 1e-12).
+
+**D4.3 — Valores congelados.** `tests/test_regression_frozen.py`
+fija pesos exactos y métricas (rel 1e-9) de Min Variance y BL-con-view
+sobre el fixture seed-42, bajo el stack verificado por paridad. Si una
+actualización de dependencias cambia los números silenciosamente, estos
+tests lo delatan.
