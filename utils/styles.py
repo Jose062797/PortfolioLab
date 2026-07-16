@@ -1127,7 +1127,6 @@ def inject_critical_css() -> None:
 
 def inject_pwa_support() -> None:
     """Inject PWA manifest and service worker registration."""
-    import streamlit.components.v1 as components
     pwa_script = """
     <script>
     if (!parent.document.getElementById('pwa-manifest')) {
@@ -1155,7 +1154,9 @@ def inject_pwa_support() -> None:
     }
     </script>
     """
-    components.html(pwa_script, height=0, width=0)
+    # st.iframe requires positive dimensions (0 was valid in components.html);
+    # 1x1 px keeps the script-only iframe effectively invisible.
+    st.iframe(pwa_script, height=1, width=1)
 
 
 def inject_styles() -> None:
