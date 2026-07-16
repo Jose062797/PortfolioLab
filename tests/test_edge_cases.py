@@ -6,12 +6,14 @@ Verifies that degenerate inputs fail gracefully with OptimizationError
 valid portfolios.
 """
 
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from core.constants import OptimizationError
-from core.opt_engine import calculate_markowitz_inputs, optimize_portfolio
+from core.constants import OptimizationError, DataDownloadError
+from core.opt_engine import calculate_markowitz_inputs, optimize_portfolio, download_data
 
 
 @pytest.fixture
@@ -103,6 +105,42 @@ class TestNearSingularCovariance:
         assert sum(weights.values()) == pytest.approx(1.0, abs=0.02)
         assert all(w >= -1e-6 for w in weights.values())
         assert np.isfinite(metrics["volatility"])
+
+
+class TestBadTickerDetection:
+    """A nonexistent/delisted ticker returns an all-NaN column from yfinance.
+
+    The engine must reject it with a clear DataDownloadError naming the
+    ticker, instead of letting NaN poison the solver downstream.
+    """
+
+    def _mock_download(self, good_tickers, bad_tickers):
+        n = 300
+        idx = pd.bdate_range("2023-01-02", periods=n)
+        rng = np.random.default_rng(0)
+        tuples, data = [], {}
+        for t in good_tickers + bad_tickers:
+            tuples.append(("Close", t))
+            if t in bad_tickers:
+                data[("Close", t)] = np.full(n, np.nan)
+            else:
+                data[("Close", t)] = 100 * np.cumprod(1 + rng.normal(0.0003, 0.01, n))
+        df = pd.DataFrame(data, index=idx)
+        df.columns = pd.MultiIndex.from_tuples(tuples, names=["Price", "Ticker"])
+        return df
+
+    def test_all_nan_column_raises_with_ticker_name(self):
+        mock_df = self._mock_download(["AAPL", "MSFT"], ["XXXXFAKE99"])
+        with patch("yfinance.download", return_value=mock_df):
+            with pytest.raises(DataDownloadError, match="XXXXFAKE99"):
+                download_data(["AAPL", "MSFT", "XXXXFAKE99"], None)
+
+    def test_all_valid_tickers_pass(self):
+        mock_df = self._mock_download(["AAPL", "MSFT"], [])
+        with patch("yfinance.download", return_value=mock_df):
+            prices, market = download_data(["AAPL", "MSFT"], None)
+        assert list(prices.columns) == ["AAPL", "MSFT"]
+        assert not prices.isna().any().any()
 
 
 class TestUnequalHistories:

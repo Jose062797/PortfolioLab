@@ -96,6 +96,17 @@ def download_data(tickers, date_range):
                     raise ValueError("No price data downloaded")
                 prices = ohlc["Close"]
 
+            # A ticker that doesn't exist (or was delisted — Yahoo returns no
+            # history for those) comes back as an all-NaN column and would
+            # otherwise poison the optimization with cryptic solver errors.
+            failed_tickers = [t for t in prices.columns if prices[t].isna().all()]
+            if failed_tickers:
+                raise DataDownloadError(
+                    f"No price data found for: {', '.join(failed_tickers)}. "
+                    f"Check that the symbol exists on Yahoo Finance (delisted "
+                    f"tickers are no longer available)."
+                )
+
             if len(prices) < MIN_DATA_POINTS:
                 raise InsufficientDataError(f"Insufficient data: only {len(prices)} days (need at least {MIN_DATA_POINTS})")
 
@@ -103,6 +114,10 @@ def download_data(tickers, date_range):
                         len(prices), prices.index[0].date(), prices.index[-1].date())
             break
 
+        except (DataDownloadError, InsufficientDataError):
+            # Deterministic data problems — retrying cannot fix a bad ticker
+            # or a too-short history.
+            raise
         except Exception as e:
             if attempt == max_retries - 1:
                 logger.error("Data download failed after %d attempts: %s", max_retries, e)
