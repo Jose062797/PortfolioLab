@@ -14,6 +14,7 @@ env/
 
 # AI assistant config
 CLAUDE.md
+ESTADO.md
 .claude/
 
 # Test cache
