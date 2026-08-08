@@ -49,6 +49,8 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
   de 5 puntos clave del motor — las 5 detectadas tras cerrar 1 brecha).
 - ✅ D4.3 Tests de regresión con valores numéricos congelados (seed fijo,
   `tests/test_regression_frozen.py`).
+- ✅ D4.4 Cobertura de la capa `pages/` con `streamlit.testing.v1.AppTest`
+  (2026-07-20, ver "Fase 5" abajo). Era la única capa sin red de seguridad.
 
 ## Dimensión 5: Robustez y manejo de errores 🟡
 
@@ -82,6 +84,7 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 | 2 | Dimensiones 2 y 4 | ✅ 2026-07-16 |
 | 3 | Dimensiones 5, 6 y 7 | ✅ 2026-07-16 |
 | 4 | Dimensión 8 + re-verificación final | ✅ 2026-07-16 |
+| 5 | D4.4 — capa `pages/` con AppTest | ✅ 2026-07-20 |
 
 ## Registro de hallazgos
 
@@ -261,6 +264,55 @@ navegador: home (disclaimer, imágenes estáticas 200 OK), Stocks con
 BTC-USD (allowlist no rompió símbolos exóticos), Portfolio con 4
 tickers (optimización exitosa, caption greedy visible, PDF generado).
 
+### Fase 5 (2026-07-20) — capa `pages/`
+
+**D4.4 — Cobertura de la UI (27 tests nuevos, 75 → 102).** La capa `pages/`
+era la única sin tests automatizados. Se cubrió con
+`streamlit.testing.v1.AppTest`, que ejecuta el script de la página **en el
+mismo proceso**: los parches de yfinance de `conftest.py` aplican tal cual, así
+que los tests nuevos son offline y deterministas como el resto de la suite
+(+26s de suite, total ~38s).
+
+Archivos: `tests/test_pages_portfolio.py` (19) y `tests/test_pages_smoke.py`
+(8), más la fixture aditiva `mock_yfinance_extended` en `conftest.py` (universo
+ampliado con el par casi-duplicado VOO/IVV). Las fixtures existentes no se
+tocaron.
+
+**El selector de estimador quedó verificado (cierra el pendiente de Fase 4).**
+La observación de que los selectbox de Streamlit "resisten la automatización"
+era cierta **solo para el navegador**: AppTest sí les fija valor y el valor
+llega al servidor. El test no se conforma con eso — corre la optimización dos
+veces (CAPM vs. media histórica) con objetivo **Max Sharpe** y exige que los
+pesos difieran. Max Sharpe es deliberado: Min Variance ignora `mu` por completo
+y no distinguiría un estimador del otro.
+
+**Hallazgo del proceso: la primera versión de la fixture no discriminaba.**
+Con 3 activos, la correlación VOO/IVV con shrinkage quedaba en 0.971 — sobre
+el umbral de 0.95. Es decir, el test del aviso de solapamiento habría pasado
+igual si alguien revertía el detector a la covarianza almacenada (justo la
+trampa documentada en Fase 3). Recalibrada a 5 activos: 0.9996 empírica vs
+0.926 con shrinkage, reproduciendo la brecha real (0.9997 vs 0.949). La
+propiedad se asserta explícitamente en
+`test_fixture_discriminates_empirical_from_shrunk_correlation`, para que un
+futuro cambio de fixture que colapse la brecha falle en vez de debilitar la
+suite en silencio.
+
+**Verificación por mutación: 4/4 detectadas.** Mutaciones aplicadas sobre
+`pages/2_Portfolio.py`: (1) elección de estimador ignorada, (2) bloqueo BL+forex
+sin deshabilitar el botón Run, (3) detector de solapamiento leyendo la
+covarianza con shrinkage, (4) caption del método greedy suprimido.
+
+**Decisión: el caption greedy se testea por cableado, no por entorno.** El
+camino real `lp`/`greedy` depende de si `ecos` está instalado (sí en CI 3.12,
+no en local por falta de wheel cp314) — asertarlo directamente sería flaky. Los
+tests fijan `allocation_method` en `session_state` y verifican que el caption
+aparece y desaparece, que es la responsabilidad de la capa `pages/`.
+
+**Nota de API aprendida:** el contenido de `st.info`/`st.success` NO aparece en
+`at.markdown` (falló primero el test de la página About). Y `st.cache_data` es
+global al proceso, no por sesión: los tests de la página Stocks lo limpian con
+una fixture autouse para no volverse dependientes del orden.
+
 ## Estado final
 
 Las 4 fases completadas el 2026-07-16. Suite: 35 → 69 tests.
@@ -280,3 +332,6 @@ Los 3 ítems abiertos se decidieron e implementaron el mismo día:
    test de valores a mano que además rechaza la convención anterior.
 
 Deuda restante (menor, sin plan): logo del navbar en base64 (~70 KB).
+
+Actualización 2026-07-20 (Fase 5): la capa `pages/` ya tiene cobertura
+automatizada (D4.4). Suite: 35 → 102 tests.

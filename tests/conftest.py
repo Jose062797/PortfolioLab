@@ -128,3 +128,112 @@ def mock_yfinance(synthetic_prices):
 
         with patch('yfinance.Ticker', side_effect=_make_ticker):
             yield mock_dl
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Extended universe — used by the AppTest page-layer suite
+# (tests/test_pages_portfolio.py). Adds a near-duplicate ETF pair so the
+# overlapping-holdings detector can be exercised end-to-end.
+# ─────────────────────────────────────────────────────────────────────
+
+# Market caps for the extended universe. ETFs report AUM via totalAssets,
+# but the engine reads marketCap first, so a single key is enough here.
+_EXTENDED_MCAPS = {
+    "AAPL": 2.5e12, "MSFT": 2.8e12, "GOOGL": 1.8e12,
+    "SPY": 4e11, "VOO": 3.5e11, "IVV": 3.3e11,
+}
+
+
+def _build_ohlcv(prices, tickers_arg):
+    """Build a yf.download-shaped frame (single or MultiIndex) from closes."""
+    if isinstance(tickers_arg, str):
+        tickers_arg = [tickers_arg]
+
+    available = [t for t in tickers_arg if t in prices.columns]
+    if not available:
+        return pd.DataFrame()
+
+    multipliers = {'Open': 0.99, 'High': 1.01, 'Low': 0.98}
+
+    if len(available) == 1:
+        close = prices[available[0]]
+        return pd.DataFrame({
+            'Open': close * multipliers['Open'],
+            'High': close * multipliers['High'],
+            'Low': close * multipliers['Low'],
+            'Close': close,
+            'Volume': np.full(len(close), 5_000_000),
+        }, index=prices.index)
+
+    tuples, data = [], {}
+    for col_type in ['Open', 'High', 'Low', 'Close', 'Volume']:
+        for ticker in available:
+            key = (col_type, ticker)
+            tuples.append(key)
+            if col_type == 'Close':
+                data[key] = prices[ticker].values
+            elif col_type == 'Volume':
+                data[key] = np.full(len(prices), 5_000_000)
+            else:
+                data[key] = (prices[ticker] * multipliers[col_type]).values
+
+    df = pd.DataFrame(data, index=prices.index)
+    df.columns = pd.MultiIndex.from_tuples(tuples, names=['Price', 'Ticker'])
+    return df
+
+
+@pytest.fixture
+def extended_prices():
+    """
+    Synthetic closes for AAPL, MSFT, GOOGL, SPY plus a near-duplicate ETF
+    pair (VOO / IVV).
+
+    VOO and IVV are built as the same price path perturbed by tiny
+    independent noise, so their EMPIRICAL return correlation lands well
+    above the 0.95 overlap threshold — mirroring the real VOO/IVV pair
+    (~0.9997) that motivated the detector.
+
+    Calibration matters here: over the 5-asset universe the pair reads
+    ~0.9996 empirically but only ~0.926 after Ledoit-Wolf shrinkage. That
+    gap is deliberate — it is what makes a regression to the stored
+    (shrunk) covariance detectable instead of silently passing. It is
+    asserted directly by test_pages_portfolio.py::test_fixture_discriminates.
+    """
+    np.random.seed(42)
+    n_days = 500
+    dates = pd.bdate_range(start="2022-01-03", periods=n_days)
+
+    base = {
+        "AAPL": (150.0, 0.0003, 0.015),
+        "MSFT": (300.0, 0.0004, 0.014),
+        "GOOGL": (2800.0, 0.0002, 0.018),
+        "SPY": (450.0, 0.00025, 0.010),
+        "VOO": (410.0, 0.00025, 0.010),
+    }
+
+    data = {}
+    for ticker, (initial, drift, vol) in base.items():
+        returns = np.random.normal(drift, vol, n_days)
+        data[ticker] = initial * np.cumprod(1 + returns)
+
+    # IVV tracks the same index as VOO: identical path, negligible noise.
+    noise = np.random.normal(0.0, 0.0002, n_days)
+    data["IVV"] = data["VOO"] * (1 + noise) * (445.0 / 410.0)
+
+    return pd.DataFrame(data, index=dates)
+
+
+@pytest.fixture
+def mock_yfinance_extended(extended_prices):
+    """Patch yfinance against the extended universe (see extended_prices)."""
+    def _download(tickers_arg, **kwargs):
+        return _build_ohlcv(extended_prices, tickers_arg)
+
+    def _ticker(symbol):
+        t = MagicMock()
+        t.info = {"marketCap": _EXTENDED_MCAPS.get(symbol, 1e9)}
+        return t
+
+    with patch('yfinance.download', side_effect=_download) as mock_dl:
+        with patch('yfinance.Ticker', side_effect=_ticker):
+            yield mock_dl
