@@ -6,10 +6,12 @@
 1. LEVANTAR LA APLICACIÓN
 ====================================================
 
-  cd "C:\Users\jose_\OneDrive - Universidad Católica de Chile\Financial Project"
+  cd "C:\Users\jose_\Dropbox\Financial Project"
 
-  .venv\Scripts\Activate.ps1
-  streamlit run streamlit_app.py
+  & "C:\Users\jose_\portfoliolab-env\Scripts\python.exe" -m streamlit run streamlit_app.py
+
+  (El entorno virtual vive fuera de la carpeta del proyecto, en
+  C:\Users\jose_\portfoliolab-env, para que Dropbox no lo sincronice.)
 
   Se abre en: http://localhost:8501
   Click en "Portfolio Optimizer" para entrar.
@@ -18,7 +20,7 @@
 2. CORRER LOS TESTS AUTOMATIZADOS
 ====================================================
 
-  .venv\Scripts\python.exe -m pytest tests/ -v
+  & "C:\Users\jose_\portfoliolab-env\Scripts\python.exe" -m pytest tests/ -v
 
 
 ====================================================
