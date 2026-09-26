@@ -2,7 +2,8 @@
 Shared Design System for PortfolioLab Platform
 
 Modern design: clean, bold, no sidebar.
-Top navigation bar, blue gradient accents matching logo, generous whitespace.
+Top navigation bar, navy and brand-blue accents shared with the landing page
+(docs/index.html), DM Mono for figures, generous whitespace.
 
 MAINTENANCE MAP — Streamlit-internal selectors this module overrides
 (these are the ONLY parts that can break when Streamlit updates; audit
@@ -16,11 +17,18 @@ them first after any `streamlit` version bump):
       .block-container — full-width breakout (max-width: none, negative
       margins, 3rem side padding, 30px top gap).
   - get_shared_css():
-      [data-testid="stMetric*"] (metric cards), [data-testid="stTabs"]
-      internals, .stPlotlyChart (touch-action), plus the same
-      .block-container overrides for pages.
-  - Everything prefixed `bl-` (navbar, hero, cards, footer, stats) is
-      OUR namespace and does not depend on Streamlit internals.
+      [data-testid="stMetric*"] (metric cards); tabs, which Streamlit 1.59
+      renders with react-aria ([role="tablist"], [role="tab"][aria-selected],
+      label in a <p>; the older data-baseweb="tab" selectors match nothing);
+      button labels (a <p> nested in divs inside the button, reached by the
+      global `p, li, div, label` color rule unless overridden);
+      [data-testid="stHeaderActionElements"] (heading link icons, hidden in
+      designed blocks); the PWA helper iframe
+      ([data-testid="stElementContainer"][height="1px"]); .stPlotlyChart
+      (touch-action); plus the same .block-container overrides for pages
+      (the mobile one must match the specificity of inject_critical_css()).
+  - Everything prefixed `bl-` (navbar, band, tool cards, steps, facts,
+      footer) is OUR namespace and does not depend on Streamlit internals.
 
 Split decision (audit D8.1, 2026-07): kept as one module. The CSS is a
 single coherent design system injected as one <style> block; splitting
@@ -37,17 +45,17 @@ def get_shared_css() -> str:
     Return the complete shared CSS for the application.
 
     Includes:
-    - Google Fonts (Inter + DM Sans)
+    - Google Fonts (Inter for text, DM Sans for headings, DM Mono for figures)
     - Design tokens (blue palette matching PortfolioLab logo)
     - Streamlit chrome hiding + sidebar hiding
     - Top navigation bar
     - Modern typography, cards, buttons
-    - Tool hub cards
+    - Hero band, tool cards, method steps and verification facts
     """
     return """
 <style>
     /* ===== Google Fonts ===== */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
 
     /* ===== Design Tokens ===== */
     :root {
@@ -68,14 +76,16 @@ def get_shared_css() -> str:
         --color-text: #334155;
         --color-text-secondary: #64748B;
         --color-text-muted: #94A3B8;
-
-        --gradient-primary: linear-gradient(135deg, #2E6FC7 0%, #1E5AB3 100%);
-        --gradient-hero: linear-gradient(135deg, #0A1628 0%, #2E6FC7 100%);
-        --gradient-card: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
-        --gradient-accent: linear-gradient(135deg, #2E6FC7 0%, #3B82F6 100%);
+        --color-sky: #8DB8F2;
+        --color-surface-2: #EEF3FA;
+        --color-line: rgba(10, 22, 40, 0.10);
+        --color-line-strong: rgba(10, 22, 40, 0.18);
+        --on-dark-2: #A3B4CC;
+        --on-dark-line: rgba(232, 238, 248, 0.12);
 
         --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         --font-display: 'DM Sans', 'Inter', sans-serif;
+        --font-mono: 'DM Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
 
         --radius-sm: 8px;
         --radius-md: 12px;
@@ -89,6 +99,7 @@ def get_shared_css() -> str:
         --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         --shadow-glow: 0 0 20px rgba(46, 111, 199, 0.25);
+        --shadow-card: 0 1px 2px rgba(10, 22, 40, 0.06), 0 10px 28px rgba(10, 22, 40, 0.07);
 
         --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
         --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -112,6 +123,13 @@ def get_shared_css() -> str:
     .css-1544g2n {display: none !important;}
     [data-testid="collapsedControl"] {display: none !important;}
 
+    /* The PWA helper (inject_pwa_support) is a script-only 1x1 iframe. Keep
+       it running but invisible: it drew a faint dash under the navbar. */
+    [data-testid="stElementContainer"][height="1px"] > iframe[data-testid="stIFrame"] {
+        opacity: 0 !important;
+        pointer-events: none;
+    }
+
     /* ===== Global Typography ===== */
     html, body, [class*="css"] {
         font-family: var(--font-family) !important;
@@ -123,7 +141,7 @@ def get_shared_css() -> str:
         font-family: var(--font-display) !important;
         font-weight: 700;
         color: var(--color-primary);
-        letter-spacing: -0.02em;
+        letter-spacing: -0.025em;
     }
 
     h4, h5, h6 {
@@ -132,19 +150,39 @@ def get_shared_css() -> str:
         color: var(--color-primary);
     }
 
-    h1 { font-weight: 800; letter-spacing: -0.03em; }
+    h1 { font-weight: 700; letter-spacing: -0.035em; }
 
     /* ===== Utility Classes for Headers ===== */
     .page-title {
         font-family: var(--font-display) !important;
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin-bottom: 0.5rem;
-        background: var(--gradient-hero);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -0.03em;
+        font-size: 2.4rem !important;
+        font-weight: 700 !important;
+        line-height: 1.1 !important;
+        letter-spacing: -0.035em;
+        color: var(--color-primary) !important;
+        margin: 0.5rem 0 0.5rem 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Small mono label above a title, as on the landing page */
+    .bl-eyebrow {
+        font-family: var(--font-mono) !important;
+        font-size: 0.75rem !important;
+        font-weight: 500 !important;
+        line-height: 1.4 !important;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--color-accent) !important;
+        margin: 0 !important;
+    }
+
+    /* Figures (prices, returns, ratios): DM Mono with aligned digits.
+       DM Mono has no bold face, so the weight is pinned to avoid faux bold. */
+    .bl-mono {
+        font-family: var(--font-mono) !important;
+        font-weight: 500 !important;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.01em;
     }
 
     .page-subtitle {
@@ -169,15 +207,13 @@ def get_shared_css() -> str:
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
+        background: var(--color-accent-light);
+        border: 1px solid rgba(46, 111, 199, 0.22);
+        color: var(--color-accent) !important;
+        font-family: var(--font-mono) !important;
         font-size: 0.9rem;
-        font-weight: 700;
-        font-family: var(--font-display);
+        font-weight: 500;
     }
-
-    .step-circle.blue { background: var(--gradient-primary); }
-    .step-circle.green { background: linear-gradient(135deg, #10B981, #34D399); }
-    .step-circle.amber { background: linear-gradient(135deg, #F59E0B, #EF4444); }
 
     .step-title {
         font-weight: 700;
@@ -236,30 +272,9 @@ def get_shared_css() -> str:
         color: var(--color-primary);
     }
 
-    .bl-navbar-brand-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        background: var(--gradient-accent);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: 800;
-        font-size: 0.85rem;
-        font-family: var(--font-display);
-    }
-
-    .bl-navbar-brand-text {
-        font-family: var(--font-display);
-        font-weight: 700;
-        font-size: 1.1rem;
-        color: var(--color-primary);
-    }
-
     .bl-navbar-brand img {
-        height: 80px !important;
-        max-height: 80px !important;
+        height: 38px !important;
+        max-height: 38px !important;
         width: auto !important;
         object-fit: contain !important;
     }
@@ -291,274 +306,353 @@ def get_shared_css() -> str:
         font-weight: 600;
     }
 
-    /* ===== Hero Section with Image Background (Full Width Breakout) ===== */
-    .bl-hero-bg {
-        /* Break out of Streamlit's max-width container */
-        width: 100vw !important;
-        max-width: 100vw !important;
-        position: relative;
-        left: 50%;
-        transform: translateX(-50%);
-        margin-top: -1rem; /* Offset Streamlit top padding */
-        margin-bottom: 3.5rem;
-        
-        overflow: hidden;
-        background-size: cover;
-        background-position: center;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 75vh;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    /* ===== Hero band (Home, About): navy, full width, as on the landing page ===== */
+    .bl-band {
+        /* Break out of the container's 3rem side padding to span the main
+           area. Not 100vw: that includes the scrollbar, which shifts the band
+           a few pixels off the content's left edge. */
+        margin: -1rem -3rem 2.75rem -3rem;
+        background:
+            radial-gradient(900px 420px at 88% -10%, rgba(46, 111, 199, 0.30), transparent 65%),
+            var(--color-primary);
+        border-bottom: 1px solid var(--on-dark-line);
     }
 
-    .bl-hero-overlay {
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 58, 138, 0.75));
-        z-index: 1;
+    .bl-band-inner {
+        padding: 3rem 3rem 2.6rem 3rem;
     }
 
-    .bl-hero {
-        text-align: center;
-        padding: 4rem 2rem;
-        max-width: 800px;
-        position: relative;
-        z-index: 2;
+    .bl-band .bl-eyebrow {
+        color: var(--color-sky) !important;
     }
 
-    .bl-hero h1 {
-        font-family: var(--font-display);
-        font-size: 4rem;
-        font-weight: 800;
+    .bl-band h1 {
+        font-family: var(--font-display) !important;
+        font-size: clamp(2.2rem, 4vw, 3.4rem) !important;
+        font-weight: 700 !important;
+        line-height: 1.06 !important;
+        letter-spacing: -0.035em;
+        color: #FFFFFF !important;
+        margin: 0.9rem 0 1.1rem 0 !important;
+        padding: 0 !important;
+    }
+
+    .bl-band h1 .accent {
+        display: block;
+        color: var(--color-sky) !important;
+    }
+
+    .bl-band p.bl-lead {
+        color: var(--on-dark-2) !important;
+        font-size: 1.1rem !important;
+        line-height: 1.6 !important;
+        max-width: 42rem;
+        margin: 0 !important;
+    }
+
+    .bl-band-stats {
+        display: grid;
+        grid-template-columns: repeat(4, max-content);
+        column-gap: 3rem;
+        row-gap: 1.25rem;
+        max-width: 42rem;
+        margin: 2rem 0 0 0 !important;
+        padding: 1.4rem 0 0 0 !important;
+        border-top: 1px solid var(--on-dark-line);
+    }
+
+    .bl-band-stats dt {
+        font-family: var(--font-mono) !important;
+        font-size: 1.75rem;
+        font-weight: 500;
         line-height: 1.1;
-        margin-bottom: 1.25rem;
-        color: white;
-        letter-spacing: -0.02em;
-        text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        color: #FFFFFF !important;
+        font-variant-numeric: tabular-nums;
     }
 
-    .bl-hero p {
-        font-size: 1.3rem;
-        color: rgba(255, 255, 255, 0.9);
-        line-height: 1.6;
-        margin: 0 auto;
-        text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    .bl-band-stats dd {
+        margin: 0.3rem 0 0 0;
+        font-size: 0.82rem;
+        line-height: 1.35;
+        color: var(--on-dark-2) !important;
     }
 
-    /* ===== Cards ===== */
-    .bl-card {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: 1.75rem;
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition-base);
-        position: relative;
-        overflow: hidden;
+    /* Streamlit appends a hover "link to heading" icon to every markdown
+       heading. Designed blocks are not document sections, so hide it there
+       (in the band it would also drop onto an empty third title line). */
+    .bl-band [data-testid="stHeaderActionElements"],
+    .bl-block-head [data-testid="stHeaderActionElements"],
+    .bl-steps [data-testid="stHeaderActionElements"],
+    .bl-facts [data-testid="stHeaderActionElements"],
+    .bl-tool-card [data-testid="stHeaderActionElements"] {
+        display: none !important;
     }
 
-    .bl-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: var(--gradient-primary);
-        opacity: 0;
-        transition: var(--transition-base);
-    }
-
-    .bl-card:hover {
-        box-shadow: var(--shadow-lg);
-        transform: translateY(-4px);
-        border-color: transparent;
-    }
-
-    .bl-card:hover::before {
-        opacity: 1;
-    }
-
-    .bl-card-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: var(--radius-md);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.4rem;
-        margin-bottom: 1rem;
-    }
-
-    .bl-card-icon.blue { background: var(--color-accent-light); }
-    .bl-card-icon.green { background: var(--color-success-light); }
-    .bl-card-icon.amber { background: var(--color-warning-light); }
-
-    .bl-card h4 {
-        font-size: 1.1rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-        color: var(--color-primary);
-    }
-
-    .bl-card p {
-        font-size: 0.92rem;
-        color: var(--color-text-secondary);
-        line-height: 1.65;
-        margin: 0;
-    }
-
-    /* ===== Feature Card (large, with gradient) ===== */
-    .bl-feature-card {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-xl);
-        padding: 2.5rem;
-        box-shadow: var(--shadow-md);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .bl-feature-card::after {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -50%;
-        width: 100%;
-        height: 100%;
-        background: radial-gradient(circle, rgba(46, 111, 199, 0.04) 0%, transparent 70%);
-        pointer-events: none;
-    }
-
-    /* ===== Tool Hub Cards — equal height via Streamlit columns ===== */
+    /* ===== Tool cards (Home) — equal height via Streamlit columns ===== */
     [data-testid="stHorizontalBlock"] {
         align-items: stretch;
     }
-    /* ===== Modern Image Cards ===== */
-    .bl-image-card {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-xl);
-        overflow: hidden;
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition-base);
+
+    .bl-tool-card {
         display: flex;
         flex-direction: column;
         height: 100%;
+        background: var(--color-surface);
+        border: 1px solid var(--color-line);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        overflow: hidden;
         text-decoration: none !important;
         color: inherit !important;
+        transition: transform var(--transition-base), box-shadow var(--transition-base);
     }
 
-    .bl-image-card:hover {
-        transform: translateY(-5px);
+    .bl-tool-card:hover {
+        transform: translateY(-3px);
         box-shadow: var(--shadow-lg);
-        border-color: var(--color-primary-light);
     }
 
-    .bl-image-card-header {
-        height: 180px;
-        background-size: cover;
-        background-position: center;
-        border-bottom: 1px solid var(--color-border);
-        transition: transform 0.5s ease;
-    }
-
-    .bl-image-card:hover .bl-image-card-header {
-        transform: scale(1.03);
-    }
-    
-    .bl-image-card-header-wrap {
-        overflow: hidden;
-        height: 180px;
-    }
-
-    .bl-image-card-body {
-        padding: 2rem;
+    .bl-tool-visual {
+        min-height: 12rem;
+        background: var(--color-surface-2);
+        border-bottom: 1px solid var(--color-line);
+        padding: 1rem 1.15rem;
         display: flex;
         flex-direction: column;
-        flex-grow: 1;
-        background: var(--color-surface);
-        position: relative;
-        z-index: 1;
+        justify-content: space-between;
+        gap: 0.75rem;
     }
 
-    .bl-image-card-body h3 {
-        font-family: var(--font-display);
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--color-text);
-        margin-bottom: 0.75rem;
-    }
-
-    .bl-image-card-body p {
-        font-size: 1.05rem;
-        color: var(--color-text-secondary);
-        line-height: 1.6;
-        margin-bottom: 1.5rem;
-    }
-
-    .bl-image-card-features {
-        list-style: none;
-        padding: 0;
-        margin: 0 0 2rem 0;
-        flex-grow: 1;
+    .bl-tool-visual-head {
         display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .bl-image-card-features li {
-        font-size: 0.9rem;
-        color: var(--color-text-tertiary);
-        padding: 0.3rem 0;
-        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
         align-items: center;
+        gap: 0.4rem 0.75rem;
+        font-family: var(--font-mono) !important;
+        font-size: 0.75rem !important;
+        color: var(--color-text-secondary) !important;
+    }
+
+    .bl-chips {
+        display: flex;
+        gap: 0.2rem;
+    }
+
+    .bl-chips span {
+        font-size: 0.7rem;
+        padding: 0.1rem 0.45rem;
+        border-radius: var(--radius-full);
+    }
+
+    .bl-chips span.on {
+        background: var(--color-accent);
+        color: #FFFFFF !important;
+    }
+
+    /* Decorative candlesticks (example data): a wick <i> and a body <b> per
+       candle, placed with inline top/height percentages */
+    .bl-candles {
+        display: flex;
+        gap: 4px;
+        height: 118px;
+    }
+
+    .bl-candles span {
+        position: relative;
+        flex: 1 1 0;
+        color: var(--color-success);
+    }
+
+    .bl-candles span.dn {
+        color: var(--color-error);
+    }
+
+    .bl-candles i,
+    .bl-candles b {
+        position: absolute;
+        display: block;
+        background: currentColor;
+    }
+
+    .bl-candles i {
+        left: 50%;
+        width: 1px;
+        margin-left: -0.5px;
+    }
+
+    .bl-candles b {
+        left: 0;
+        right: 0;
+        min-height: 2px;
+        border-radius: 1px;
+    }
+
+    /* Example allocation bars */
+    .bl-weights {
+        display: grid;
         gap: 0.5rem;
     }
 
-    .bl-image-card-btn {
-        display: inline-block;
-        align-self: center;
-        width: auto;
-        padding: 0.7rem 2rem;
-        background: var(--gradient-accent);
-        color: white !important;
-        text-align: center;
+    .bl-w-row {
+        display: grid;
+        grid-template-columns: 1.4rem minmax(0, 1fr) 3rem;
+        align-items: center;
+        gap: 0.6rem;
+        font-family: var(--font-mono) !important;
+        font-size: 0.75rem !important;
+        color: var(--color-text-secondary) !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .bl-w-row .pct {
+        text-align: right;
+        color: var(--color-primary) !important;
+    }
+
+    .bl-w-track {
+        height: 12px;
         border-radius: var(--radius-full);
-        font-family: var(--font-family);
-        font-weight: 600;
-        font-size: 0.95rem;
-        text-decoration: none;
-        transition: var(--transition-base);
+        background: var(--color-line);
+        overflow: hidden;
+    }
+
+    .bl-w-fill {
+        height: 100%;
+        border-radius: var(--radius-full);
+    }
+
+    .bl-tool-body {
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        flex: 1;
+    }
+
+    .bl-tool-body h3 {
+        font-size: 1.45rem !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .bl-tool-body p {
+        margin: 0 !important;
+        color: var(--color-text-secondary) !important;
+        line-height: 1.6;
+    }
+
+    .bl-checks {
+        list-style: none;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .bl-checks li {
+        position: relative;
+        padding-left: 1.75rem;
+        margin: 0 !important;
+        font-size: 0.94rem;
+        line-height: 1.5;
+        color: var(--color-text) !important;
+    }
+
+    /* Check mark in a soft blue circle, as on the landing page */
+    .bl-checks li::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0.2rem;
+        width: 1.1rem;
+        height: 1.1rem;
+        border-radius: 50%;
+        background: var(--color-accent-light) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2 5 8.2 9 4' fill='none' stroke='%232E6FC7' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+    }
+
+    .bl-tool-link {
         margin-top: auto;
-        border: none;
-        box-shadow: var(--shadow-sm);
-        letter-spacing: 0.01em;
+        padding-top: 0.35rem;
+        font-weight: 600;
+        color: var(--color-accent) !important;
     }
 
-    .bl-image-card-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-glow);
-        filter: brightness(1.1);
+    .bl-tool-card:hover .bl-tool-link {
+        text-decoration: underline;
+        text-underline-offset: 3px;
     }
 
-    /* ===== Section Headers ===== */
-    .bl-section-header {
-        text-align: center;
-        margin-bottom: 2.5rem;
+    /* ===== About: section heads, method steps, verification facts ===== */
+    .bl-block-head {
+        max-width: 46rem;
+        margin: 0.5rem 0 1.75rem 0;
     }
 
-    .bl-section-header h2 {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
+    .bl-block-head h2 {
+        font-size: clamp(1.6rem, 2.4vw, 2.1rem) !important;
+        line-height: 1.15 !important;
+        margin: 0.65rem 0 0.6rem 0 !important;
+        padding: 0 !important;
     }
 
-    .bl-section-header p {
-        color: var(--color-text-secondary);
+    .bl-block-head p.bl-block-lead {
+        margin: 0 !important;
         font-size: 1.05rem;
-        max-width: 480px;
-        margin: 0 auto;
+        color: var(--color-text-secondary) !important;
+    }
+
+    .bl-steps {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1.75rem;
+        margin: 0 0 3.5rem 0;
+    }
+
+    .bl-step {
+        border-top: 2px solid var(--color-line-strong);
+        padding-top: 1.1rem;
+    }
+
+    .bl-step-num {
+        font-family: var(--font-mono) !important;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        color: var(--color-accent) !important;
+    }
+
+    .bl-step h3,
+    .bl-fact h3 {
+        font-size: 1.15rem !important;
+        line-height: 1.3 !important;
+        letter-spacing: -0.02em;
+        margin: 0.55rem 0 0.4rem 0 !important;
+        padding: 0 !important;
+    }
+
+    .bl-step p,
+    .bl-fact p {
+        margin: 0 !important;
+        font-size: 0.94rem;
+        line-height: 1.6;
+        color: var(--color-text-secondary) !important;
+    }
+
+    .bl-facts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 2.5rem;
+        margin: 0 0 3.5rem 0;
+    }
+
+    .bl-fact {
+        border-top: 1px solid var(--color-line);
+        padding: 1rem 0 1.1rem 0;
+    }
+
+    .bl-fact h3 {
+        margin-top: 0 !important;
     }
 
     /* ===== Buttons ===== */
@@ -579,12 +673,13 @@ def get_shared_css() -> str:
     }
 
     .stButton > button[kind="primary"] {
-        background: var(--gradient-accent) !important;
+        background: var(--color-accent) !important;
         color: white !important;
         border: none !important;
     }
 
     .stButton > button[kind="primary"]:hover {
+        background: var(--color-accent-hover) !important;
         box-shadow: var(--shadow-glow) !important;
     }
 
@@ -607,13 +702,14 @@ def get_shared_css() -> str:
         border-radius: var(--radius-full) !important;
         font-family: var(--font-family) !important;
         font-weight: 600 !important;
-        background: var(--gradient-accent) !important;
+        background: var(--color-accent) !important;
         color: white !important;
         border: none !important;
         padding: 0.7rem 2rem !important;
     }
 
     .stDownloadButton > button:hover {
+        background: var(--color-accent-hover) !important;
         transform: translateY(-2px) !important;
         box-shadow: var(--shadow-glow) !important;
     }
@@ -660,43 +756,56 @@ def get_shared_css() -> str:
     }
 
     /* ===== Tabs ===== */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0;
+    /* Streamlit 1.59 renders tabs with react-aria: a [role="tablist"] of
+       div[role="tab"] (aria-selected), each label in a <p>. The BaseWeb
+       selectors used before (data-baseweb="tab") no longer match anything,
+       which left the active tab as dark text on a bare blue block. */
+    .stTabs [role="tablist"] {
+        gap: 0.25rem;
+        width: fit-content;
+        max-width: 100%;
         background: var(--color-surface);
+        border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         padding: 4px;
-        border: 1px solid var(--color-border);
         box-shadow: var(--shadow-xs);
     }
 
-    .stTabs [data-baseweb="tab"] {
-        font-family: var(--font-family) !important;
-        font-weight: 500;
-        font-size: 0.875rem;
-        border-radius: var(--radius-md);
-        padding: 0.5rem 1rem;
-        color: var(--color-text-secondary);
-        border: none !important;
+    /* Streamlit's full-width underline and sliding indicator */
+    .stTabs [role="tablist"]::after,
+    .stTabs .react-aria-SelectionIndicator {
+        display: none !important;
     }
 
-    .stTabs [data-baseweb="tab"]:hover {
+    .stTabs [role="tab"] {
+        height: auto !important;
+        padding: 0.45rem 1rem !important;
+        border-radius: var(--radius-md);
+        color: var(--color-text-secondary);
+        transition: var(--transition-fast);
+    }
+
+    .stTabs [role="tab"] p {
+        font-size: 0.875rem !important;
+        font-weight: 500;
+        color: inherit !important;
+        margin: 0 !important;
+        white-space: nowrap;
+    }
+
+    .stTabs [role="tab"]:hover {
         color: var(--color-accent);
         background: var(--color-accent-light);
     }
 
-    .stTabs [aria-selected="true"] {
+    .stTabs [role="tab"][aria-selected="true"] {
         background: var(--color-accent) !important;
-        color: white !important;
-        font-weight: 600 !important;
-        box-shadow: var(--shadow-sm) !important;
+        color: #FFFFFF !important;
+        box-shadow: var(--shadow-sm);
     }
 
-    .stTabs [data-baseweb="tab-highlight"] {
-        display: none !important;
-    }
-
-    .stTabs [data-baseweb="tab-border"] {
-        display: none !important;
+    .stTabs [role="tab"][aria-selected="true"] p {
+        font-weight: 600;
     }
 
     /* ===== Info Boxes ===== */
@@ -749,30 +858,27 @@ def get_shared_css() -> str:
         letter-spacing: 0.05em;
     }
 
-    /* Add global custom styling for Primary Buttons */
-    div[data-testid="stButton"] button[data-testid="baseButton-primary"] {
-        background-color: #3b82f6 !important;
-        color: white !important;
-        border-radius: 24px !important;
-        border: none !important;
-        font-weight: 600 !important;
-        transition: all 0.2s ease !important;
-        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2) !important;
-    }
-    div[data-testid="stButton"] button[data-testid="baseButton-primary"]:hover {
-        background-color: #2563eb !important;
-        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3) !important;
-        transform: translateY(-1px) !important;
-    }
-    div[data-testid="stButton"] button[data-testid="baseButton-primary"]:active {
-        transform: translateY(0px) !important;
+    /* Button labels are a <p> nested in divs inside the button, which the
+       global `p, div` color rule reached first (dark slate on the blue
+       primary buttons). Let every level inherit the button's own color. */
+    .stButton > button div,
+    .stButton > button p,
+    .stDownloadButton > button div,
+    .stDownloadButton > button p {
+        color: inherit !important;
     }
 
     /* Target specific components */
-    [data-testid="stMetricValue"] {
-        font-family: var(--font-display) !important;
-        font-weight: 700 !important;
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricValue"] * {
+        font-family: var(--font-mono) !important;
+        font-weight: 500 !important;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.01em;
         color: var(--color-primary) !important;
+    }
+
+    [data-testid="stMetricValue"] {
         font-size: 1.5rem !important;
     }
 
@@ -792,18 +898,6 @@ def get_shared_css() -> str:
         border-radius: var(--radius-md) !important;
     }
 
-    /* ===== Footer ===== */
-    .bl-footer {
-        text-align: center;
-        padding: 2rem 0 1.5rem 0;
-        margin-top: 3rem;
-        border-top: 1px solid var(--color-border-light);
-        color: var(--color-text-tertiary);
-        font-size: 0.85rem;
-        font-weight: 500;
-        letter-spacing: 0.02em;
-    }
-
     details {
         border: 1px solid var(--color-border) !important;
         border-radius: var(--radius-md) !important;
@@ -812,16 +906,35 @@ def get_shared_css() -> str:
 
     /* ===== Footer ===== */
     .bl-footer {
-        text-align: center;
-        padding: 3rem 0 1.5rem 0;
-        color: var(--color-text-muted);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 0.75rem 2rem;
+        padding: 1.5rem 0 1.25rem 0;
+        margin-top: 3.5rem;
+        border-top: 1px solid var(--color-line);
+    }
+
+    .bl-footer,
+    .bl-footer div {
         font-size: 0.85rem;
-        border-top: 1px solid var(--color-border-light);
-        margin-top: 3rem;
+        color: var(--color-text-secondary);
+    }
+
+    .bl-footer .bl-footer-note {
+        margin-top: 0.25rem;
+        font-size: 0.78rem;
+        color: var(--color-text-muted);
+    }
+
+    .bl-footer-links {
+        display: flex;
+        gap: 1.25rem;
     }
 
     .bl-footer a {
-        color: var(--color-accent);
+        color: var(--color-accent) !important;
         text-decoration: none;
         font-weight: 500;
     }
@@ -896,38 +1009,6 @@ def get_shared_css() -> str:
     .bl-animate-delay-3 { animation-delay: 0.3s; animation-fill-mode: both; }
     .bl-animate-delay-4 { animation-delay: 0.4s; animation-fill-mode: both; }
 
-    /* ===== Stats row ===== */
-    .bl-stats {
-        display: flex;
-        justify-content: center;
-        gap: 3rem;
-        padding: 2rem 0;
-        margin: 2rem 0;
-        border-top: 1px solid var(--color-border-light);
-        border-bottom: 1px solid var(--color-border-light);
-    }
-
-    .bl-stat {
-        text-align: center;
-    }
-
-    .bl-stat-value {
-        font-family: var(--font-display);
-        font-size: 2rem;
-        font-weight: 800;
-        background: var(--gradient-accent);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-
-    .bl-stat-label {
-        font-size: 0.85rem;
-        color: var(--color-text-muted);
-        font-weight: 500;
-        margin-top: 0.25rem;
-    }
-
     /* ===== Back link ===== */
     .bl-back-link {
         margin-bottom: 1.5rem;
@@ -948,11 +1029,15 @@ def get_shared_css() -> str:
 
     /* ===== Mobile Responsiveness (PWA) ===== */
     @media (max-width: 768px) {
-        /* Reduce lateral padding so charts and content have room */
+        /* Reduce lateral padding so charts and content have room. The div-
+           qualified selectors match the specificity of the 3rem rule in
+           inject_critical_css(); without them that rule won on phones too. */
         .block-container,
         [data-testid="stAppViewBlockContainer"],
         [data-testid="stMainBlockContainer"],
-        .stMainBlockContainer {
+        .stMainBlockContainer,
+        div[data-testid="stAppViewBlockContainer"],
+        div.block-container {
             padding-left: 1rem !important;
             padding-right: 1rem !important;
         }
@@ -968,13 +1053,29 @@ def get_shared_css() -> str:
             padding: 0.4rem 0.6rem;
         }
         .page-title {
-            font-size: 2rem;
+            font-size: 2rem !important;
         }
-        /* Hero title: reduce size so long words don't break mid-character */
-        .bl-hero h1 {
-            font-size: 2.5rem;
+        .bl-band {
+            margin-left: -1rem;
+            margin-right: -1rem;
+        }
+        .bl-band-inner {
+            padding: 2.25rem 1rem 2rem 1rem;
+        }
+        /* Band title: keep long words whole */
+        .bl-band h1 {
             word-break: keep-all;
             overflow-wrap: break-word;
+        }
+        .bl-band-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            column-gap: 1.5rem;
+        }
+        .bl-steps {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .bl-facts {
+            grid-template-columns: minmax(0, 1fr);
         }
         .step-header {
             flex-direction: column;
@@ -982,9 +1083,11 @@ def get_shared_css() -> str:
             gap: 0.5rem;
         }
         /* Smaller tab text to fit more tabs */
-        .stTabs [data-baseweb="tab"] {
-            font-size: 0.78rem !important;
+        .stTabs [role="tab"] {
             padding: 0.4rem 0.55rem !important;
+        }
+        .stTabs [role="tab"] p {
+            font-size: 0.78rem !important;
         }
         /* Make columns stack gracefully in Streamlit */
         [data-testid="column"] {
@@ -992,13 +1095,6 @@ def get_shared_css() -> str:
             flex: 1 1 100% !important;
             min-width: 100% !important;
             margin-bottom: 1rem;
-        }
-        .bl-stats {
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-        .bl-stat-value {
-            font-size: 1.75rem;
         }
     }
 
@@ -1016,43 +1112,30 @@ def get_shared_css() -> str:
             padding: 0.35rem 0.5rem;
         }
         .page-title {
-            font-size: 1.75rem;
+            font-size: 1.75rem !important;
         }
-        .bl-hero h1 {
-            font-size: 2rem;
+        .bl-steps {
+            grid-template-columns: minmax(0, 1fr);
         }
         /* Even smaller tabs on very narrow screens */
-        .stTabs [data-baseweb="tab"] {
-            font-size: 0.72rem !important;
+        .stTabs [role="tab"] {
             padding: 0.35rem 0.45rem !important;
+        }
+        .stTabs [role="tab"] p {
+            font-size: 0.72rem !important;
         }
     }
 </style>
 """
 
-import streamlit as st
 
-@st.cache_data
-def get_base64_of_bin_file(bin_file: str) -> str:
-    """Read a binary file and return its base64 string."""
-    import base64, os
-    if not os.path.exists(bin_file):
-        return ""
-    with open(bin_file, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-@st.cache_data
-def _get_logo_base64(logo_path: str = "assets/PortfolioLab.png") -> str:
-    """
-    Read the logo image and return a base64-encoded data URI.
-
-    The result is cached so the file is read only once per session.
-    """
-    base64_str = get_base64_of_bin_file(logo_path)
-    if not base64_str:
-        return ""
-    return f"data:image/png;base64,{base64_str}"
+# The navbar logo is served from Streamlit's static route (enableStaticServing)
+# instead of being inlined as base64 on every rerun. It is a tight crop of
+# assets/PortfolioLab.png, the same file the landing page uses
+# (docs/assets/portfoliolab-logo.png). The path MUST stay relative: Streamlit
+# Cloud mounts the app under /~/+/, and an absolute /app/static/... escapes
+# that prefix (the edge answers with HTML and status 200, a blank image).
+NAVBAR_LOGO_SRC = "./app/static/portfoliolab-logo.png"
 
 
 def render_navbar(active_page: str = "home") -> None:
@@ -1067,20 +1150,10 @@ def render_navbar(active_page: str = "home") -> None:
     portfolio_class = 'class="active"' if active_page == "portfolio" else ""
     about_class = 'class="active"' if active_page == "about" else ""
 
-    logo_src = _get_logo_base64()
-
-    if logo_src:
-        brand_html = f'<img src="{logo_src}" alt="PortfolioLab">'
-    else:
-        brand_html = (
-            '<div class="bl-navbar-brand-icon">P</div>'
-            '<span class="bl-navbar-brand-text">PortfolioLab</span>'
-        )
-
     st.markdown(f"""
     <div class="bl-navbar">
         <a href="/" target="_self" class="bl-navbar-brand">
-            {brand_html}
+            <img src="{NAVBAR_LOGO_SRC}" alt="PortfolioLab" width="100" height="38">
         </a>
         <div class="bl-navbar-links">
             <a href="/" target="_self" {home_class}>Home</a>
@@ -1194,20 +1267,17 @@ def inject_styles() -> None:
     inject_pwa_support()
 
 
-def render_logo(logo_path: str = "assets/PortfolioLab.png") -> None:
-    """Backward compatibility stub — logo is now part of navbar."""
-    pass
-
-
 def render_footer() -> None:
     """Renders the global footer at the bottom of the page."""
     st.markdown("""
     <div class="bl-footer">
-        &copy; 2026 PortfolioLab. Professional Financial Analysis Platform.<br>
-        <span style="font-size:0.78rem;color:#94A3B8;">
-            For educational and informational purposes only — not investment advice.
-            Market data provided by Yahoo Finance.
-        </span>
+        <div>
+            <div>&copy; 2026 PortfolioLab &middot; Open source under the MIT License</div>
+            <div class="bl-footer-note">For educational and informational purposes only — not investment advice. Market data provided by Yahoo Finance.</div>
+        </div>
+        <div class="bl-footer-links">
+            <a href="https://jose062797.github.io/PortfolioLab/" target="_blank" rel="noopener">Website</a>
+            <a href="https://github.com/Jose062797/PortfolioLab" target="_blank" rel="noopener">GitHub</a>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-

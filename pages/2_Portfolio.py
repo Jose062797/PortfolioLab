@@ -117,6 +117,7 @@ def main():
     # ── Page Header ──
     st.markdown("""
     <div style="margin-bottom: 2rem;">
+        <p class="bl-eyebrow">Black-Litterman · Markowitz</p>
         <h1 class="page-title">Portfolio</h1>
         <p class="page-subtitle">Build your optimal portfolio using advanced optimization models</p>
     </div>

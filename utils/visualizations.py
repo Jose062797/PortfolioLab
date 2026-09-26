@@ -4,7 +4,6 @@ Creates interactive charts using Plotly
 """
 
 import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional, List, Tuple
@@ -12,6 +11,67 @@ from datetime import datetime, timedelta
 import yfinance as yf
 
 from core.constants import MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_YEAR
+
+
+# ── Brand chart style ──
+# Shared by every interactive chart (Portfolio results and the Stocks page) and
+# matching Fig. 1 of the landing page (docs/index.html): Inter for text, DM Mono
+# for tick labels and hover figures, a faint navy grid, a navy hover label.
+# The fonts are loaded by the page CSS (utils/styles.py). The PDF charts are
+# matplotlib and keep their own style (core/pdf_shared.py).
+BRAND_FONT = "Inter, sans-serif"
+BRAND_DISPLAY = "DM Sans, Inter, sans-serif"
+BRAND_MONO = "DM Mono, ui-monospace, Consolas, monospace"
+BRAND_INK = "#0A1628"
+BRAND_MUTED = "#64748B"
+BRAND_GRID = "rgba(10, 22, 40, 0.08)"
+BRAND_ZERO = "rgba(10, 22, 40, 0.20)"
+# Asset colors: the landing page's five, ordered so neighboring pie slices
+# differ, then extended to MAX_TICKERS (20) with lighter and darker shades of
+# the same hues.
+BRAND_SEQUENCE = [
+    "#2E6FC7", "#10B981", "#F59E0B", "#8DB8F2", "#0A1628",
+    "#5B93E0", "#34D399", "#FBBF24", "#64748B", "#1E5AB3",
+    "#A7F3D0", "#FDE68A", "#94A3B8", "#C7DBF7", "#059669",
+    "#D97706", "#334155", "#3B82F6", "#6EE7B7", "#CBD5E1",
+]
+
+
+def apply_brand_layout(fig: go.Figure, axes: bool = True) -> go.Figure:
+    """
+    Apply the shared brand style to a Plotly figure, in place.
+
+    Only fonts, grid lines and the hover label change. Trace colors and
+    chart-specific axis settings (ranges, suffixes, formats) are left alone.
+
+    Args:
+        fig: Figure to style.
+        axes: Also style the cartesian axes. False for charts without them (pie).
+
+    Returns:
+        The same figure, so builders can `return apply_brand_layout(fig)`.
+    """
+    fig.update_layout(
+        font=dict(family=BRAND_FONT, color=BRAND_INK),
+        hoverlabel=dict(
+            bgcolor=BRAND_INK,
+            bordercolor=BRAND_INK,
+            font=dict(family=BRAND_MONO, size=12, color="#FFFFFF"),
+        ),
+    )
+    # Only for figures that have a title: a title object without text makes
+    # the chart print "undefined" in its top-left corner.
+    if fig.layout.title.text:
+        fig.update_layout(title_font_family=BRAND_DISPLAY)
+    if axes:
+        axis_style = dict(
+            gridcolor=BRAND_GRID,
+            zerolinecolor=BRAND_ZERO,
+            tickfont=dict(family=BRAND_MONO, size=11, color=BRAND_MUTED),
+        )
+        fig.update_xaxes(**axis_style)
+        fig.update_yaxes(**axis_style)
+    return fig
 
 
 def create_correlation_heatmap(cov_matrix: np.ndarray, tickers: list) -> go.Figure:
@@ -46,12 +106,11 @@ def create_correlation_heatmap(cov_matrix: np.ndarray, tickers: list) -> go.Figu
         xaxis_title='',
         yaxis_title='',
         height=500,
-        font=dict(family="Inter, sans-serif", color="#0A1628"),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)"
     )
 
-    return fig
+    return apply_brand_layout(fig)
 
 
 def create_returns_comparison(
@@ -108,7 +167,6 @@ def create_returns_comparison(
         yaxis_title='Expected Annual Return (%)',
         barmode='group',
         height=500,
-        font=dict(family="Inter, sans-serif", color="#0A1628"),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         legend=dict(
@@ -120,7 +178,7 @@ def create_returns_comparison(
         )
     )
 
-    return fig
+    return apply_brand_layout(fig)
 
 
 def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEIGHT_THRESHOLD) -> go.Figure:
@@ -154,8 +212,8 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
     tickers = list(filtered_weights.keys())
     values = [filtered_weights[t] * 100 for t in tickers]
 
-    # Corporate color sequence
-    corporate_colors = px.colors.qualitative.Pastel[:len(tickers)]
+    # Brand asset palette (BRAND_SEQUENCE covers MAX_TICKERS)
+    corporate_colors = BRAND_SEQUENCE[:len(tickers)]
 
     fig = go.Figure(data=[go.Pie(
         labels=tickers,
@@ -172,7 +230,6 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
     fig.update_layout(
         title='Portfolio Allocation',
         height=500,
-        font=dict(family="Inter, sans-serif", color="#0A1628"),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=True,
@@ -185,7 +242,7 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
         )
     )
 
-    return fig
+    return apply_brand_layout(fig, axes=False)
 
 
 def create_efficient_frontier_chart(ef_data: dict, selected_portfolio: dict = None) -> go.Figure:
@@ -258,12 +315,12 @@ def create_efficient_frontier_chart(ef_data: dict, selected_portfolio: dict = No
             x=[mv_risk],
             y=[mv_ret],
             mode='markers',
-            marker=dict(size=14, symbol='diamond', color='#3B82F6', line=dict(color='#FFFFFF', width=2)),
+            marker=dict(size=14, symbol='diamond', color='#2E6FC7', line=dict(color='#FFFFFF', width=2)),
             name='Min Variance',
             hovertemplate='<b>Min Variance</b><br>Volatility: %{x:.2f}%<br>Return: %{y:.2f}%<extra></extra>'
         ))
 
-    # 5. Selected Portfolio (user's actual result — green marker)
+    # 5. Selected Portfolio (user's actual result — amber marker)
     if selected_portfolio:
         sel_ret = selected_portfolio['ret'] * 100
         sel_risk = selected_portfolio['risk'] * 100
@@ -286,12 +343,11 @@ def create_efficient_frontier_chart(ef_data: dict, selected_portfolio: dict = No
         height=500,
         width=800,
         margin=dict(t=60, b=60, l=60, r=60),
-        font=dict(family="Inter, sans-serif", color="#0A1628"),
         hovermode='closest',
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(gridcolor='#E2E8F0', ticksuffix='%'),
-        yaxis=dict(gridcolor='#E2E8F0', ticksuffix='%'),
+        xaxis=dict(ticksuffix='%'),
+        yaxis=dict(ticksuffix='%'),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -301,7 +357,7 @@ def create_efficient_frontier_chart(ef_data: dict, selected_portfolio: dict = No
         )
     )
 
-    return fig
+    return apply_brand_layout(fig)
 
 
 def create_risk_return_scatter(
@@ -350,13 +406,12 @@ def create_risk_return_scatter(
         xaxis_title='Volatility (Annual %)',
         yaxis_title='Expected Return (Annual %)',
         height=500,
-        font=dict(family="Inter, sans-serif", color="#0A1628"),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=False
     )
 
-    return fig
+    return apply_brand_layout(fig)
 
 
 def create_allocation_table(
@@ -569,7 +624,7 @@ def create_historical_performance_chart(
         fig.update_layout(
             title=dict(
                 text=f'Historical Performance vs {benchmark} Benchmark',
-                font=dict(size=18, family="Inter, sans-serif", color="#0A1628"),
+                font=dict(size=18, color="#0A1628"),
                 x=0.5,
                 xanchor='center',
                 y=0.98,
@@ -578,7 +633,6 @@ def create_historical_performance_chart(
             xaxis_title='Date',
             yaxis_title='Cumulative Return (%)',
             height=600,
-            font=dict(family="Inter, sans-serif", color="#0A1628"),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             hovermode='x unified',
@@ -591,12 +645,10 @@ def create_historical_performance_chart(
             ),
             margin=dict(t=100, b=120, l=60, r=40),
             yaxis=dict(
-                gridcolor='#E2E8F0',
                 ticksuffix='%',
                 tickformat=',.0f'
             ),
             xaxis=dict(
-                gridcolor='#E2E8F0',
                 type="date",
             ),
             annotations=[dict(
@@ -604,12 +656,12 @@ def create_historical_performance_chart(
                 xref="paper", yref="paper",
                 x=0.5, y=-0.18,
                 showarrow=False,
-                font=dict(size=12, color="#64748B"),
+                font=dict(family=BRAND_MONO, size=12, color="#64748B"),
                 xanchor='center'
             )]
         )
 
-        return fig, bt_result
+        return apply_brand_layout(fig), bt_result
 
     except Exception as e:
         fig = go.Figure()

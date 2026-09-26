@@ -30,6 +30,7 @@ render_navbar(active_page="stocks")
 from core.data_provider import (  # noqa: E402
     download_ohlcv, get_asset_info, get_quarterly_financials,
 )
+from utils.visualizations import apply_brand_layout  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -239,13 +240,15 @@ def _create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=
         v = ohlcv['Volume'].iloc[i] if 'Volume' in ohlcv.columns and not pd.isna(ohlcv['Volume'].iloc[i]) else 0
         custom_data.append([date_str, f"{c:,.2f}", f"{o:,.2f}", f"{h:,.2f}", f"{l:,.2f}", f"{v:,.0f}"])
 
+    # The hover label is DM Mono (apply_brand_layout), so padding every label
+    # to the same width lines the values up exactly.
     hover_temp = (
-        "<b>Date:         %{customdata[0]}</b><br><br>"
-        "Close:       %{customdata[1]}<br>"
-        "Open:        %{customdata[2]}<br>"
-        "High:         %{customdata[3]}<br>"
-        "Low:          %{customdata[4]}<br>"
-        "Volume:    %{customdata[5]}"
+        "<b>Date:   %{customdata[0]}</b><br><br>"
+        "Close:  %{customdata[1]}<br>"
+        "Open:   %{customdata[2]}<br>"
+        "High:   %{customdata[3]}<br>"
+        "Low:    %{customdata[4]}<br>"
+        "Volume: %{customdata[5]}"
         "<extra></extra>"
     )
 
@@ -278,7 +281,6 @@ def _create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         xaxis_rangeslider_visible=False,
         showlegend=False,
-        font=dict(family="Inter, sans-serif")
     )
 
     if prev_close and is_intraday:
@@ -288,8 +290,9 @@ def _create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=
             annotation_position="right", annotation_font_color="#94A3B8", annotation_font_size=10,
         )
 
-    for ax in ['xaxis', 'xaxis2', 'yaxis', 'yaxis2']:
-        fig.update_layout(**{ax: dict(gridcolor='#D1D5DB', zerolinecolor='#D1D5DB', showgrid=True)})
+    apply_brand_layout(fig)
+    fig.update_xaxes(showgrid=True)
+    fig.update_yaxes(showgrid=True)
 
     if is_intraday:
         timestamps = ohlcv.index
@@ -400,11 +403,13 @@ def _build_stat_table(items):
     for label, val in items:
         if val == "N/A":
             continue
+        # Figures in DM Mono; text values (fund family, category) stay in Inter
+        mono = ' class="bl-mono"' if str(val)[:1] in "$+-0123456789" else ""
         html += (
             f'<div style="display:flex;justify-content:space-between;padding:8px 0;'
             f'border-bottom:1px solid #F1F5F9;">'
             f'<span style="color:#64748B;font-size:0.85rem;">{label}</span>'
-            f'<span style="font-weight:600;color:#1E3A5F;font-size:0.85rem;">{val}</span>'
+            f'<span{mono} style="font-weight:600;color:#1E3A5F;font-size:0.85rem;">{val}</span>'
             f'</div>'
         )
     return f'<div style="padding:4px 0;">{html}</div>'
@@ -417,7 +422,7 @@ def _render_metric_card(label, value, color="#1E3A5F"):
         f'padding:16px;text-align:center;">'
         f'<div style="font-size:0.75rem;color:#64748B;text-transform:uppercase;'
         f'letter-spacing:0.05em;margin-bottom:4px;">{label}</div>'
-        f'<div style="font-size:1.3rem;font-weight:700;color:{color};">{value}</div>'
+        f'<div class="bl-mono" style="font-size:1.3rem;font-weight:700;color:{color};">{value}</div>'
         f'</div>'
     )
 
@@ -583,11 +588,11 @@ def _render_performance(ticker: str, hist_close: pd.Series, price, spy_close: pd
                 f'{period_label}</div>'
                 f'<div style="margin-bottom:12px;">'
                 f'<div style="font-size:0.72rem;color:#64748B;margin-bottom:2px;">{ticker}</div>'
-                f'<div style="font-size:1.9rem;font-weight:700;color:{t_color};">{t_str}</div>'
+                f'<div class="bl-mono" style="font-size:1.9rem;font-weight:700;color:{t_color};">{t_str}</div>'
                 f'</div>'
                 f'<div style="border-top:1px solid #F1F5F9;padding-top:10px;">'
                 f'<div style="font-size:0.72rem;color:#64748B;margin-bottom:2px;">S&amp;P 500 (^GSPC)</div>'
-                f'<div style="font-size:1.3rem;font-weight:600;color:{s_color};">{s_str}</div>'
+                f'<div class="bl-mono" style="font-size:1.3rem;font-weight:600;color:{s_color};">{s_str}</div>'
                 f'</div></div>',
                 unsafe_allow_html=True,
             )
@@ -624,7 +629,7 @@ def _render_revenue(fin_df: pd.DataFrame):
     if revenues:
         fig.add_trace(go.Bar(
             x=q_labels, y=_sc(revenues), name='Revenue',
-            marker_color='#60A5FA',
+            marker_color='#2E6FC7',
             hovertemplate=f'Revenue: $%{{y:.2f}}{suffix}<extra></extra>',
         ))
     if net_incomes:
@@ -640,13 +645,9 @@ def _render_revenue(fin_df: pd.DataFrame):
         margin=dict(l=40, r=40, t=20, b=40),
         showlegend=True,
         legend=dict(orientation='h', y=1.12, x=0, xanchor='left', font=dict(size=11)),
-        font=dict(family="Inter, sans-serif"),
-        xaxis=dict(gridcolor='#E2E8F0'),
-        yaxis=dict(
-            gridcolor='#E2E8F0',
-            tickprefix='$', ticksuffix=suffix, tickformat='.2f',
-        )
+        yaxis=dict(tickprefix='$', ticksuffix=suffix, tickformat='.2f'),
     )
+    apply_brand_layout(fig)
     st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False})
 
 def _render_fund_details(info):
@@ -680,6 +681,7 @@ def main():
     # ── Page Header ──
     st.markdown("""
     <div style="margin-bottom: 1.5rem;">
+        <p class="bl-eyebrow">Stocks · ETFs · Crypto · Indices</p>
         <h1 class="page-title">Stocks</h1>
         <p class="page-subtitle">Explore any stock, ETF, or index with real-time market data</p>
     </div>
@@ -826,7 +828,7 @@ def main():
             chg_color = "#16A34A" if change >= 0 else "#DC2626"
             chg_sign = "+" if change >= 0 else ""
             chg_str = (
-                f'<span style="color:{chg_color};font-size:1.1rem;margin-left:12px;">'
+                f'<span class="bl-mono" style="color:{chg_color};font-size:1.1rem;margin-left:12px;">'
                 f'{chg_sign}{change:.2f} ({chg_sign}{change_pct:.2f}%)</span>'
             )
         st.markdown(
@@ -836,7 +838,7 @@ def main():
             f'{tag_html}'
             f'</div>'
             f'<div style="margin-bottom:0.8rem;">'
-            f'<span style="font-size:2.2rem;font-weight:700;color:#0A1628;">${price:,.2f}</span>'
+            f'<span class="bl-mono" style="font-size:2.2rem;font-weight:700;color:#0A1628;">${price:,.2f}</span>'
             f'{chg_str}'
             f'</div>', unsafe_allow_html=True)
 
@@ -939,7 +941,7 @@ def main():
         cells += (
             '<div style="text-align:center;flex:1 1 0;min-width:60px;padding:7px 4px;">'
             f'<div style="font-size:0.68rem;color:#64748B;text-transform:uppercase;letter-spacing:0.04em;">{label}</div>'
-            f'<div style="font-size:0.82rem;font-weight:600;color:{color};white-space:nowrap;">{pct_str}</div>'
+            f'<div class="bl-mono" style="font-size:0.82rem;font-weight:600;color:{color};white-space:nowrap;">{pct_str}</div>'
             '</div>'
         )
     st.markdown(

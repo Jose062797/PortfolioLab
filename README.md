@@ -69,7 +69,7 @@ The app will open at `http://localhost:8501`.
 ## Project Structure
 
 ```
-├── streamlit_app.py          # Landing page & entry point
+├── streamlit_app.py          # Home page & entry point
 ├── pages/
 │   ├── 1_Stocks.py           # Stock/asset exploration tool
 │   ├── 2_Portfolio.py        # Portfolio optimization tool
@@ -88,7 +88,7 @@ The app will open at `http://localhost:8501`.
 │   └── session_manager.py    # Streamlit session state
 ├── tests/                    # pytest test suite (parity, regression, edge cases)
 ├── docs/                     # Landing page (GitHub Pages)
-├── static/                   # Images and PWA assets
+├── static/                   # Navbar logo and PWA assets
 ├── assets/                   # Logo
 └── .github/workflows/        # CI (pytest on Python 3.12 & 3.14)
 ```
