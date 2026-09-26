@@ -378,9 +378,11 @@ def get_shared_css() -> str:
     }
 
     /* Streamlit appends a hover "link to heading" icon to every markdown
-       heading. Designed blocks are not document sections, so hide it there
-       (in the band it would also drop onto an empty third title line). */
+       heading. Page titles and designed blocks are not document sections, so
+       hide it there (in the band it would also drop onto an empty third
+       title line). */
     .bl-band [data-testid="stHeaderActionElements"],
+    .page-title [data-testid="stHeaderActionElements"],
     .bl-block-head [data-testid="stHeaderActionElements"],
     .bl-steps [data-testid="stHeaderActionElements"],
     .bl-facts [data-testid="stHeaderActionElements"],

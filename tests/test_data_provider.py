@@ -1,10 +1,12 @@
 """Tests for core.data_provider — yfinance parsing logic."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from core.data_provider import parse_yfinance_prices, download_prices
+from core.data_provider import parse_yfinance_prices, download_prices, get_asset_info
 
 
 class TestParseYfinancePrices:
@@ -85,3 +87,36 @@ class TestDownloadPrices:
             assert t in result.columns
         assert len(result) > 0
         assert result.isna().sum().sum() == 0
+
+
+class TestAssetInfoDividendYield:
+    """Yahoo mixes units: `dividendYield` is a percent, the trailing yield a fraction.
+
+    The Stocks page multiplies `dividend_yield` by 100, so it must always be a
+    fraction. Before the fix MSFT showed a 79.00 % yield instead of 0.79 %.
+    """
+
+    @staticmethod
+    def _asset_info(monkeypatch, info):
+        class FakeTicker:
+            def __init__(self, symbol):
+                self.info = info
+                self.fast_info = SimpleNamespace()
+                self.analyst_price_targets = {}
+
+        monkeypatch.setattr("yfinance.Ticker", FakeTicker)
+        get_asset_info.clear()  # st.cache_data would return an earlier call
+        return get_asset_info("TEST")
+
+    def test_percent_dividend_yield_becomes_a_fraction(self, monkeypatch):
+        # As Yahoo reported MSFT on 2026-09-26
+        result = self._asset_info(monkeypatch, {
+            "dividendYield": 0.79, "trailingAnnualDividendYield": 0.0073,
+        })
+
+        assert result["dividend_yield"] == pytest.approx(0.0079)
+
+    def test_trailing_yield_fallback_stays_a_fraction(self, monkeypatch):
+        result = self._asset_info(monkeypatch, {"trailingAnnualDividendYield": 0.0073})
+
+        assert result["dividend_yield"] == pytest.approx(0.0073)

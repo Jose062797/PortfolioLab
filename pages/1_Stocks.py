@@ -17,8 +17,8 @@ import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 st.set_page_config(
-    page_title="Stocks – PortfolioLab",
-    page_icon="📊",
+    page_title="Stocks · PortfolioLab",
+    page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "favicon.png"),
     layout="wide",
 )
 
@@ -683,7 +683,7 @@ def main():
     <div style="margin-bottom: 1.5rem;">
         <p class="bl-eyebrow">Stocks · ETFs · Crypto · Indices</p>
         <h1 class="page-title">Stocks</h1>
-        <p class="page-subtitle">Explore any stock, ETF, or index with real-time market data</p>
+        <p class="page-subtitle">Explore any stock, ETF, crypto asset or index with live market data from Yahoo Finance</p>
     </div>
     """, unsafe_allow_html=True)
 

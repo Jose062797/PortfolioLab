@@ -3,11 +3,13 @@ About Page - PortfolioLab Platform
 Modern design with top navbar, no sidebar
 """
 
+import os
+
 import streamlit as st
 
 st.set_page_config(
-    page_title="About - PortfolioLab",
-    page_icon="BL",
+    page_title="About · PortfolioLab",
+    page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "favicon.png"),
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -87,7 +89,7 @@ def main():
         </div>
         <div class="bl-fact">
             <h3>Tested on every push</h3>
-            <p>102 automated tests run on Python 3.12 and 3.14 for every change.</p>
+            <p>104 automated tests run on Python 3.12 and 3.14 for every change.</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -116,12 +118,12 @@ def main():
                     "*Warning: Traditional MVO can over-allocate to assets that performed well in the past.*")
         with col_m2:
             st.success("**Black-Litterman Model**\n\n"
-                       "A modern Bayesian approach that solves Markowitz's concentration issues.\n\n"
+                       "A Bayesian approach that addresses Markowitz's tendency to concentrate the weights.\n\n"
                        "**Use when:**\n"
                        "- You want a highly diversified, robust portfolio that doesn't overreact to past anomalies.\n"
                        "- You have specific *views* or expectations about certain assets (e.g., 'I think MSFT will return 15%').\n"
                        "- You want a professional starting point based on market equilibrium (the market portfolio).\n\n"
-                       "*Note: Even without custom views, BL provides a highly balanced portfolio.*")
+                       "*Note: without custom views the model uses the market-implied returns, so the portfolio starts from market-cap weights.*")
 
     with tab2:
         st.markdown("### Key Financial Terms")

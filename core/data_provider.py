@@ -295,8 +295,12 @@ def get_asset_info(ticker: str) -> dict:
         'operating_margins': _get('operatingMargins'),
         'return_on_equity': _get('returnOnEquity'),
         'return_on_assets': _get('returnOnAssets'),
-        # Dividends
-        'dividend_yield': _get('dividendYield') or _get('trailingAnnualDividendYield'),
+        # Dividends. Units differ by field (checked 2026-09-26, yfinance 1.5.1):
+        # Yahoo returns `dividendYield` in PERCENT (MSFT 0.79 = 0.79 %) but
+        # `trailingAnnualDividendYield` as a FRACTION (0.0073 = 0.73 %).
+        # Normalize to a fraction, like expense_ratio and ytd_return below.
+        'dividend_yield': (_get('dividendYield') / 100.0) if _get('dividendYield') is not None
+                          else _get('trailingAnnualDividendYield'),
         'dividend_rate': _get('dividendRate'),
         'ex_dividend_date': _get('exDividendDate'),
         # Analyst consensus

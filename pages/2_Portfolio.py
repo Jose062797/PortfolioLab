@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Page configuration
 st.set_page_config(
-    page_title="Portfolio – PortfolioLab",
-    page_icon="📈",
+    page_title="Portfolio · PortfolioLab",
+    page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "favicon.png"),
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -308,18 +308,27 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("""
-        <div class="bl-info">
-            <strong>What are views?</strong><br>
-            Express your expectations for specific assets. Leave empty to use pure market equilibrium.
-        </div>
-        """, unsafe_allow_html=True)
-
         if model_type == "Markowitz":
-            st.info("Markowitz optimization (Standard MVO) uses historical means and covariance matrix directly. It does not support subjective investment views.", icon="ℹ️")
+            # Must match core/opt_engine.calculate_markowitz_inputs: CAPM (or
+            # historical mean) returns and Ledoit-Wolf covariance.
+            st.info(
+                "**Markowitz** estimates expected returns from price history (CAPM "
+                "against SPY by default, or the historical mean in *Advanced "
+                "Optimization Settings*) and uses a Ledoit-Wolf shrunk covariance "
+                "matrix. It does not take subjective investment views.",
+                icon="ℹ️",
+            )
             add_views = False
             views = {}
         else:
+            # "Market equilibrium" is the Black-Litterman prior, so this
+            # explanation only applies to that model.
+            st.markdown("""
+            <div class="bl-info">
+                <strong>What are views?</strong><br>
+                Express your expectations for specific assets. Leave empty to use pure market equilibrium.
+            </div>
+            """, unsafe_allow_html=True)
             add_views = st.checkbox("Add custom investment views", key="add_views_checkbox")
 
         views = {}

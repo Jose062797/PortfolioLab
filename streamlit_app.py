@@ -4,6 +4,7 @@ Home page: a compact hero band and the two tool cards
 """
 
 import logging
+import os
 import random
 
 import utils.ssl_fix  # noqa: F401 — applies SSL cert fix on import
@@ -16,10 +17,11 @@ logging.basicConfig(
     format="%(levelname)s | %(name)s | %(message)s",
 )
 
-# Page configuration
+# Page configuration. Every page uses the brand favicon (the landing page's
+# too); a plain string that is not an emoji would be taken as an image URL.
 st.set_page_config(
-    page_title="PortfolioLab - Portfolio Tools",
-    page_icon="BL",
+    page_title="PortfolioLab · Portfolio optimization lab",
+    page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "favicon.png"),
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -97,7 +99,7 @@ def main():
             <dl class="bl-band-stats">
                 <div><dt>2</dt><dd>optimization models</dd></div>
                 <div><dt>4</dt><dd>Markowitz objectives</dd></div>
-                <div><dt>102</dt><dd>automated tests</dd></div>
+                <div><dt>104</dt><dd>automated tests</dd></div>
                 <div><dt>6</dt><dd>MIT reference cases</dd></div>
             </dl>
         </div>

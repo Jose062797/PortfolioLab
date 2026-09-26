@@ -102,10 +102,10 @@ def create_correlation_heatmap(cov_matrix: np.ndarray, tickers: list) -> go.Figu
     ))
 
     fig.update_layout(
-        title='Asset Correlation Matrix',
         xaxis_title='',
         yaxis_title='',
         height=500,
+        margin=dict(t=20, b=40, l=60, r=20),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)"
     )
@@ -162,11 +162,11 @@ def create_returns_comparison(
     fig = go.Figure(data=data)
 
     fig.update_layout(
-        title='Expected Returns Comparison',
         xaxis_title='Asset',
         yaxis_title='Expected Annual Return (%)',
         barmode='group',
         height=500,
+        margin=dict(t=50, b=60, l=60, r=20),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         legend=dict(
@@ -228,8 +228,8 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
     )])
 
     fig.update_layout(
-        title='Portfolio Allocation',
         height=500,
+        margin=dict(t=20, b=40, l=20, r=20),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=True,
@@ -622,14 +622,6 @@ def create_historical_performance_chart(
         summary = f'Portfolio: ${p_final:,.0f} ({p_ret:+.2f}%) | {benchmark}: ${b_final:,.0f} ({b_ret:+.2f}%)'
 
         fig.update_layout(
-            title=dict(
-                text=f'Historical Performance vs {benchmark} Benchmark',
-                font=dict(size=18, color="#0A1628"),
-                x=0.5,
-                xanchor='center',
-                y=0.98,
-                yanchor='top'
-            ),
             xaxis_title='Date',
             yaxis_title='Cumulative Return (%)',
             height=600,
@@ -643,7 +635,7 @@ def create_historical_performance_chart(
                 xanchor="right",
                 x=1
             ),
-            margin=dict(t=100, b=120, l=60, r=40),
+            margin=dict(t=50, b=120, l=60, r=40),
             yaxis=dict(
                 ticksuffix='%',
                 tickformat=',.0f'
