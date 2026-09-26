@@ -6,7 +6,7 @@
 
 **PortfolioLab** is an open-source financial platform built with Streamlit. It provides professional-grade tools for stock exploration, portfolio construction, and performance analysis.
 
-### 🚀 [Try the live demo](https://portfoliolab-qzrhvh2p5ls7xqhyx38smv.streamlit.app/)
+### 🌐 [Website](https://jose062797.github.io/PortfolioLab/) · 🚀 [Open the app](https://portfoliolab-qzrhvh2p5ls7xqhyx38smv.streamlit.app/)
 
 > For educational and informational purposes only — not investment advice.
 
@@ -87,6 +87,7 @@ The app will open at `http://localhost:8501`.
 │   ├── pdf_generator.py      # Web PDF export
 │   └── session_manager.py    # Streamlit session state
 ├── tests/                    # pytest test suite (parity, regression, edge cases)
+├── docs/                     # Landing page (GitHub Pages)
 ├── static/                   # Images and PWA assets
 ├── assets/                   # Logo
 └── .github/workflows/        # CI (pytest on Python 3.12 & 3.14)
