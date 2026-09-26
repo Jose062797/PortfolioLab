@@ -89,6 +89,24 @@ def test_estimates_use_the_dates_every_asset_has_a_price(synthetic_prices, mock_
     assert result["weights"] == ef.clean_weights()
 
 
+def test_backtest_works_when_the_portfolio_holds_the_benchmark(mock_yfinance):
+    """SPY can be one of the user's assets and the benchmark at once (it broke on 2026-09-26:
+    the benchmark column was taken twice and both backtests failed)."""
+    result = optimize(["AAPL", "MSFT", "SPY"])
+
+    prices = pd.DataFrame.from_dict(result["prices_clean"], orient="index")
+    prices.index = pd.to_datetime(prices.index)
+    _, web = create_historical_performance_chart(
+        weights=result["weights"], tickers=result["tickers"],
+        portfolio_value=result["portfolio_value"], prices_data=prices, model_type="Markowitz",
+    )
+    pdf = run_backtest(result)
+
+    assert web is not None and pdf is not None
+    assert pdf["return"] == web.portfolio_metrics.annualized_return
+    assert pdf["spy_return"] == web.benchmark_metrics.annualized_return
+
+
 def test_web_and_pdf_backtest_the_same_rows(synthetic_prices, mock_yfinance):
     """A late-listed asset must not make the PDF backtest a longer period than the web."""
     synthetic_prices.iloc[:200, synthetic_prices.columns.get_loc("GOOGL")] = np.nan

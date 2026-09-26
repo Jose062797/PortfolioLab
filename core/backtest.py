@@ -160,7 +160,8 @@ def prepare_backtest_prices(
 
     Args:
         prices: Prices by date (DatetimeIndex); may contain other columns and NaN.
-        tickers: Portfolio tickers (not including the benchmark).
+        tickers: Portfolio tickers. The benchmark may be one of them (a user
+            can hold SPY): its column is then taken once, not twice.
         benchmark_col: Benchmark column name.
 
     Returns:
@@ -168,7 +169,7 @@ def prepare_backtest_prices(
         present), sorted by date, without incomplete rows.
     """
     columns = [t for t in tickers if t in prices.columns]
-    if benchmark_col in prices.columns:
+    if benchmark_col in prices.columns and benchmark_col not in columns:
         columns.append(benchmark_col)
     return prices[columns].sort_index().dropna()
 
