@@ -7,6 +7,11 @@
 # run `pytest tests/ -v`. If all tests pass (especially parity + frozen
 # snapshots), the upgrade is mathematically inert and safe to deploy.
 streamlit==1.59.2
+# GitPython is not used by PortfolioLab directly: Streamlit installs it. Pinned
+# for security (2026-09-26): 3.1.58 had several advisories (one critical,
+# GHSA-284h-m62q-gf8w), fixed in 3.1.59 and 3.1.60; 3.1.62, the latest, has
+# none. Keep it at or above 3.1.62 when bumping Streamlit.
+GitPython==3.1.62
 plotly==6.9.0
 pandas==3.0.3
 numpy==2.5.1
