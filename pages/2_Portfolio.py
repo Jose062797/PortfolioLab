@@ -467,7 +467,27 @@ def main():
             st.success("Optimization completed successfully!")
         else:
             error_msg = result.get('error', 'Unknown error')
-            if "No data found" in error_msg or "Download failed" in error_msg:
+            if "Could not fetch market size" in error_msg:
+                # Black-Litterman only (core/opt_engine.download_market_caps): its
+                # prior needs every asset's market cap. Yahoo rate-limits that
+                # request from shared cloud servers (seen in production on
+                # 2026-09-26), and some symbols have none. The inputs are fine
+                # either way, and Markowitz does not need market caps.
+                if "neither totalAssets nor marketCap" in error_msg:
+                    st.error(
+                        "⚠️ **No market capitalization available**: Black-Litterman builds its "
+                        "prior from market capitalizations, and Yahoo Finance has none for one of "
+                        "these assets. Remove it, or switch to **Markowitz**, which does not use "
+                        f"them.\n\nDetails: {error_msg}"
+                    )
+                else:
+                    st.error(
+                        "⚠️ **Market data temporarily unavailable**: Yahoo Finance is limiting "
+                        "requests right now, so Black-Litterman could not fetch the market "
+                        "capitalizations its prior needs. Try again in a minute, or switch to "
+                        f"**Markowitz**, which does not use them.\n\nDetails: {error_msg}"
+                    )
+            elif "No data found" in error_msg or "Download failed" in error_msg:
                 st.error(f"⚠️ **Data Error**: Could not download data for one or more tickers. Please verify the tickers are valid on Yahoo Finance.\n\nDetails: {error_msg}")
             elif "Not enough data" in error_msg or "insufficient" in error_msg.lower():
                 st.error(f"⚠️ **Insufficient Data**: Some assets don't have enough historical data for the selected date range. Try shortening the date range or removing recently listed assets.\n\nDetails: {error_msg}")
@@ -597,7 +617,9 @@ def main():
                             'Asset': ticker,
                             'Weight': f"{weight*100:.2f}%",
                             'Shares': allocation.get(ticker, 0),
-                            'Value': f"${weight * result['portfolio_value']:,.2f}"
+                            # Weight x budget, before whole-share rounding (the
+                            # PDF uses the same name). Not shares x price.
+                            'Target Value': f"${weight * result['portfolio_value']:,.2f}"
                         })
 
                 if weights_data:

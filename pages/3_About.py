@@ -89,7 +89,7 @@ def main():
         </div>
         <div class="bl-fact">
             <h3>Tested on every push</h3>
-            <p>104 automated tests run on Python 3.12 and 3.14 for every change.</p>
+            <p>108 automated tests run on Python 3.12 and 3.14 for every change.</p>
         </div>
     </div>
     """, unsafe_allow_html=True)

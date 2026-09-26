@@ -368,3 +368,40 @@ class TestResultsPanel:
         headings = joined(at.markdown)
         assert "Efficient Frontier" in headings
         assert "### Returns Analysis" not in headings
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Black-Litterman without market caps: say why, point to Markowitz
+# ═══════════════════════════════════════════════════════════════════
+
+class TestMarketSizeErrors:
+    """Black-Litterman needs every asset's market cap. Yahoo rate-limits that
+    request from shared cloud servers (seen in production on 2026-09-26) and
+    some symbols have none. The inputs are fine in both cases, so the message
+    must not blame them, and it must point to Markowitz, which needs no caps."""
+
+    @pytest.mark.parametrize("last_error, headline", [
+        ("Too Many Requests. Rate limited. Try after a while.",
+         "Market data temporarily unavailable"),
+        ("neither totalAssets nor marketCap available for 'AAPL'",
+         "No market capitalization available"),
+    ])
+    def test_market_size_failure_points_to_markowitz(self, monkeypatch, last_error, headline):
+        # The message download_market_caps raises, as run_optimization returns it
+        error = (
+            "Could not fetch market size for 'AAPL' after 3 attempts. Yahoo Finance "
+            "may be rate-limiting — please try again in a moment. "
+            f"(Last error: {last_error})"
+        )
+        monkeypatch.setattr(
+            "utils.optimizer_wrapper.run_optimization",
+            lambda **kwargs: {"success": False, "error": error},
+        )
+        at = fresh_page()
+        at.text_input("tickers_input").set_value("AAPL, MSFT").run()
+        run_button(at).click().run()
+
+        errors = joined(at.error)
+        assert headline in errors
+        assert "Markowitz" in errors
+        assert "check your inputs" not in errors

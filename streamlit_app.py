@@ -99,7 +99,7 @@ def main():
             <dl class="bl-band-stats">
                 <div><dt>2</dt><dd>optimization models</dd></div>
                 <div><dt>4</dt><dd>Markowitz objectives</dd></div>
-                <div><dt>104</dt><dd>automated tests</dd></div>
+                <div><dt>108</dt><dd>automated tests</dd></div>
                 <div><dt>6</dt><dd>MIT reference cases</dd></div>
             </dl>
         </div>
@@ -109,6 +109,7 @@ def main():
     # ── Tool cards ──
     # The top of each card is a small CSS picture of the tool, drawn from
     # example data (no images to download, nothing that looks like advice).
+    # Links are relative for the same reason as the navbar's (utils/styles.py).
     weights_html = "".join(
         f'<div class="bl-w-row"><span>{name}</span>'
         f'<div class="bl-w-track"><div class="bl-w-fill" style="width:{weight}%;background:{color}"></div></div>'
@@ -120,7 +121,7 @@ def main():
 
     with col1:
         st.markdown(f"""
-        <a href="/Stocks" target="_self" class="bl-tool-card bl-animate bl-animate-delay-1">
+        <a href="./Stocks" target="_self" class="bl-tool-card bl-animate bl-animate-delay-1">
             <div class="bl-tool-visual" aria-hidden="true">
                 <div class="bl-tool-visual-head">
                     <span>Example price series</span>
@@ -144,7 +145,7 @@ def main():
 
     with col2:
         st.markdown(f"""
-        <a href="/Portfolio" target="_self" class="bl-tool-card bl-animate bl-animate-delay-2">
+        <a href="./Portfolio" target="_self" class="bl-tool-card bl-animate bl-animate-delay-2">
             <div class="bl-tool-visual" aria-hidden="true">
                 <div class="bl-tool-visual-head">
                     <span>Example allocation</span>

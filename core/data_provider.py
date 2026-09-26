@@ -147,22 +147,38 @@ def download_ohlcv(ticker: str, period: str = "1y", interval: str = "1d",
     Raises:
         ValueError: If no data could be downloaded.
     """
+    import time
     import yfinance as yf
 
     logger.info("Downloading OHLCV for %s (period=%s, start=%s, interval=%s)",
                 ticker, period if not start else "n/a", start or "n/a", interval)
     use_prepost = prepost
-    try:
-        if start:
-            raw = yf.download(ticker, start=start, interval=interval,
-                              prepost=use_prepost, auto_adjust=auto_adjust, progress=False)
-        else:
-            raw = yf.download(ticker, period=period, interval=interval,
-                              prepost=use_prepost, auto_adjust=auto_adjust, progress=False)
-    except Exception as e:
-        raise ValueError(f"Download failed for {ticker}: {e}")
+    # Yahoo sometimes answers a shared cloud server with an empty frame (rate
+    # limiting): seen in production on 2026-09-26, where a second click worked.
+    # Retry like download_data in core/opt_engine.py, with shorter waits
+    # because a page is waiting. Only successful results reach st.cache_data.
+    retry_delays = [0, 1, 2]
+    raw, last_error = None, None
+    for delay in retry_delays:
+        if delay:
+            time.sleep(delay)
+        try:
+            if start:
+                raw = yf.download(ticker, start=start, interval=interval,
+                                  prepost=use_prepost, auto_adjust=auto_adjust, progress=False)
+            else:
+                raw = yf.download(ticker, period=period, interval=interval,
+                                  prepost=use_prepost, auto_adjust=auto_adjust, progress=False)
+        except Exception as e:
+            last_error, raw = e, None
+            logger.warning("OHLCV download failed for %s: %s", ticker, e)
+            continue
+        if raw is not None and not raw.empty:
+            break
 
     if raw is None or raw.empty:
+        if last_error is not None:
+            raise ValueError(f"Download failed for {ticker}: {last_error}")
         raise ValueError(f"No data downloaded for {ticker}")
 
     # Handle yfinance column structures (single ticker may have MultiIndex)

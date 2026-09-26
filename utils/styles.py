@@ -1152,16 +1152,21 @@ def render_navbar(active_page: str = "home") -> None:
     portfolio_class = 'class="active"' if active_page == "portfolio" else ""
     about_class = 'class="active"' if active_page == "about" else ""
 
+    # Links MUST be relative, like the static URLs above. On Streamlit Cloud
+    # the app runs in an iframe at /~/+/; an absolute "/Stocks" made that
+    # iframe load the whole platform page inside itself (pages nested one
+    # level deeper per click, address bar stuck on the first page). "./Stocks"
+    # stays inside /~/+/, and the platform then updates the address bar.
     st.markdown(f"""
     <div class="bl-navbar">
-        <a href="/" target="_self" class="bl-navbar-brand">
+        <a href="./" target="_self" class="bl-navbar-brand">
             <img src="{NAVBAR_LOGO_SRC}" alt="PortfolioLab" width="100" height="38">
         </a>
         <div class="bl-navbar-links">
-            <a href="/" target="_self" {home_class}>Home</a>
-            <a href="/Stocks" target="_self" {stocks_class}>Stocks</a>
-            <a href="/Portfolio" target="_self" {portfolio_class}>Portfolio</a>
-            <a href="/About" target="_self" {about_class}>About</a>
+            <a href="./" target="_self" {home_class}>Home</a>
+            <a href="./Stocks" target="_self" {stocks_class}>Stocks</a>
+            <a href="./Portfolio" target="_self" {portfolio_class}>Portfolio</a>
+            <a href="./About" target="_self" {about_class}>About</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
