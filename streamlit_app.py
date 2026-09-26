@@ -43,7 +43,7 @@ from utils.visualizations import (  # noqa: E402
 # Claims about the project shown on this page (hero stats and the
 # verification facts). Keep them true: update them, and the README, whenever
 # the test suite or CI changes.
-TEST_COUNT = 129
+TEST_COUNT = 130
 
 # Every chart on this page is a chart the tools draw, built by the same
 # function from example data (core/example_market.py). Only the height
