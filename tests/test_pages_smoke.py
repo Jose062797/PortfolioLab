@@ -54,7 +54,7 @@ class TestHomePage:
         assert not at.exception
 
     def test_shows_both_tool_cards(self):
-        """The landing page's whole job is routing to the two tools."""
+        """The Home page's first job is routing to the two tools."""
         at = render(HOME_PAGE)
         body = joined(at.markdown)
 

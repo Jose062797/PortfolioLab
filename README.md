@@ -6,7 +6,7 @@
 
 **PortfolioLab** is an open-source financial platform built with Streamlit. It provides professional-grade tools for stock exploration, portfolio construction, and performance analysis.
 
-### 🌐 [Website](https://jose062797.github.io/PortfolioLab/) · 🚀 [Open the app](https://portfoliolab-qzrhvh2p5ls7xqhyx38smv.streamlit.app/)
+### 🚀 [Open the app](https://portfoliolab-qzrhvh2p5ls7xqhyx38smv.streamlit.app/)
 
 > For educational and informational purposes only — not investment advice.
 
@@ -16,7 +16,7 @@
 
 ### 📊 Stocks
 Interactive dashboard to explore any asset available on Yahoo Finance (stocks, ETFs, indices, crypto).
-- Real-time pricing, candlestick and line charts with volume
+- Live pricing, candlestick and line charts with volume
 - Key statistics: price, market cap, volume, 52-week range
 - Revenue vs. earnings quarterly breakdown
 - Period returns (1D, 5D, 1M, 6M, YTD, 1Y, 5Y) benchmarked against S&P 500
@@ -87,7 +87,6 @@ The app will open at `http://localhost:8501`.
 │   ├── pdf_generator.py      # Web PDF export
 │   └── session_manager.py    # Streamlit session state
 ├── tests/                    # pytest test suite (parity, regression, edge cases)
-├── docs/                     # Landing page (GitHub Pages)
 ├── static/                   # Navbar logo and PWA assets
 ├── assets/                   # Logo
 └── .github/workflows/        # CI (pytest on Python 3.12 & 3.14)

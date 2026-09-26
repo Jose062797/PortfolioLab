@@ -15,10 +15,10 @@ from core.constants import MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_YEAR
 
 # ── Brand chart style ──
 # Shared by every interactive chart (Portfolio results and the Stocks page) and
-# matching Fig. 1 of the landing page (docs/index.html): Inter for text, DM Mono
-# for tick labels and hover figures, a faint navy grid, a navy hover label.
-# The fonts are loaded by the page CSS (utils/styles.py). The PDF charts are
-# matplotlib and keep their own style (core/pdf_shared.py).
+# matching Fig. 1 on the Home page: Inter for text, DM Mono for tick labels and
+# hover figures, a faint navy grid, a navy hover label. The fonts are loaded by
+# the page CSS (utils/styles.py). The PDF charts are matplotlib and keep their
+# own style (core/pdf_shared.py).
 BRAND_FONT = "Inter, sans-serif"
 BRAND_DISPLAY = "DM Sans, Inter, sans-serif"
 BRAND_MONO = "DM Mono, ui-monospace, Consolas, monospace"
@@ -26,9 +26,9 @@ BRAND_INK = "#0A1628"
 BRAND_MUTED = "#64748B"
 BRAND_GRID = "rgba(10, 22, 40, 0.08)"
 BRAND_ZERO = "rgba(10, 22, 40, 0.20)"
-# Asset colors: the landing page's five, ordered so neighboring pie slices
-# differ, then extended to MAX_TICKERS (20) with lighter and darker shades of
-# the same hues.
+# Asset colors: the five of Fig. 1 (core/example_market.py), ordered so
+# neighboring pie slices differ, then extended to MAX_TICKERS (20) with lighter
+# and darker shades of the same hues.
 BRAND_SEQUENCE = [
     "#2E6FC7", "#10B981", "#F59E0B", "#8DB8F2", "#0A1628",
     "#5B93E0", "#34D399", "#FBBF24", "#64748B", "#1E5AB3",
@@ -243,6 +243,93 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
     )
 
     return apply_brand_layout(fig, axes=False)
+
+
+def create_example_frontier_figure(data: dict) -> go.Figure:
+    """
+    Fig. 1 on the Home page: the example market drawn on the navy hero.
+
+    Args:
+        data: core.example_market.load_example_frontier() (annual decimals).
+
+    Returns:
+        Plotly figure with transparent background and light-on-dark styling;
+        render it with theme=None so Streamlit's theme does not recolor it.
+    """
+    on_dark, on_dark_2, sky = "#E8EEF8", "#A3B4CC", "#8DB8F2"
+    grid = "rgba(232, 238, 248, 0.07)"
+    x_max, y_min, y_max = 26, 2, 14  # axis ranges, in percent
+    pct = lambda values: [v * 100 for v in values]  # noqa: E731
+
+    fig = go.Figure()
+
+    cloud = data["cloud"]
+    fig.add_trace(go.Scatter(
+        x=pct(v for v, _ in cloud), y=pct(r for _, r in cloud), mode="markers",
+        marker=dict(size=3, color="rgba(141, 184, 242, 0.30)"),
+        hoverinfo="skip", name="Random portfolios",
+    ))
+
+    # Capital market line: from the risk-free rate through Max Sharpe
+    rf, ms = data["rf"], data["max_sharpe"]
+    slope = (ms["ret"] - rf) / ms["vol"]
+    x_end = min(x_max / 100, (y_max / 100 - rf) / slope)
+    fig.add_trace(go.Scatter(
+        x=[0, x_end * 100], y=[rf * 100, (rf + slope * x_end) * 100], mode="lines",
+        line=dict(color="#34D399", width=1.6, dash="dash"),
+        hoverinfo="skip", name="Capital market line",
+    ))
+
+    frontier = sorted(data["frontier"])
+    fig.add_trace(go.Scatter(
+        x=pct(v for v, _ in frontier), y=pct(r for _, r in frontier), mode="lines",
+        line=dict(color=sky, width=3, shape="spline"), name="Efficient frontier",
+        hovertemplate="<b>Efficient frontier</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%<extra></extra>",
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=pct(data["sd"]), y=pct(data["mu"]), mode="markers+text",
+        text=data["names"], textposition="top right",
+        textfont=dict(family=BRAND_MONO, size=12, color=on_dark),
+        marker=dict(symbol="square-open", size=9, color=data["colors"], line=dict(width=1.8)),
+        name="Assets",
+        hovertemplate="<b>Asset %{text}</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%<extra></extra>",
+    ))
+
+    mv = data["min_variance"]
+    fig.add_trace(go.Scatter(
+        x=[mv["vol"] * 100], y=[mv["ret"] * 100], mode="markers",
+        marker=dict(symbol="diamond", size=13, color="#2E6FC7", line=dict(color="#FFFFFF", width=1.5)),
+        name="Min variance",
+        hovertemplate="<b>Min variance</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=[ms["vol"] * 100], y=[ms["ret"] * 100], mode="markers",
+        marker=dict(symbol="circle", size=13, color="#10B981", line=dict(color="#FFFFFF", width=1.6)),
+        name="Max Sharpe", customdata=[ms["sharpe"]],
+        hovertemplate=("<b>Max Sharpe</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%"
+                       "<br>Sharpe %{customdata:.2f}<extra></extra>"),
+    ))
+
+    axis = dict(
+        gridcolor=grid, zeroline=False, showline=False, ticksuffix="%",
+        tickfont=dict(family=BRAND_MONO, size=11, color=on_dark_2),
+        title_font=dict(family=BRAND_FONT, size=12, color=on_dark_2),
+    )
+    fig.update_layout(
+        height=370,
+        margin=dict(l=52, r=8, t=18, b=44),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+        hovermode="closest",
+        font=dict(family=BRAND_FONT, color=on_dark_2),
+        hoverlabel=dict(bgcolor="#060D18", bordercolor="rgba(232, 238, 248, 0.18)",
+                        font=dict(family=BRAND_MONO, size=12, color=on_dark)),
+        xaxis=dict(axis, range=[0, x_max], dtick=5, title_text="Volatility, annualized"),
+        yaxis=dict(axis, range=[y_min, y_max], dtick=2, title_text="Expected return, annualized"),
+    )
+    return fig
 
 
 def create_efficient_frontier_chart(ef_data: dict, selected_portfolio: dict = None) -> go.Figure:

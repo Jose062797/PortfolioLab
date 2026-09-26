@@ -25,7 +25,7 @@ def main():
     # ── Page Header ──
     st.markdown("""
     <div class="bl-band">
-        <div class="bl-band-inner bl-animate">
+        <div class="bl-band-inner bl-dark bl-animate">
             <p class="bl-eyebrow">About PortfolioLab</p>
             <h1>Portfolio optimization <span class="accent">you can verify.</span></h1>
             <p class="bl-lead">PortfolioLab is free, open-source software for learning portfolio optimization. It implements the Black-Litterman and Markowitz models of the PyPortfolioOpt cookbook on market data from Yahoo Finance, and an automated test suite checks its results against the library on every change.</p>
@@ -33,66 +33,8 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── How it works ──
-    # Same text as the landing page (docs/index.html): keep both in sync.
-    st.markdown("""
-    <div class="bl-block-head">
-        <p class="bl-eyebrow">How it works</p>
-        <h2>From tickers to shares in four steps</h2>
-        <p class="bl-block-lead">This is the path the Portfolio tool follows, with either model.</p>
-    </div>
-    <div class="bl-steps">
-        <div class="bl-step">
-            <span class="bl-step-num">STEP 1</span>
-            <h3>Pick the assets</h3>
-            <p>Enter 2 to 20 tickers and your budget. Prices come from Yahoo Finance, adjusted for splits and dividends.</p>
-        </div>
-        <div class="bl-step">
-            <span class="bl-step-num">STEP 2</span>
-            <h3>Say what you expect</h3>
-            <p>With Black-Litterman, give an expected return and a range for the assets you have a view on. With Markowitz, choose one of four objectives.</p>
-        </div>
-        <div class="bl-step">
-            <span class="bl-step-num">STEP 3</span>
-            <h3>Optimize</h3>
-            <p>The engine estimates returns and a shrunk covariance matrix, then finds the weights that sit on the efficient frontier.</p>
-        </div>
-        <div class="bl-step">
-            <span class="bl-step-num">STEP 4</span>
-            <h3>Allocate and report</h3>
-            <p>Weights become whole shares for your budget. Check the backtest, then download the PDF report.</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ── Verification ──
-    # Same facts as the landing page. The numbers are claims about the test
-    # suite and CI: update them here and in docs/index.html together.
-    st.markdown("""
-    <div class="bl-block-head">
-        <p class="bl-eyebrow">Verification</p>
-        <h2>Checked against the reference on every change</h2>
-        <p class="bl-block-lead">PortfolioLab follows the PyPortfolioOpt cookbook. An automated suite compares its results with the library's own, and a change that moves any number makes the suite fail.</p>
-    </div>
-    <div class="bl-facts">
-        <div class="bl-fact">
-            <h3>Identical to PyPortfolioOpt</h3>
-            <p>Six optimization paths, Black-Litterman with views included, produce exactly the library's weights and metrics.</p>
-        </div>
-        <div class="bl-fact">
-            <h3>Frozen snapshots</h3>
-            <p>Exact results are stored and compared on each run, so a dependency upgrade cannot shift them unnoticed.</p>
-        </div>
-        <div class="bl-fact">
-            <h3>MIT reference cases</h3>
-            <p>Six scenarios from MIT course material, reproduced with real market data.</p>
-        </div>
-        <div class="bl-fact">
-            <h3>Tested on every push</h3>
-            <p>108 automated tests run on Python 3.12 and 3.14 for every change.</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # How it works and Verification live on the Home page (streamlit_app.py),
+    # which is the public front door; About keeps the reference material.
 
     # ── Educational Resources ──
     st.markdown("""

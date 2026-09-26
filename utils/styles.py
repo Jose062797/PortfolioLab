@@ -2,8 +2,9 @@
 Shared Design System for PortfolioLab Platform
 
 Modern design: clean, bold, no sidebar.
-Top navigation bar, navy and brand-blue accents shared with the landing page
-(docs/index.html), DM Mono for figures, generous whitespace.
+Top navigation bar, navy sections with brand-blue and sky accents, DM Mono
+for figures, generous whitespace. The Home page (streamlit_app.py) is the
+public front door: hero with Fig. 1, tools, method and verification.
 
 MAINTENANCE MAP — Streamlit-internal selectors this module overrides
 (these are the ONLY parts that can break when Streamlit updates; audit
@@ -80,6 +81,7 @@ def get_shared_css() -> str:
         --color-surface-2: #EEF3FA;
         --color-line: rgba(10, 22, 40, 0.10);
         --color-line-strong: rgba(10, 22, 40, 0.18);
+        --on-dark: #E8EEF8;
         --on-dark-2: #A3B4CC;
         --on-dark-line: rgba(232, 238, 248, 0.12);
 
@@ -164,7 +166,7 @@ def get_shared_css() -> str:
         padding: 0 !important;
     }
 
-    /* Small mono label above a title, as on the landing page */
+    /* Small mono label above a title */
     .bl-eyebrow {
         font-family: var(--font-mono) !important;
         font-size: 0.75rem !important;
@@ -306,11 +308,14 @@ def get_shared_css() -> str:
         font-weight: 600;
     }
 
-    /* ===== Hero band (Home, About): navy, full width, as on the landing page ===== */
-    .bl-band {
-        /* Break out of the container's 3rem side padding to span the main
-           area. Not 100vw: that includes the scrollbar, which shifts the band
-           a few pixels off the content's left edge. */
+    /* ===== Navy sections: Home's hero and verification, About's header ===== */
+    /* The container's 3rem side padding becomes the section's own, so the
+       navy spans the main area. Not 100vw: that includes the scrollbar,
+       which shifts the band a few pixels off the content's left edge.
+       .st-key-bl-hero is the st.container(key="bl-hero") on Home: it holds
+       Streamlit columns (text and the Fig. 1 chart), so it cannot be HTML. */
+    .bl-band,
+    .st-key-bl-hero {
         margin: -1rem -3rem 2.75rem -3rem;
         background:
             radial-gradient(900px 420px at 88% -10%, rgba(46, 111, 199, 0.30), transparent 65%),
@@ -318,15 +323,39 @@ def get_shared_css() -> str:
         border-bottom: 1px solid var(--on-dark-line);
     }
 
+    .st-key-bl-hero {
+        /* A flex item in Streamlit's layout wrapper: negative margins alone
+           only shift it, so it also needs the extra width explicitly. */
+        width: calc(100% + 6rem) !important;
+        max-width: none !important;
+        flex: 0 0 auto !important;
+        padding: 3.25rem 3rem 3rem 3rem;
+    }
+
+    .st-key-bl-hero [data-testid="stHorizontalBlock"] {
+        align-items: center !important;
+        gap: 3.5rem;
+    }
+
+    .bl-band.bl-verify {
+        margin: 1.5rem -3rem 0 -3rem;
+        border-top: 1px solid var(--on-dark-line);
+    }
+
     .bl-band-inner {
         padding: 3rem 3rem 2.6rem 3rem;
     }
 
-    .bl-band .bl-eyebrow {
+    .bl-verify .bl-band-inner {
+        padding: 3.5rem 3rem 3.5rem 3rem;
+    }
+
+    /* Type on navy: content marked .bl-dark */
+    .bl-dark .bl-eyebrow {
         color: var(--color-sky) !important;
     }
 
-    .bl-band h1 {
+    .bl-dark h1 {
         font-family: var(--font-display) !important;
         font-size: clamp(2.2rem, 4vw, 3.4rem) !important;
         font-weight: 700 !important;
@@ -337,12 +366,24 @@ def get_shared_css() -> str:
         padding: 0 !important;
     }
 
-    .bl-band h1 .accent {
+    .bl-hero-copy h1 {
+        font-size: clamp(2.2rem, 3.5vw, 3.3rem) !important;
+    }
+
+    .bl-dark h1 .accent {
         display: block;
         color: var(--color-sky) !important;
     }
 
-    .bl-band p.bl-lead {
+    .bl-dark h2 {
+        font-size: clamp(1.6rem, 2.4vw, 2.1rem) !important;
+        line-height: 1.15 !important;
+        color: #FFFFFF !important;
+        margin: 0.65rem 0 0.7rem 0 !important;
+        padding: 0 !important;
+    }
+
+    .bl-dark p.bl-lead {
         color: var(--on-dark-2) !important;
         font-size: 1.1rem !important;
         line-height: 1.6 !important;
@@ -352,8 +393,9 @@ def get_shared_css() -> str:
 
     .bl-band-stats {
         display: grid;
-        grid-template-columns: repeat(4, max-content);
-        column-gap: 3rem;
+        grid-template-columns: repeat(4, auto);
+        justify-content: start;
+        column-gap: 2.5rem;
         row-gap: 1.25rem;
         max-width: 42rem;
         margin: 2rem 0 0 0 !important;
@@ -377,11 +419,251 @@ def get_shared_css() -> str:
         color: var(--on-dark-2) !important;
     }
 
+    /* Hero calls to action (links styled as buttons; relative hrefs) */
+    .bl-ctas {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 1.8rem 0 0 0;
+    }
+
+    .bl-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.8rem 1.35rem;
+        border-radius: var(--radius-full);
+        font-weight: 600;
+        font-size: 0.98rem;
+        line-height: 1.2;
+        text-decoration: none !important;
+        transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .bl-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .bl-btn-primary {
+        background: var(--color-accent);
+        color: #FFFFFF !important;
+        box-shadow: 0 8px 22px rgba(46, 111, 199, 0.35);
+    }
+
+    .bl-btn-primary:hover {
+        background: var(--color-accent-hover);
+    }
+
+    .bl-btn-ondark {
+        border: 1px solid rgba(232, 238, 248, 0.28);
+        color: #FFFFFF !important;
+    }
+
+    .bl-btn-ondark:hover {
+        border-color: #FFFFFF;
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .bl-dark p.bl-hero-meta {
+        margin: 1rem 0 0 0 !important;
+        font-size: 0.86rem;
+        color: var(--on-dark-2) !important;
+    }
+
+    /* Fig. 1: the card around the Plotly chart on the hero */
+    .st-key-bl-figure {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--on-dark-line);
+        border-radius: var(--radius-lg);
+        padding: 1rem 1.1rem 0.9rem 1.1rem;
+        gap: 0.4rem !important;
+    }
+
+    .bl-fig-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        font-family: var(--font-mono) !important;
+        font-size: 0.78rem !important;
+        color: var(--on-dark-2) !important;
+    }
+
+    .bl-fig-head b {
+        color: #FFFFFF !important;
+        font-weight: 500;
+    }
+
+    .bl-tag {
+        border: 1px solid rgba(232, 238, 248, 0.2);
+        border-radius: var(--radius-full);
+        padding: 0.1rem 0.6rem;
+        white-space: nowrap;
+    }
+
+    .bl-fig-legend {
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 1.1rem;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .bl-fig-legend li {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin: 0 !important;
+        font-family: var(--font-mono) !important;
+        font-size: 0.74rem !important;
+        color: var(--on-dark-2) !important;
+    }
+
+    .bl-fig-legend i {
+        display: inline-block;
+        flex: none;
+    }
+
+    .bl-fig-legend .sw-line { width: 18px; height: 3px; border-radius: 2px; background: var(--color-sky); }
+    .bl-fig-legend .sw-dash { width: 18px; border-top: 2px dashed #34D399; }
+    .bl-fig-legend .sw-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 0 1.5px #FFFFFF; }
+    .bl-fig-legend .sw-diamond { width: 9px; height: 9px; background: var(--color-accent); transform: rotate(45deg); box-shadow: 0 0 0 1.3px #FFFFFF; }
+    .bl-fig-legend .sw-square { width: 8px; height: 8px; border: 1.6px solid #E8EEF8; }
+
+    .bl-dark p.bl-fig-caption {
+        margin: 0.4rem 0 0 0 !important;
+        font-size: 0.8rem !important;
+        line-height: 1.5 !important;
+        color: var(--on-dark-2) !important;
+    }
+
+    /* Verification band: facts on the left, the parity schematic on the right */
+    .bl-verify-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 3.5rem;
+        align-items: start;
+    }
+
+    .bl-facts-dark {
+        margin: 1.75rem 0 0 0 !important;
+        display: grid;
+    }
+
+    .bl-facts-dark > div {
+        padding: 1rem 0;
+        border-top: 1px solid var(--on-dark-line);
+    }
+
+    .bl-facts-dark dt {
+        font-weight: 600;
+        font-size: 1rem;
+        color: #FFFFFF !important;
+    }
+
+    .bl-facts-dark dd {
+        margin: 0.25rem 0 0 0;
+        font-size: 0.94rem;
+        line-height: 1.55;
+        color: var(--on-dark-2) !important;
+    }
+
+    .bl-parity {
+        display: grid;
+        gap: 1.1rem;
+        padding: 1.4rem;
+        border: 1px solid var(--on-dark-line);
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bl-parity-row {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .bl-parity-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.6rem;
+        font-family: var(--font-mono) !important;
+        font-size: 0.75rem !important;
+        color: var(--on-dark-2) !important;
+    }
+
+    .bl-parity-bar {
+        display: flex;
+        height: 34px;
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+    }
+
+    .bl-parity-bar span {
+        display: grid;
+        place-items: center;
+        min-width: 0;
+        overflow: hidden;
+        font-family: var(--font-mono) !important;
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: #06101E !important;
+    }
+
+    .bl-parity-eq {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: var(--radius-md);
+        background: rgba(16, 185, 129, 0.10);
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        color: var(--on-dark) !important;
+        font-size: 0.9rem !important;
+    }
+
+    .bl-parity-eq::before {
+        content: '';
+        flex: none;
+        width: 1.2rem;
+        height: 1.2rem;
+        border-radius: 50%;
+        background: var(--color-success) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2 5 8.2 9 4' fill='none' stroke='%23FFFFFF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+    }
+
+    .bl-parity-foot {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+        font-family: var(--font-mono) !important;
+        font-size: 0.75rem !important;
+        color: var(--on-dark-2) !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .bl-parity-foot > div {
+        color: var(--on-dark-2) !important;
+    }
+
+    .bl-parity-foot b {
+        display: block;
+        font-size: 1.25rem;
+        font-weight: 500;
+        color: #FFFFFF !important;
+    }
+
+    .bl-dark p.bl-parity-note {
+        margin: 0 !important;
+        font-size: 0.78rem !important;
+        line-height: 1.5 !important;
+        color: var(--on-dark-2) !important;
+    }
+
     /* Streamlit appends a hover "link to heading" icon to every markdown
        heading. Page titles and designed blocks are not document sections, so
        hide it there (in the band it would also drop onto an empty third
        title line). */
-    .bl-band [data-testid="stHeaderActionElements"],
+    .bl-dark [data-testid="stHeaderActionElements"],
     .page-title [data-testid="stHeaderActionElements"],
     .bl-block-head [data-testid="stHeaderActionElements"],
     .bl-steps [data-testid="stHeaderActionElements"],
@@ -415,7 +697,9 @@ def get_shared_css() -> str:
     }
 
     .bl-tool-visual {
-        min-height: 12rem;
+        /* Tall enough for the Portfolio picture (weights plus metrics), so
+           both cards line up; the candle strip grows to fill it. */
+        min-height: 14.6rem;
         background: var(--color-surface-2);
         border-bottom: 1px solid var(--color-line);
         padding: 1rem 1.15rem;
@@ -457,7 +741,8 @@ def get_shared_css() -> str:
     .bl-candles {
         display: flex;
         gap: 4px;
-        height: 118px;
+        flex: 1 1 auto;
+        min-height: 118px;
     }
 
     .bl-candles span {
@@ -524,6 +809,24 @@ def get_shared_css() -> str:
         border-radius: var(--radius-full);
     }
 
+    .bl-metrics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem 1.1rem;
+        margin-top: 0.7rem;
+        padding-top: 0.6rem;
+        border-top: 1px solid var(--color-line);
+        font-family: var(--font-mono) !important;
+        font-size: 0.75rem !important;
+        color: var(--color-text-secondary) !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .bl-metrics b {
+        color: var(--color-primary) !important;
+        font-weight: 500;
+    }
+
     .bl-tool-body {
         padding: 1.5rem;
         display: flex;
@@ -562,7 +865,7 @@ def get_shared_css() -> str:
         color: var(--color-text) !important;
     }
 
-    /* Check mark in a soft blue circle, as on the landing page */
+    /* Check mark in a soft blue circle */
     .bl-checks li::before {
         content: '';
         position: absolute;
@@ -617,11 +920,28 @@ def get_shared_css() -> str:
         padding-top: 1.1rem;
     }
 
+    .bl-step-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
     .bl-step-num {
         font-family: var(--font-mono) !important;
         font-size: 0.8rem;
         letter-spacing: 0.06em;
         color: var(--color-accent) !important;
+    }
+
+    .bl-step-icon {
+        width: 64px;
+        height: 44px;
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+        border: 1px solid var(--color-line);
+        display: grid;
+        place-items: center;
+        color: var(--color-accent);
     }
 
     .bl-step h3,
@@ -1057,15 +1377,29 @@ def get_shared_css() -> str:
         .page-title {
             font-size: 2rem !important;
         }
-        .bl-band {
+        .bl-band,
+        .st-key-bl-hero,
+        .bl-band.bl-verify {
             margin-left: -1rem;
             margin-right: -1rem;
         }
-        .bl-band-inner {
+        .st-key-bl-hero {
+            width: calc(100% + 2rem) !important;
             padding: 2.25rem 1rem 2rem 1rem;
         }
-        /* Band title: keep long words whole */
-        .bl-band h1 {
+        .st-key-bl-hero [data-testid="stHorizontalBlock"] {
+            gap: 1.5rem;
+        }
+        .bl-band-inner,
+        .bl-verify .bl-band-inner {
+            padding: 2.25rem 1rem 2rem 1rem;
+        }
+        .bl-verify-grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 2rem;
+        }
+        /* Titles on navy: keep long words whole */
+        .bl-dark h1 {
             word-break: keep-all;
             overflow-wrap: break-word;
         }
@@ -1133,8 +1467,7 @@ def get_shared_css() -> str:
 
 # The navbar logo is served from Streamlit's static route (enableStaticServing)
 # instead of being inlined as base64 on every rerun. It is a tight crop of
-# assets/PortfolioLab.png, the same file the landing page uses
-# (docs/assets/portfoliolab-logo.png). The path MUST stay relative: Streamlit
+# assets/PortfolioLab.png (which the PDF uses). The path MUST stay relative: Streamlit
 # Cloud mounts the app under /~/+/, and an absolute /app/static/... escapes
 # that prefix (the edge answers with HTML and status 200, a blank image).
 NAVBAR_LOGO_SRC = "./app/static/portfoliolab-logo.png"
@@ -1283,8 +1616,7 @@ def render_footer() -> None:
             <div class="bl-footer-note">For educational and informational purposes only — not investment advice. Market data provided by Yahoo Finance.</div>
         </div>
         <div class="bl-footer-links">
-            <a href="https://jose062797.github.io/PortfolioLab/" target="_blank" rel="noopener">Website</a>
-            <a href="https://github.com/Jose062797/PortfolioLab" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/Jose062797/PortfolioLab" target="_blank" rel="noopener">Source on GitHub</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
