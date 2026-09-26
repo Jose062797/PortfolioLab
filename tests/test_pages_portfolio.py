@@ -54,7 +54,7 @@ class TestEmptyStateAndValidation:
         at = fresh_page()
 
         assert not at.exception
-        assert "Enter 2 to 20 stock tickers" in joined(at.info)
+        assert "Enter 2 to 20 tickers" in joined(at.info)
         assert run_button(at).disabled is True
 
     def test_single_ticker_warns_and_keeps_run_disabled(self):
@@ -405,3 +405,67 @@ class TestMarketSizeErrors:
         assert headline in errors
         assert "Markowitz" in errors
         assert "check your inputs" not in errors
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Prices in another currency: warn, never block
+# ═══════════════════════════════════════════════════════════════════
+
+class TestCurrencyWarning:
+    """PortfolioLab treats every price as US dollars, so share counts for a
+    listing in euros or yen are wrong. Yahoo marks those with an exchange
+    suffix after a dot (SAP.DE); US share classes use a dash (BRK-B)."""
+
+    @pytest.mark.parametrize("tickers, flagged", [
+        ("SAP.DE, AAPL", "SAP.DE"),
+        ("7203.T, AAPL", "7203.T"),
+        ("BTC-EUR, AAPL", "BTC-EUR"),
+    ])
+    def test_non_dollar_prices_are_flagged(self, tickers, flagged):
+        at = fresh_page()
+        at.text_input("tickers_input").set_value(tickers).run()
+
+        warnings = joined(at.warning)
+        assert "Currency" in warnings and flagged in warnings
+        assert run_button(at).disabled is False
+
+    @pytest.mark.parametrize("tickers", ["BRK-B, AAPL", "BTC-USD, AAPL", "AAPL, MSFT"])
+    def test_dollar_prices_are_not_flagged(self, tickers):
+        at = fresh_page()
+        at.text_input("tickers_input").set_value(tickers).run()
+
+        assert "Currency" not in joined(at.warning)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Data notes: known distortions in the estimates, shown with a remedy
+# ═══════════════════════════════════════════════════════════════════
+
+class TestDataNotes:
+    """The wrapper records late-listed assets and mixed weekend calendars
+    (utils/optimizer_wrapper._data_notes), which shorten the estimation
+    window; the page must say so. The notes are set on the stored result so
+    the wiring is tested directly."""
+
+    def test_notes_shown_only_when_present(self, mock_yfinance_extended):
+        at = fresh_page()
+        at.selectbox("model_type_select").set_value("Markowitz").run()
+        at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
+        run_button(at).click().run()
+        assert at.session_state["optimization_result"]["success"]
+
+        infos = joined(at.info)
+        assert "Shorter common history" not in infos
+        assert "Weekend prices" not in infos
+
+        at.session_state["optimization_result"]["data_notes"] = {
+            "data_start": "2020-01-02",
+            "late_assets": [("GOOGL", "2022-06-01")],
+            "mixed_calendar": True,
+        }
+        at.run()
+
+        infos = joined(at.info)
+        assert "Shorter common history" in infos
+        assert "GOOGL" in infos and "2022-06-01" in infos
+        assert "Weekend prices" in infos

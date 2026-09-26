@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue.svg)](https://www.python.org/)
 
-**PortfolioLab** is an open-source financial platform built with Streamlit. It provides professional-grade tools for stock exploration, portfolio construction, and performance analysis.
+**PortfolioLab** is an open-source financial platform built with Streamlit, for learning. It provides tools to explore assets, build portfolios and analyze their performance.
 
 ### 🚀 [Open the app](https://portfoliolab-qzrhvh2p5ls7xqhyx38smv.streamlit.app/)
 
@@ -16,17 +16,17 @@
 
 ### 📊 Stocks
 Interactive dashboard to explore any asset available on Yahoo Finance (stocks, ETFs, indices, crypto).
-- Live pricing, candlestick and line charts with volume
+- Line and candlestick charts with volume, from one day to the full history (Yahoo Finance data, refreshed every few minutes)
 - Key statistics: price, market cap, volume, 52-week range
-- Revenue vs. earnings quarterly breakdown
-- Period returns (1D, 5D, 1M, 6M, YTD, 1Y, 5Y) benchmarked against S&P 500
+- Period returns from 1D to All
+- For stocks: YTD, 1Y, 3Y and 5Y price returns compared with the S&P 500 (^GSPC), and quarterly revenue vs. earnings
 
 ### 📈 Portfolio Optimizer
 Advanced portfolio construction engine supporting two mathematical models:
 - **Markowitz (Mean-Variance)**: Optimize for Max Sharpe, Min Variance, Target Risk, or Target Return — with a choice of expected-returns estimator (CAPM or historical mean, for non-equity assets)
 - **Black-Litterman**: Bayesian optimization combining market equilibrium with custom investor views
 - Efficient frontier visualization, historical backtesting, and correlation analysis
-- Overlapping-holdings detection (flags near-perfectly correlated assets, e.g. an ETF held alongside its own constituents)
+- Overlapping-holdings detection (flags near-perfectly correlated assets, e.g. two funds that track the same index)
 - Downloadable PDF reports with full breakdown
 
 The mathematical engine is verified to produce output **identical to raw
@@ -101,23 +101,26 @@ pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest tests\ -v
 ```
 
-The suite (75+ tests) runs fully offline against synthetic fixtures and covers:
+The suite (127 tests) runs fully offline against synthetic fixtures and covers:
 mathematical parity with raw PyPortfolioOpt, frozen numeric regression
 snapshots, numerical edge cases, data-layer failure modes, input validation,
 PDF/visualization outputs, and backtest conventions. It also runs automatically
-on every push via GitHub Actions (Python 3.12 and 3.14).
+on every push to `main` and every pull request via GitHub Actions (Python 3.12
+and 3.14).
 
 ---
 
 ## Privacy
 
 When you **run PortfolioLab locally**, all calculations happen on your machine:
-no portfolio data or investment views are sent to external servers, and the
-only external connection is to Yahoo Finance for historical price data.
+no portfolio data or investment views are sent to external servers. The only
+external connections are Yahoo Finance, for market data (the ticker symbols
+you enter are sent there), and Google Fonts, for the page fonts. Streamlit's
+own usage statistics are turned off in `.streamlit/config.toml`.
 
-The hosted demo runs on Streamlit Community Cloud, so inputs entered there are
-processed on Streamlit's servers (nothing is persisted by the app — results
-live only in the browser session).
+The hosted app runs on Streamlit Community Cloud, so inputs entered there are
+processed on its servers. The app stores nothing: results stay in the server's
+memory for your session only. The platform keeps its own technical logs.
 
 ---
 
@@ -137,7 +140,7 @@ live only in the browser session).
 
 - **Black-Litterman Model**: Fischer Black & Robert Litterman (1992)
 - **Markowitz Model**: Harry Markowitz (1952)
-- Mathematical implementation follows the [PyPortfolioOpt cookbook](https://pyportfolioopt.readthedocs.io/en/latest/Cookbook.html)
+- Mathematical implementation follows the [PyPortfolioOpt cookbook](https://github.com/robertmartin8/PyPortfolioOpt/tree/master/cookbook)
 
 ---
 

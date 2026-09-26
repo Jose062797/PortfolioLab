@@ -4,19 +4,20 @@ Creates interactive charts using Plotly
 """
 
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta
 import yfinance as yf
 
-from core.constants import MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_YEAR
+from core.constants import ASSET_COLORS, MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_YEAR
 
 
 # ── Brand chart style ──
-# Shared by every interactive chart (Portfolio results and the Stocks page) and
-# matching Fig. 1 on the Home page: Inter for text, DM Mono for tick labels and
-# hover figures, a faint navy grid, a navy hover label. The fonts are loaded by
+# Shared by every interactive chart (Portfolio results and the Stocks page; the
+# Home page draws those same charts on example data): Inter for text, DM Mono
+# for tick labels and hover figures, a faint navy grid, a navy hover label. The fonts are loaded by
 # the page CSS (utils/styles.py). The PDF charts are matplotlib and keep their
 # own style (core/pdf_shared.py).
 BRAND_FONT = "Inter, sans-serif"
@@ -26,15 +27,9 @@ BRAND_INK = "#0A1628"
 BRAND_MUTED = "#64748B"
 BRAND_GRID = "rgba(10, 22, 40, 0.08)"
 BRAND_ZERO = "rgba(10, 22, 40, 0.20)"
-# Asset colors: the five of Fig. 1 (core/example_market.py), ordered so
-# neighboring pie slices differ, then extended to MAX_TICKERS (20) with lighter
-# and darker shades of the same hues.
-BRAND_SEQUENCE = [
-    "#2E6FC7", "#10B981", "#F59E0B", "#8DB8F2", "#0A1628",
-    "#5B93E0", "#34D399", "#FBBF24", "#64748B", "#1E5AB3",
-    "#A7F3D0", "#FDE68A", "#94A3B8", "#C7DBF7", "#059669",
-    "#D97706", "#334155", "#3B82F6", "#6EE7B7", "#CBD5E1",
-]
+# Asset colors (core/constants.py, shared with the PDF). The Home page's
+# parity table colors each asset as create_allocation_pie does.
+BRAND_SEQUENCE = ASSET_COLORS
 
 
 def apply_brand_layout(fig: go.Figure, axes: bool = True) -> go.Figure:
@@ -80,7 +75,8 @@ def create_correlation_heatmap(cov_matrix: np.ndarray, tickers: list) -> go.Figu
 
     Args:
         cov_matrix: Covariance matrix
-        tickers: List of ticker symbols
+        tickers: Ticker symbols in the matrix's own row order (the result's
+            'covariance_tickers'); any other order mislabels the cells
 
     Returns:
         Plotly figure object
@@ -142,12 +138,13 @@ def create_returns_comparison(
         marker_color='#2E6FC7'  # Primary Blue
     ))
 
-    # User Views (if provided)
+    # User Views (if provided). Assets without a view get no bar: a zero
+    # bar would read as a view of 0%.
     if views:
         data.append(go.Bar(
             name='Your Views',
             x=tickers,
-            y=[views.get(t, 0) * 100 for t in tickers],
+            y=[views[t] * 100 if t in views else None for t in tickers],
             marker_color='#F59E0B'  # Warning Amber
         ))
 
@@ -221,6 +218,9 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
         hole=0.3,
         textinfo='label+percent',
         textfont_size=12,
+        # Small slices get their label outside the pie: let it widen the
+        # margins instead of being cut off at the chart's edge
+        automargin=True,
         marker=dict(
             colors=corporate_colors,
             line=dict(color='#FFFFFF', width=2)
@@ -245,90 +245,184 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
     return apply_brand_layout(fig, axes=False)
 
 
-def create_example_frontier_figure(data: dict) -> go.Figure:
+def create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=False):
     """
-    Fig. 1 on the Home page: the example market drawn on the navy hero.
+    Price chart of the Stocks page: price (line or candles) over volume.
 
-    Args:
-        data: core.example_market.load_example_frontier() (annual decimals).
-
-    Returns:
-        Plotly figure with transparent background and light-on-dark styling;
-        render it with theme=None so Streamlit's theme does not recolor it.
+    The Home page's Stocks card draws it too, on example data, so the
+    picture there is exactly what the Stocks page shows.
     """
-    on_dark, on_dark_2, sky = "#E8EEF8", "#A3B4CC", "#8DB8F2"
-    grid = "rgba(232, 238, 248, 0.07)"
-    x_max, y_min, y_max = 26, 2, 14  # axis ranges, in percent
-    pct = lambda values: [v * 100 for v in values]  # noqa: E731
-
-    fig = go.Figure()
-
-    cloud = data["cloud"]
-    fig.add_trace(go.Scatter(
-        x=pct(v for v, _ in cloud), y=pct(r for _, r in cloud), mode="markers",
-        marker=dict(size=3, color="rgba(141, 184, 242, 0.30)"),
-        hoverinfo="skip", name="Random portfolios",
-    ))
-
-    # Capital market line: from the risk-free rate through Max Sharpe
-    rf, ms = data["rf"], data["max_sharpe"]
-    slope = (ms["ret"] - rf) / ms["vol"]
-    x_end = min(x_max / 100, (y_max / 100 - rf) / slope)
-    fig.add_trace(go.Scatter(
-        x=[0, x_end * 100], y=[rf * 100, (rf + slope * x_end) * 100], mode="lines",
-        line=dict(color="#34D399", width=1.6, dash="dash"),
-        hoverinfo="skip", name="Capital market line",
-    ))
-
-    frontier = sorted(data["frontier"])
-    fig.add_trace(go.Scatter(
-        x=pct(v for v, _ in frontier), y=pct(r for _, r in frontier), mode="lines",
-        line=dict(color=sky, width=3, shape="spline"), name="Efficient frontier",
-        hovertemplate="<b>Efficient frontier</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%<extra></extra>",
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=pct(data["sd"]), y=pct(data["mu"]), mode="markers+text",
-        text=data["names"], textposition="top right",
-        textfont=dict(family=BRAND_MONO, size=12, color=on_dark),
-        marker=dict(symbol="square-open", size=9, color=data["colors"], line=dict(width=1.8)),
-        name="Assets",
-        hovertemplate="<b>Asset %{text}</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%<extra></extra>",
-    ))
-
-    mv = data["min_variance"]
-    fig.add_trace(go.Scatter(
-        x=[mv["vol"] * 100], y=[mv["ret"] * 100], mode="markers",
-        marker=dict(symbol="diamond", size=13, color="#2E6FC7", line=dict(color="#FFFFFF", width=1.5)),
-        name="Min variance",
-        hovertemplate="<b>Min variance</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%<extra></extra>",
-    ))
-    fig.add_trace(go.Scatter(
-        x=[ms["vol"] * 100], y=[ms["ret"] * 100], mode="markers",
-        marker=dict(symbol="circle", size=13, color="#10B981", line=dict(color="#FFFFFF", width=1.6)),
-        name="Max Sharpe", customdata=[ms["sharpe"]],
-        hovertemplate=("<b>Max Sharpe</b><br>Volatility %{x:.1f}%<br>Return %{y:.1f}%"
-                       "<br>Sharpe %{customdata:.2f}<extra></extra>"),
-    ))
-
-    axis = dict(
-        gridcolor=grid, zeroline=False, showline=False, ticksuffix="%",
-        tickfont=dict(family=BRAND_MONO, size=11, color=on_dark_2),
-        title_font=dict(family=BRAND_FONT, size=12, color=on_dark_2),
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True,
+        vertical_spacing=0.03, row_heights=[0.8, 0.2],
     )
+
+    x_vals = list(range(len(ohlcv))) if is_intraday else ohlcv.index
+
+    # Prepare custom hover data
+    custom_data = []
+    for i in range(len(ohlcv)):
+        ts_val = ohlcv.index[i]
+        if hasattr(ts_val, "strftime"):
+            date_str = ts_val.strftime("%m/%d %I:%M %p").replace(" 0", " ") if is_intraday else ts_val.strftime("%m/%d/%Y")
+        else:
+            date_str = str(ts_val)
+        c = ohlcv['Close'].iloc[i] if not pd.isna(ohlcv['Close'].iloc[i]) else 0
+        o = ohlcv['Open'].iloc[i] if not pd.isna(ohlcv['Open'].iloc[i]) else 0
+        h = ohlcv['High'].iloc[i] if not pd.isna(ohlcv['High'].iloc[i]) else 0
+        l = ohlcv['Low'].iloc[i] if not pd.isna(ohlcv['Low'].iloc[i]) else 0
+        v = ohlcv['Volume'].iloc[i] if 'Volume' in ohlcv.columns and not pd.isna(ohlcv['Volume'].iloc[i]) else 0
+        custom_data.append([date_str, f"{c:,.2f}", f"{o:,.2f}", f"{h:,.2f}", f"{l:,.2f}", f"{v:,.0f}"])
+
+    # The hover label is DM Mono (apply_brand_layout), so padding every label
+    # to the same width lines the values up exactly.
+    hover_temp = (
+        "<b>Date:   %{customdata[0]}</b><br><br>"
+        "Close:  %{customdata[1]}<br>"
+        "Open:   %{customdata[2]}<br>"
+        "High:   %{customdata[3]}<br>"
+        "Low:    %{customdata[4]}<br>"
+        "Volume: %{customdata[5]}"
+        "<extra></extra>"
+    )
+
+    if chart_type == "Candles":
+        fig.add_trace(go.Candlestick(
+            x=x_vals, open=ohlcv['Open'], high=ohlcv['High'],
+            low=ohlcv['Low'], close=ohlcv['Close'], name=ticker,
+            increasing_line_color='#10B981', decreasing_line_color='#EF4444',
+            showlegend=False, customdata=custom_data, hovertemplate=hover_temp,
+        ), row=1, col=1)
+    else:
+        fig.add_trace(go.Scatter(
+            x=x_vals, y=ohlcv['Close'], mode='lines', name=ticker,
+            line=dict(color='#2E6FC7', width=2),
+            fill='tozeroy' if not is_intraday else None,
+            fillcolor='rgba(46,111,199,0.08)' if not is_intraday else None,
+            showlegend=False, customdata=custom_data, hovertemplate=hover_temp,
+        ), row=1, col=1)
+
+    colors = ['#10B981' if c >= o else '#EF4444'
+              for c, o in zip(ohlcv['Close'], ohlcv['Open'])]
+    fig.add_trace(go.Bar(
+        x=x_vals, y=ohlcv['Volume'], marker_color=colors,
+        opacity=0.4, name='Volume', showlegend=False,
+        hoverinfo='skip'
+    ), row=2, col=1)
+
     fig.update_layout(
-        height=370,
-        margin=dict(l=52, r=8, t=18, b=44),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        height=480, margin=dict(l=0, r=0, t=10, b=0),
+        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+        xaxis_rangeslider_visible=False,
         showlegend=False,
-        hovermode="closest",
-        font=dict(family=BRAND_FONT, color=on_dark_2),
-        hoverlabel=dict(bgcolor="#060D18", bordercolor="rgba(232, 238, 248, 0.18)",
-                        font=dict(family=BRAND_MONO, size=12, color=on_dark)),
-        xaxis=dict(axis, range=[0, x_max], dtick=5, title_text="Volatility, annualized"),
-        yaxis=dict(axis, range=[y_min, y_max], dtick=2, title_text="Expected return, annualized"),
     )
+
+    if prev_close and is_intraday:
+        fig.add_hline(
+            y=prev_close, line_dash="dash", line_color="#94A3B8", line_width=1, row=1, col=1,
+            annotation_text=f"Prev Close {prev_close:,.2f}",
+            annotation_position="right", annotation_font_color="#94A3B8", annotation_font_size=10,
+        )
+
+    apply_brand_layout(fig)
+    fig.update_xaxes(showgrid=True)
+    fig.update_yaxes(showgrid=True)
+
+    if is_intraday:
+        timestamps = ohlcv.index
+        if hasattr(timestamps, 'tz') and timestamps.tz is not None:
+            timestamps = timestamps.tz_localize(None)
+        tickvals, ticktext, prev_date = [], [], None
+        num_days = len(set(ts.date() for ts in timestamps))
+        for i, ts in enumerate(timestamps):
+            current_date = ts.date()
+            if current_date != prev_date:
+                if prev_date is not None:
+                    fig.add_vline(x=i - 0.5, line_dash="dot", line_color="#CBD5E1", line_width=1, row='all', col=1)
+                if num_days > 1:
+                    tickvals.append(i)
+                    ticktext.append(ts.strftime("%b %d"))
+                prev_date = current_date
+            if ts.minute == 0:
+                if num_days == 1:
+                    tickvals.append(i)
+                    ticktext.append(ts.strftime("%I %p").lstrip("0").replace(" ", "\n"))
+                elif ts.hour in (12, 15) and ts.hour != 9:
+                    tickvals.append(i)
+                    ticktext.append(ts.strftime("%I %p").lstrip("0"))
+        fig.update_xaxes(tickvals=tickvals, ticktext=ticktext, type="linear", row=1, col=1)
+        fig.update_xaxes(tickvals=tickvals, ticktext=ticktext, type="linear", row=2, col=1)
+
+        # ── Pre/Post-market markers and shading ──────────────────────────────
+        # Collect per-day boundary indices
+        from collections import defaultdict as _dd
+        day_idx = _dd(list)
+        for i, ts in enumerate(timestamps):
+            day_idx[ts.date()].append(i)
+
+        mkt_open_indices  = []  # index of first bar at/after 9:30 AM per day
+        mkt_close_indices = []  # index of first bar at/after 4:00 PM  per day
+
+        for date_key in sorted(day_idx):
+            idxs = day_idx[date_key]
+            open_i = close_i = None
+            for i in idxs:
+                ts = timestamps[i]
+                if open_i is None and (ts.hour > 9 or (ts.hour == 9 and ts.minute >= 30)):
+                    open_i = i
+                if close_i is None and ts.hour >= 16:
+                    close_i = i
+            if open_i is not None:  mkt_open_indices.append((idxs[0],  open_i))
+            if close_i is not None: mkt_close_indices.append((close_i, idxs[-1]))
+
+        has_extended = bool(mkt_open_indices or mkt_close_indices)
+
+        if has_extended:
+            # Shade pre-market and post-market zones (light gray, behind data)
+            for start_i, open_i in mkt_open_indices:
+                if open_i > start_i:
+                    fig.add_vrect(x0=start_i - 0.5, x1=open_i - 0.5,
+                                  fillcolor="#EFF2F7", opacity=0.55,
+                                  layer="below", line_width=0)
+            for close_i, end_i in mkt_close_indices:
+                if end_i > close_i:
+                    fig.add_vrect(x0=close_i - 0.5, x1=end_i + 0.5,
+                                  fillcolor="#EFF2F7", opacity=0.55,
+                                  layer="below", line_width=0)
+
+            # For 1D only: show labeled Mkt Open / Mkt Close vlines
+            if num_days == 1:
+                if mkt_open_indices:
+                    _, open_i = mkt_open_indices[0]
+                    fig.add_vline(x=open_i, line_dash="dot", line_color="#94A3B8",
+                                  line_width=1, row='all', col=1,
+                                  annotation_text="Mkt Open", annotation_position="top",
+                                  annotation_font_size=9, annotation_font_color="#94A3B8")
+                if mkt_close_indices:
+                    close_i, _ = mkt_close_indices[0]
+                    fig.add_vline(x=close_i, line_dash="dot", line_color="#94A3B8",
+                                  line_width=1, row='all', col=1,
+                                  annotation_text="Mkt Close", annotation_position="top",
+                                  annotation_font_size=9, annotation_font_color="#94A3B8")
+
+    # Calculate dynamic Y-axis range to avoid flattening on short periods
+    if chart_type == "Candles":
+        y_min = ohlcv['Low'].min()
+        y_max = ohlcv['High'].max()
+    else:
+        y_min = ohlcv['Close'].min()
+        y_max = ohlcv['Close'].max()
+        
+    if prev_close and is_intraday:
+        y_min = min(y_min, prev_close)
+        y_max = max(y_max, prev_close)
+        
+    y_padding = (y_max - y_min) * 0.1
+    if y_padding == 0:
+        y_padding = y_max * 0.05 if y_max != 0 else 1.0
+        
+    fig.update_yaxes(title_text="Price", range=[y_min - y_padding, y_max + y_padding], side="right", row=1, col=1)
+    fig.update_yaxes(title_text="Vol", side="right", row=2, col=1)
     return fig
 
 
@@ -701,12 +795,13 @@ def create_historical_performance_chart(
             hovertemplate=f'<b>{benchmark}</b><br>Date: %{{x}}<br>Return: %{{y:.2f}}%<extra></extra>'
         ))
 
-        # Summary annotation
+        # Summary annotation: returns over the window on screen. (Dollar
+        # values would start from the full period's first day, not the
+        # window's, so they are left out.)
         p_ret = p_pct.iloc[-1]
         b_ret = b_pct.iloc[-1]
-        p_final = subset['portfolio'].iloc[-1]
-        b_final = subset['benchmark'].iloc[-1]
-        summary = f'Portfolio: ${p_final:,.0f} ({p_ret:+.2f}%) | {benchmark}: ${b_final:,.0f} ({b_ret:+.2f}%)'
+        summary = (f'{subset.index[0]:%Y-%m-%d} to {subset.index[-1]:%Y-%m-%d}: '
+                   f'Portfolio {p_ret:+.2f}% | {benchmark} {b_ret:+.2f}%')
 
         fig.update_layout(
             xaxis_title='Date',
@@ -793,7 +888,9 @@ def _prepare_price_data(
                 bench_df = download_prices([benchmark], start=start_str, end=end_str)
                 price_df[benchmark] = bench_df[benchmark]
 
-            return price_df.dropna()
+            # The same rows the PDF backtests (core.backtest.prepare_backtest_prices)
+            from core.backtest import prepare_backtest_prices
+            return prepare_backtest_prices(price_df, tickers, benchmark)
 
     # Fallback: download everything via unified data provider
     from core.data_provider import download_prices

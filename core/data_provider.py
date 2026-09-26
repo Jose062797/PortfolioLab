@@ -150,7 +150,8 @@ def download_ohlcv(ticker: str, period: str = "1y", interval: str = "1d",
     import time
     import yfinance as yf
 
-    logger.info("Downloading OHLCV for %s (period=%s, start=%s, interval=%s)",
+    # DEBUG: symbols are user input, kept out of the server log
+    logger.debug("Downloading OHLCV for %s (period=%s, start=%s, interval=%s)",
                 ticker, period if not start else "n/a", start or "n/a", interval)
     use_prepost = prepost
     # Yahoo sometimes answers a shared cloud server with an empty frame (rate
@@ -213,7 +214,7 @@ def get_asset_info(ticker: str) -> dict:
     """
     import yfinance as yf
 
-    logger.info("Fetching info for %s", ticker)
+    logger.debug("Fetching info for %s", ticker)
     stock = yf.Ticker(ticker)
 
     # ── fast_info: lightweight endpoint, works even under rate-limiting ────
@@ -274,6 +275,8 @@ def get_asset_info(ticker: str) -> dict:
         'sector': _get('sector'),
         'industry': _get('industry'),
         'currency': _get('currency'),
+        # Currency of the financial statements (may differ from the quote's)
+        'financial_currency': _get('financialCurrency'),
         'description': _get('longBusinessSummary'),
         # Trading data — source priority per field:
         # fast_info wins for intraday fields (day range, volume, current price):
@@ -338,7 +341,9 @@ def get_asset_info(ticker: str) -> dict:
         'yield_pct': _get('yield'),
         # ── Crypto-specific ──
         'circulating_supply': _get('circulatingSupply'),
-        'max_supply': _get('maxSupply') or _get('totalSupply'),
+        # Max supply only: total supply is a different number (coins that
+        # exist now), so it must not stand in under the "Max Supply" label.
+        'max_supply': _get('maxSupply'),
         'volume_24h': _get('volume24Hr'),
         'start_date': _get('startDate'),
         # Bid/Ask (available during market hours)
@@ -360,7 +365,7 @@ def get_quarterly_financials(ticker: str) -> pd.DataFrame:
     """
     import yfinance as yf
 
-    logger.info("Fetching quarterly financials for %s", ticker)
+    logger.debug("Fetching quarterly financials for %s", ticker)
     try:
         stock = yf.Ticker(ticker)
         stmt = stock.quarterly_income_stmt

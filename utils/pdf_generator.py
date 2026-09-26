@@ -28,6 +28,7 @@ from core.pdf_shared import (
     add_methodology,
     add_disclaimers,
     add_chart_description,
+    describe_objective,
     add_chart_to_pdf,
     add_historical_header,
     add_historical_metrics,
@@ -101,42 +102,36 @@ def generate_portfolio_pdf(result_data, logo_path=None):
     historical_data = result_data.get('historical_data', None)
     covariance = result_data.get('covariance_matrix', None)
 
-    # Latest prices per ticker — extracted from prices_clean (last date row)
-    latest_prices = {}
+    # The prices the shares were bought at: each asset's last close,
+    # forward-filled like core/opt_engine.calculate_allocation (the plain last
+    # row is NaN for stocks when crypto adds a weekend date).
+    latest_prices = dict(result_data.get('latest_prices') or {})
     prices_clean_dict = result_data.get('prices_clean', {})
-    if prices_clean_dict:
-        last_date = sorted(prices_clean_dict.keys())[-1]
-        latest_prices = prices_clean_dict[last_date]  # {ticker: price}
+    if not latest_prices and prices_clean_dict:
+        last_row = pd.DataFrame.from_dict(prices_clean_dict, orient='index').sort_index().ffill().iloc[-1]
+        latest_prices = {t: float(p) for t, p in last_row.items() if pd.notna(p)}
 
-    # Date ranges
-    date_range = result_data.get('date_range', None)
-    if date_range and len(date_range) == 2:
-        data_start, data_end = date_range
-    else:
-        data_start = result_data.get('data_start_date', 'N/A')
-        data_end = result_data.get('data_end_date', 'N/A')
-
-    full_data_range = result_data.get('full_data_range', None)
-    if full_data_range and len(full_data_range) == 2:
-        full_start, full_end = full_data_range
-    else:
-        full_start, full_end = data_start, data_end
+    # Periods: every downloaded row (estimation, share prices) and the
+    # backtest's common dates (see utils/optimizer_wrapper.run_optimization)
+    full_data_range = result_data.get('full_data_range') or result_data.get('date_range')
+    full_start, full_end = full_data_range if full_data_range else ('N/A', 'N/A')
+    backtest_range = result_data.get('backtest_range')
 
     num_assets = sum(1 for w in weights.values() if w > MIN_WEIGHT_THRESHOLD)
 
     # ── PAGE 1: Cover + Executive Summary + Metric Cards + Methodology ──
-    _add_cover_page(pdf, portfolio_value, data_start, data_end,
-                    logo_path, full_start, full_end, model_type, obj_function)
-    _add_executive_summary(pdf, portfolio_value, num_assets, model_type, obj_function)
+    _add_cover_page(pdf, portfolio_value, full_start, full_end, backtest_range,
+                    logo_path, model_type, obj_function)
+    _add_executive_summary(pdf, portfolio_value, num_assets, result_data)
     _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
                       portfolio_value, num_assets)
-    add_methodology(pdf)
+    add_methodology(pdf, result_data)
 
     # ── PAGE 2: Allocation (Tab 1) — chart first, then table ──
     pdf.add_page()
     _add_allocation_title(pdf)
     add_chart_to_pdf(pdf, create_allocation_chart(weights), width_scale=0.75)
-    add_chart_description(pdf, 'allocation')
+    add_chart_description(pdf, 'allocation', result_data)
     _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_prices)
 
     # ── PAGE 3: Returns Analysis (Tab 2) — only for Black-Litterman ──
@@ -150,17 +145,19 @@ def generate_portfolio_pdf(result_data, logo_path=None):
         pdf.add_page()
         logger.info("Historical data available, adding performance section")
         add_historical_header(pdf, historical_data)
-        hist_chart = create_historical_chart(historical_data)
+        hist_chart = create_historical_chart(historical_data, model_type)
         if hist_chart:
             add_chart_to_pdf(pdf, hist_chart)
             add_chart_description(pdf, 'historical')
         else:
             logger.warning("Historical chart generation returned None")
-        add_historical_metrics(pdf, historical_data)
+        add_historical_metrics(pdf, historical_data, model_type)
 
     # ── PAGE 5: Correlation (Tab 4) ──
     if covariance is not None:
-        corr_chart = create_correlation_heatmap(covariance, tickers)
+        # Labels in the matrix's own order (see optimizer_wrapper)
+        corr_chart = create_correlation_heatmap(
+            covariance, result_data.get('covariance_tickers') or tickers)
         if corr_chart:
             pdf.add_page()
             pdf.set_font('helvetica', 'B', 14)
@@ -172,13 +169,12 @@ def generate_portfolio_pdf(result_data, logo_path=None):
 
     # ── PAGE 6: Detailed Breakdown (Tab 5) ──
     pdf.add_page()
-    _add_detailed_breakdown(pdf, weights, portfolio_value,
-                            leftover, num_assets, data_start, data_end,
-                            full_start, full_end, result_data)
+    _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
+                            full_start, full_end, backtest_range, result_data)
 
     # ── PAGE 7: Disclaimers ──
     pdf.add_page()
-    add_disclaimers(pdf)
+    add_disclaimers(pdf, model_type)
 
     # Return PDF as bytes
     pdf_output = pdf.output()
@@ -191,9 +187,8 @@ def generate_portfolio_pdf(result_data, logo_path=None):
 #  PDF Sections
 # ═══════════════════════════════════════════════════════════════════
 
-def _add_cover_page(pdf, portfolio_value, data_start, data_end,
-                    logo_path, full_start=None, full_end=None,
-                    model_type='Black-Litterman', obj_function='Max Sharpe'):
+def _add_cover_page(pdf, portfolio_value, full_start, full_end, backtest_range,
+                    logo_path, model_type='Black-Litterman', obj_function='Max Sharpe'):
     """Add cover page with title and metadata."""
     if logo_path and os.path.exists(logo_path):
         try:
@@ -221,15 +216,11 @@ def _add_cover_page(pdf, portfolio_value, data_start, data_end,
     pdf.cell(0, 6, f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}',
              align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    if full_start and full_end and full_start != data_start:
-        pdf.cell(0, 6,
-                 f'Price Data: {full_start} to {full_end} (covariance estimation)',
+    if full_start != 'N/A':
+        pdf.cell(0, 6, f'Price Data: {full_start} to {full_end}',
                  align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.cell(0, 6,
-                 f'Common Period: {data_start} to {data_end} (backtest & allocation)',
-                 align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    elif data_start != 'N/A' and data_end != 'N/A':
-        pdf.cell(0, 6, f'Analysis Period: {data_start} to {data_end}',
+    if backtest_range:
+        pdf.cell(0, 6, f'Backtest Period: {backtest_range[0]} to {backtest_range[1]}',
                  align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(10)
@@ -288,9 +279,8 @@ def _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
     pdf.set_text_color(0, 0, 0)
 
 
-def _add_executive_summary(pdf, portfolio_value, n_assets,
-                           model_type='Black-Litterman', obj_function='Max Sharpe'):
-    """Add executive summary paragraph."""
+def _add_executive_summary(pdf, portfolio_value, n_assets, result_data):
+    """Add executive summary paragraph: what this run optimized, in one paragraph."""
     pdf.set_font('helvetica', 'B', 14)
     pdf.cell(0, 8, 'Executive Summary',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -299,15 +289,13 @@ def _add_executive_summary(pdf, portfolio_value, n_assets,
     pdf.set_font('helvetica', '', 10)
     available_width = pdf.w - pdf.l_margin - pdf.r_margin
 
-    obj_descriptions = {
-        'Max Sharpe': 'maximizes risk-adjusted returns (Sharpe ratio)',
-        'Maximise Return for a Given Risk': 'maximizes return for a specified level of risk',
-        'Min Variance': 'minimizes portfolio variance',
-        'Minimise Risk for a Given Return': 'minimizes risk for a specified target return',
-    }
+    model_type = result_data.get('model_type', 'Black-Litterman')
+    obj_function = result_data.get('obj_function', 'Max Sharpe')
+    gamma = result_data.get('l2_gamma')
 
     if model_type == "Markowitz":
-        obj_desc = obj_descriptions.get(obj_function, 'optimizes the portfolio')
+        obj_desc = describe_objective(obj_function, result_data.get('target_volatility'),
+                                      result_data.get('target_return'))
         summary_text = (
             f"This report presents an optimized portfolio allocation for "
             f"${portfolio_value:,.0f} across {n_assets} assets using "
@@ -315,12 +303,16 @@ def _add_executive_summary(pdf, portfolio_value, n_assets,
             f"{obj_function} objective, which {obj_desc}."
         )
     else:
+        views_part = ("your views" if result_data.get('viewdict')
+                      else "no views, so the market equilibrium alone")
+        gamma_part = f" (gamma = {gamma:.1f})" if gamma is not None else ""
         summary_text = (
             f"This report presents an optimized portfolio allocation for "
             f"${portfolio_value:,.0f} across {n_assets} assets using the "
-            f"Black-Litterman model. The model combines market equilibrium "
-            f"returns with investor views through a Bayesian framework, "
-            f"producing a portfolio that maximizes risk-adjusted returns."
+            f"Black-Litterman model. It blends the returns implied by market "
+            f"capitalizations with {views_part}, then looks for the highest "
+            f"expected Sharpe ratio (3% risk-free rate) with an L2 penalty{gamma_part} "
+            f"that spreads the weights."
         )
 
     pdf.multi_cell(available_width, 5, summary_text)
@@ -338,11 +330,11 @@ def _add_allocation_title(pdf):
 
 
 def _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_prices=None):
-    """Add intro text and allocation table: Asset | Weight | Shares | Price | Actual Value.
+    """Add intro text and allocation table, with the web page's columns:
+    Asset | Weight | Shares | Price | Target Value | Actual Value.
 
-    Mirrors the web UI's allocation table (visualizations.create_allocation_table).
-    'Actual Value' = shares × latest price, matching exactly what the user would pay.
-    Falls back to weight × portfolio_value when prices are unavailable.
+    Target Value = weight x budget (before rounding to whole shares);
+    Actual Value = shares x the price they were bought at.
     """
     pdf.set_font('helvetica', '', 9)
     available_width = pdf.w - pdf.l_margin - pdf.r_margin
@@ -351,25 +343,14 @@ def _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_pric
     pdf.ln(2)
 
     prices = latest_prices or {}
-    has_prices = bool(prices)
-
-    if has_prices:
-        col_widths = [22, 25, 18, 28, 38]  # Asset | Weight | Shares | Price | Actual Value
-        pdf.set_font('helvetica', 'B', 9)
-        pdf.cell(col_widths[0], 6, 'Asset',        border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[1], 6, 'Weight',        border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[2], 6, 'Shares',        border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[3], 6, 'Price ($)',     border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[4], 6, 'Actual Value',  border=1, align='C',
-                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    else:
-        col_widths = [25, 28, 22, 38]  # Asset | Weight | Shares | Target Value
-        pdf.set_font('helvetica', 'B', 9)
-        pdf.cell(col_widths[0], 6, 'Asset',         border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[1], 6, 'Weight',         border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[2], 6, 'Shares',         border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[3], 6, 'Target Value',   border=1, align='C',
-                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    headers = ['Asset', 'Weight', 'Shares', 'Price', 'Target Value', 'Actual Value']
+    col_widths = [22, 22, 18, 28, 32, 32]
+    pdf.set_font('helvetica', 'B', 9)
+    for i, (header, width) in enumerate(zip(headers, col_widths)):
+        last = i == len(headers) - 1
+        pdf.cell(width, 6, header, border=1, align='C',
+                 new_x=XPos.LMARGIN if last else XPos.RIGHT,
+                 new_y=YPos.NEXT if last else YPos.TOP)
 
     pdf.set_font('helvetica', '', 8)
     sorted_weights = sorted(weights.items(), key=lambda x: x[1], reverse=True)
@@ -377,21 +358,20 @@ def _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_pric
     for ticker, weight in sorted_weights:
         if weight > MIN_WEIGHT_THRESHOLD:
             shares = allocation.get(ticker, 0)
-            pdf.cell(col_widths[0], 6, ticker,           border=1, align='C', new_x=XPos.RIGHT)
-            pdf.cell(col_widths[1], 6, f'{weight*100:.2f}%', border=1, align='C', new_x=XPos.RIGHT)
-            pdf.cell(col_widths[2], 6, str(shares),      border=1, align='C', new_x=XPos.RIGHT)
-            if has_prices:
-                price = prices.get(ticker)
-                actual_value = shares * price if (price and shares > 0) else None
-                price_str  = f'${price:,.2f}'        if price        else 'N/A'
-                value_str  = f'${actual_value:,.2f}' if actual_value else 'N/A'
-                pdf.cell(col_widths[3], 6, price_str, border=1, align='C', new_x=XPos.RIGHT)
-                pdf.cell(col_widths[4], 6, value_str, border=1, align='C',
-                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            else:
-                target_value = weight * portfolio_value
-                pdf.cell(col_widths[3], 6, f'${target_value:,.2f}', border=1, align='C',
-                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            price = prices.get(ticker)
+            cells = [
+                ticker,
+                f'{weight*100:.2f}%',
+                str(shares),
+                f'${price:,.2f}' if price else 'N/A',
+                f'${weight * portfolio_value:,.2f}',
+                f'${shares * price:,.2f}' if price else 'N/A',
+            ]
+            for i, (text, width) in enumerate(zip(cells, col_widths)):
+                last = i == len(cells) - 1
+                pdf.cell(width, 6, text, border=1, align='C',
+                         new_x=XPos.LMARGIN if last else XPos.RIGHT,
+                         new_y=YPos.NEXT if last else YPos.TOP)
 
     pdf.ln(5)
 
@@ -478,10 +458,9 @@ def _add_returns_analysis(pdf, market_prior, posterior, views, views_detail=None
 
 # ── Tab 5: Detailed Breakdown ──
 
-def _add_detailed_breakdown(pdf, weights, portfolio_value,
-                            leftover, num_assets, data_start, data_end,
-                            full_start, full_end, result_data):
-    """Add detailed breakdown: Portfolio Summary (matching web Tab 5)."""
+def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
+                            full_start, full_end, backtest_range, result_data):
+    """Add detailed breakdown: Portfolio Summary and Model Settings (matching web Tab 5)."""
     pdf.set_font('helvetica', 'B', 14)
     pdf.cell(0, 8, 'Detailed Breakdown',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -503,24 +482,49 @@ def _add_detailed_breakdown(pdf, weights, portfolio_value,
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.cell(50, 6, 'Cash Remaining:', new_x=XPos.RIGHT)
-    pdf.cell(0, 6, f'${leftover:.2f}',
+    pdf.cell(0, 6, f'${leftover:,.2f}',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    if full_start and full_end and full_start != data_start:
+    if full_start != 'N/A':
         pdf.cell(50, 6, 'Price Data:', new_x=XPos.RIGHT)
-        pdf.cell(0, 6, f'{full_start} to {full_end} (covariance)',
+        pdf.cell(0, 6, f'{full_start} to {full_end} (every asset priced: estimates, share prices)',
                  new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.cell(50, 6, 'Common Period:', new_x=XPos.RIGHT)
-        pdf.cell(0, 6, f'{data_start} to {data_end} (backtest)',
-                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    elif data_start != 'N/A' and data_end != 'N/A':
-        pdf.cell(50, 6, 'Analysis Period:', new_x=XPos.RIGHT)
-        pdf.cell(0, 6, f'{data_start} to {data_end}',
+    if backtest_range:
+        pdf.cell(50, 6, 'Backtest Period:', new_x=XPos.RIGHT)
+        pdf.cell(0, 6, f'{backtest_range[0]} to {backtest_range[1]} (days with a price for every asset and SPY)',
                  new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
+    # ── Model Settings (the web page's rows) ──
+    pdf.ln(4)
+    pdf.set_font('helvetica', 'B', 12)
+    pdf.cell(0, 7, 'Model Settings', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(2)
+    pdf.set_font('helvetica', '', 10)
+
+    model_type = result_data.get('model_type', 'Black-Litterman')
+    objective = result_data.get('obj_function', 'Max Sharpe')
+    if objective == 'Maximise Return for a Given Risk' and result_data.get('target_volatility') is not None:
+        objective += f" (target volatility {result_data['target_volatility']*100:.0f}%)"
+    elif objective == 'Minimise Risk for a Given Return' and result_data.get('target_return') is not None:
+        objective += f" (target return {result_data['target_return']*100:.0f}%)"
+    if model_type == 'Markowitz':
+        estimator = ('Historical mean' if result_data.get('returns_estimator') == 'historical'
+                     else 'CAPM against SPY')
+    else:
+        estimator = 'market-implied prior' + (' blended with your views' if result_data.get('viewdict') else '')
+    rows = [
+        ('Model:', model_type),
+        ('Objective:', objective),
+        ('Expected Returns:', estimator),
+        ('Covariance:', 'Ledoit-Wolf shrinkage'),
+    ]
+    if result_data.get('l2_gamma') is not None:
+        rows.append(('L2 Regularization (Gamma):', f"{result_data['l2_gamma']:.1f}"))
+    rows.append(('Risk-Free Rate:', f"{result_data.get('risk_free_rate', 0.03)*100:.0f}%"))
     timestamp = result_data.get('timestamp', 'N/A')
-    pdf.cell(50, 6, 'Optimization Date:', new_x=XPos.RIGHT)
-    pdf.cell(0, 6, timestamp[:10] if timestamp != 'N/A' else 'N/A',
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    rows.append(('Optimization Date:', timestamp[:10] if timestamp != 'N/A' else 'N/A'))
+    for label, value in rows:
+        pdf.cell(58, 6, label, new_x=XPos.RIGHT)
+        pdf.cell(0, 6, value, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(5)

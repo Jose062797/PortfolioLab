@@ -313,6 +313,83 @@ aparece y desaparece, que es la responsabilidad de la capa `pages/`.
 global al proceso, no por sesión: los tests de la página Stocks lo limpian con
 una fixture autouse para no volverse dependientes del orden.
 
+### Fase 6 (2026-09-26) — coherencia de lo que se muestra
+
+**Motivo.** Antes de publicar el inicio nuevo, el usuario pidió revisar todo
+"con mucho detalle", en especial figuras que no correspondieran a cómo la app
+las genera de verdad. Se revisaron el inicio, las tres páginas, el PDF y el
+README; un agente de solo lectura contrastó cada afirmación visible con el
+código y encontró 33 puntos, que se verificaron uno por uno antes de tocar nada.
+
+**Inicio: solo figuras reales.** La Fig. 1 ilustrativa (Plotly oscuro con nube
+aleatoria y línea de mercado de capitales), las velas dibujadas en CSS y las
+barras "esquemáticas" de paridad se veían como resultados de la app pero no lo
+eran. Ahora el inicio dibuja con las mismas funciones que las herramientas
+(`create_efficient_frontier_chart`, `create_price_chart`, `create_allocation_pie`)
+sobre resultados del propio motor para cinco activos inventados, y la tabla de
+paridad compara el motor con PyPortfolioOpt llamado directamente (diferencia 0).
+Solo cambia la altura de cada gráfico. Afirmación falsa retirada: "6 MIT
+reference cases" (la guía manual sigue los notebooks del cookbook; solo el
+escenario 5 lleva la etiqueta "MIT", con el notebook de Black-Litterman como
+referencia).
+
+**Errores de cifras corregidos (con test cada uno):**
+1. **Mapa de correlaciones con etiquetas cruzadas** (web y PDF) salvo que los
+   tickers se escribieran en orden alfabético: la matriz llega en orden
+   alfabético y se etiquetaba con el orden tecleado. Ahora se reordena y viaja
+   con sus etiquetas (`covariance_tickers`). Verificado con datos reales contra
+   un cálculo independiente.
+2. **Historias desiguales = años sin riesgo.** El Ledoit-Wolf de PyPortfolioOpt
+   convierte los retornos faltantes en ceros (`np.nan_to_num`); CLAUDE.md decía
+   "borrado por pares", y era falso. Caso real: Min Variance con MSFT, AAPL,
+   SNOW y KO (historia completa) ponía 50,4 % en SNOW, el más volátil. Decisión:
+   estimar sobre las fechas en que todos los activos tienen precio; ahora da
+   71,6 % en KO y 1,0 % en SNOW. Arregla también la mezcla cripto + acciones
+   (fines de semana). Paridad intacta: con historias completas la entrada es la
+   misma que en el cookbook, y un test exige igualdad con PyPortfolioOpt sobre
+   las filas completas. La página avisa cuando la ventana se acorta.
+3. **El PDF hacía otro backtest** que la web (rellenaba con 0, contaba fines de
+   semana): mismas corridas daban otros periodos y cifras. Ahora ambos usan
+   `prepare_backtest_prices` y coinciden exactamente.
+4. **PDF de Markowitz con texto de Black-Litterman** (metodología, "BL
+   Portfolio", limitaciones). Ahora el texto sigue al modelo y al objetivo.
+5. **"$nan" como precio en el PDF** con cripto (última fila en fin de semana).
+6. **Rendimientos "totales" en Stocks** que eran de precio; el gráfico usaba
+   cierres ajustados por dividendos mientras la franja de retornos no. Ahora
+   todo son cierres cotizados (ajustados solo por splits), como Yahoo.
+7. **"$" fijo en Stocks** para acciones europeas, japonesas e índices: la moneda
+   se muestra una vez junto al precio; los estados financieros en su moneda.
+8. **Trimestres "Q3 FY25" inventados**: ahora "Sep 2025" (mes de cierre).
+9. **Barras de 0 % para activos sin view**, "Max Supply" que en realidad era
+   el suministro total, anotación del backtest que mezclaba dos puntos de
+   partida, colores del mapa de correlaciones opuestos entre web y PDF.
+
+**Textos corregidos:** backtest descrito como "in-sample" (pesos estimados con la
+misma historia, rebalanceo diario, sin costos); "recommended portfolio" y
+valoraciones ("mejor gestión del riesgo") eliminadas del PDF; ayuda de los
+límites de las views (±1 desviación estándar), "at most" en el objetivo de
+riesgo, consejo de datos insuficientes al revés, ejemplo de solapamiento
+(VOO/IVV en vez de un ETF con sus componentes), nota de Black-Litterman sin
+views, privacidad (Google Fonts, registros de la plataforma; estadísticas de
+Streamlit desactivadas), README (número de tests, enlace roto al cookbook,
+"professional-grade", "live pricing"), aviso de moneda para tickers no
+estadounidenses. La contracción de Ledoit-Wolf lleva las correlaciones hacia
+cero (no "hacia su promedio"): se comprobó y se corrigió el texto.
+
+**Verificación.** Suite 114 → 128 tests. Mutaciones de los arreglos nuevos:
+9/9 detectadas (una solo después de reforzar su test: el PDF mostraba "N/A" en
+vez del precio y el test solo buscaba "$nan"). En la app real: corrida
+Markowitz MSFT/AAPL/SNOW/KO con todas las pestañas, Stocks con SAP.DE, ^GSPC y
+BTC-USD, y los PDF de ambos modelos leídos página por página.
+
+**Pendiente de decisión del usuario:**
+- Black-Litterman calcula el prior y la aversión al riesgo con tasa libre 0 %
+  (defaults de PyPortfolioOpt, como el cookbook) pero optimiza con 3 %: sin
+  views, los pesos se alejan de los de mercado. Se corrigió el texto que decía
+  lo contrario; cambiar el modelo exige actualizar la paridad.
+- Un portafolio solo de cripto anualiza con 252 días aunque cotiza 365.
+- Portafolios en otras monedas: solo se avisa; no hay conversión.
+
 ## Estado final
 
 Las 4 fases completadas el 2026-07-16. Suite: 35 → 69 tests.

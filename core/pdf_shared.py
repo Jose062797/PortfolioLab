@@ -22,14 +22,18 @@ logger = logging.getLogger(__name__)
 # Import constants — supports both `python core/pdf_shared.py` and `from core.pdf_shared import ...`
 try:
     from constants import (
-        MIN_WEIGHT_THRESHOLD, RETURN_COMPARISON_TOLERANCE,
+        ASSET_COLORS, MIN_WEIGHT_THRESHOLD, RETURN_COMPARISON_TOLERANCE,
         SHARPE_COMPARISON_TOLERANCE
     )
 except ImportError:
     from core.constants import (
-        MIN_WEIGHT_THRESHOLD, RETURN_COMPARISON_TOLERANCE,
+        ASSET_COLORS, MIN_WEIGHT_THRESHOLD, RETURN_COMPARISON_TOLERANCE,
         SHARPE_COMPARISON_TOLERANCE
     )
+
+# Series colors of the web charts (utils/visualizations.py)
+_PRIOR_COLOR, _VIEWS_COLOR, _POSTERIOR_COLOR = "#2E6FC7", "#F59E0B", "#10B981"
+_PORTFOLIO_COLOR, _BENCHMARK_COLOR = "#2E6FC7", "#64748B"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -79,6 +83,8 @@ def create_comparison_chart(
     fig, ax = plt.subplots(figsize=(7, 4))
     fig.patch.set_facecolor('white')
 
+    # Same series, order and colors as the web chart (create_returns_comparison).
+    # Assets without a view stay NaN, so they get no view bar rather than 0%.
     if views and len(views) > 0:
         # Extract view values — handle both dict and float formats
         view_series = pd.Series({
@@ -88,21 +94,22 @@ def create_comparison_chart(
         })
 
         comparison_df = pd.DataFrame({
-            'Prior': market_prior,
-            'Posterior': posterior,
-            'Views': view_series
-        }).fillna(0)
-        comparison_df.plot.bar(ax=ax, width=0.8)
-        ax.set_title('Prior vs Posterior vs Views', fontweight='bold', fontsize=12)
+            'Market Prior': market_prior,
+            'Your Views': view_series,
+            'Posterior (BL)': posterior,
+        }).reindex(market_prior.index) * 100
+        comparison_df.plot.bar(ax=ax, width=0.8,
+                               color=[_PRIOR_COLOR, _VIEWS_COLOR, _POSTERIOR_COLOR])
+        ax.set_title('Market Prior, Your Views and Posterior', fontweight='bold', fontsize=12)
     else:
         comparison_df = pd.DataFrame({
-            'Prior': market_prior,
-            'Posterior': posterior
-        })
-        comparison_df.plot.bar(ax=ax, width=0.8)
-        ax.set_title('Prior vs Posterior', fontweight='bold', fontsize=12)
+            'Market Prior': market_prior,
+            'Posterior (BL)': posterior,
+        }) * 100
+        comparison_df.plot.bar(ax=ax, width=0.8, color=[_PRIOR_COLOR, _POSTERIOR_COLOR])
+        ax.set_title('Market Prior and Posterior', fontweight='bold', fontsize=12)
 
-    ax.set_ylabel('Expected Return', fontsize=10)
+    ax.set_ylabel('Expected Annual Return (%)', fontsize=10)
     ax.legend(fontsize=9)
     ax.grid(axis='y', alpha=0.3)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
@@ -120,8 +127,12 @@ def create_allocation_chart(weights: dict) -> bytes:
         k: v for k, v in weights.items()
         if v > MIN_WEIGHT_THRESHOLD
     })
-    colors = plt.cm.Set3(range(len(weights_series)))
-    weights_series.plot.pie(ax=ax, autopct='%1.1f%%', colors=colors, startangle=90)
+    # Colors handed out in the same order as the web pie (create_allocation_pie)
+    colors = ASSET_COLORS[:len(weights_series)]
+    # Percentages only on slices big enough to hold one; the table below lists every weight
+    weights_series.plot.pie(ax=ax, autopct=lambda pct: f'{pct:.1f}%' if pct >= 3 else '',
+                            colors=colors, startangle=90,
+                            wedgeprops=dict(edgecolor='white', linewidth=1.5))
     ax.set_title('Portfolio Allocation', fontweight='bold', fontsize=12)
     ax.set_ylabel('')
 
@@ -130,7 +141,13 @@ def create_allocation_chart(weights: dict) -> bytes:
 
 
 def create_correlation_heatmap(covariance, tickers: list) -> bytes | None:
-    """Create correlation heatmap from covariance matrix. Returns None on error."""
+    """
+    Create correlation heatmap from covariance matrix. Returns None on error.
+
+    `tickers` must be in the matrix's own row order (the result's
+    'covariance_tickers'). Colors match the web heatmap: red for -1, blue
+    for +1.
+    """
     try:
         import seaborn as sns
 
@@ -142,7 +159,7 @@ def create_correlation_heatmap(covariance, tickers: list) -> bytes | None:
         fig.patch.set_facecolor('white')
 
         sns.heatmap(
-            correlation, annot=True, fmt='.2f', cmap='RdYlGn_r',
+            correlation, annot=True, fmt='.2f', cmap='RdBu',
             center=0, vmin=-1, vmax=1, square=True, ax=ax,
             cbar_kws={'label': 'Correlation'}
         )
@@ -155,8 +172,9 @@ def create_correlation_heatmap(covariance, tickers: list) -> bytes | None:
         return None
 
 
-def create_historical_chart(historical_data: dict) -> bytes | None:
-    """Create historical performance chart from backtest data."""
+def create_historical_chart(historical_data: dict,
+                            model_type: str = 'Black-Litterman') -> bytes | None:
+    """Create historical performance chart from backtest data (web colors and labels)."""
     try:
         fig, ax = plt.subplots(figsize=(10, 5))
         fig.patch.set_facecolor('white')
@@ -184,10 +202,10 @@ def create_historical_chart(historical_data: dict) -> bytes | None:
         else:
             dates_dt = list(dates)
 
-        ax.plot(dates_dt, portfolio_pct, label='BL Portfolio',
-                color='#1f77b4', linewidth=2.5)
+        ax.plot(dates_dt, portfolio_pct, label=f'{model_type} Portfolio',
+                color=_PORTFOLIO_COLOR, linewidth=2.5)
         ax.plot(dates_dt, spy_pct, label='SPY Benchmark',
-                color='#d62728', linewidth=2, alpha=0.7, linestyle='--')
+                color=_BENCHMARK_COLOR, linewidth=2, linestyle='--')
 
         # Add final value annotations with offset to avoid overlap
         final_bl = portfolio_pct[-1] if not isinstance(portfolio_pct[-1], (list,)) else portfolio_pct[-1]
@@ -196,17 +214,17 @@ def create_historical_chart(historical_data: dict) -> bytes | None:
         if final_bl > final_spy:
             ax.annotate(f'{final_bl:.1f}%', xy=(dates_dt[-1], final_bl),
                         xytext=(5, 8), textcoords='offset points',
-                        fontsize=8, va='bottom', ha='left', color='#1f77b4', fontweight='bold')
+                        fontsize=8, va='bottom', ha='left', color=_PORTFOLIO_COLOR, fontweight='bold')
             ax.annotate(f'{final_spy:.1f}%', xy=(dates_dt[-1], final_spy),
                         xytext=(5, -8), textcoords='offset points',
-                        fontsize=8, va='top', ha='left', color='#d62728', fontweight='bold')
+                        fontsize=8, va='top', ha='left', color=_BENCHMARK_COLOR, fontweight='bold')
         else:
             ax.annotate(f'{final_spy:.1f}%', xy=(dates_dt[-1], final_spy),
                         xytext=(5, 8), textcoords='offset points',
-                        fontsize=8, va='bottom', ha='left', color='#d62728', fontweight='bold')
+                        fontsize=8, va='bottom', ha='left', color=_BENCHMARK_COLOR, fontweight='bold')
             ax.annotate(f'{final_bl:.1f}%', xy=(dates_dt[-1], final_bl),
                         xytext=(5, -8), textcoords='offset points',
-                        fontsize=8, va='top', ha='left', color='#1f77b4', fontweight='bold')
+                        fontsize=8, va='top', ha='left', color=_PORTFOLIO_COLOR, fontweight='bold')
 
         ax.set_title('Historical Performance vs SPY Benchmark', fontweight='bold', fontsize=12)
         ax.set_xlabel('Date', fontsize=10)
@@ -226,31 +244,73 @@ def create_historical_chart(historical_data: dict) -> bytes | None:
 #  PDF Section Builders  (modify FPDF instance in place)
 # ═══════════════════════════════════════════════════════════════════
 
-def add_methodology(pdf) -> None:
-    """Add methodology explanation section."""
+OBJECTIVE_DESCRIPTIONS = {
+    'Min Variance': 'minimizes expected volatility',
+    'Max Sharpe': 'maximizes the expected Sharpe ratio (3% risk-free rate)',
+    'Maximise Return for a Given Risk': 'maximizes expected return with volatility of at most {target_volatility:.0%}',
+    'Minimise Risk for a Given Return': 'minimizes volatility for an expected return of at least {target_return:.0%}',
+}
+
+
+def describe_objective(obj_function: str, target_volatility=None, target_return=None) -> str:
+    """What the Markowitz objective does, with its target when it has one."""
+    template = OBJECTIVE_DESCRIPTIONS.get(obj_function, 'optimizes the portfolio')
+    return template.format(target_volatility=target_volatility or 0.0, target_return=target_return or 0.0)
+
+
+def add_methodology(pdf, result: dict) -> None:
+    """Add the methodology section: what this run did, model by model."""
     pdf.set_font('helvetica', 'B', 14)
     pdf.cell(0, 8, 'Methodology', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(2)
 
     pdf.set_font('helvetica', '', 9)
     available_width = pdf.w - pdf.l_margin - pdf.r_margin
-    methodology_text = (
-        "The Black-Litterman model combines market equilibrium with your investment "
-        "views to generate optimal portfolio allocations. Key features:\n\n"
-        "- Market Equilibrium: Uses market capitalization and historical returns to "
-        "establish baseline expected returns\n"
-        "- Your Views: Incorporates your expectations about specific assets with "
-        "appropriate confidence levels\n"
-        "- Bayesian Framework: Blends market consensus with your insights in a "
-        "statistically rigorous way\n"
-        "- Risk Optimization: Maximizes Sharpe ratio while respecting your view "
-        "uncertainties"
-    )
+    gamma = result.get('l2_gamma')
+    gamma_text = f"gamma = {gamma:.1f}" if gamma is not None else "see the settings"
+
+    if result.get('model_type') == 'Markowitz':
+        estimator = (
+            "historical mean: each asset's compounded average annual return"
+            if result.get('returns_estimator') == 'historical' else
+            "CAPM: each asset's beta against SPY applied to the market's return "
+            "above the risk-free rate"
+        )
+        objective = result.get('obj_function', 'Min Variance')
+        methodology_text = (
+            "Mean-variance optimization (Markowitz), following the PyPortfolioOpt cookbook:\n\n"
+            f"- Expected returns: {estimator}, estimated from daily prices\n"
+            "- Risk model: Ledoit-Wolf shrunk covariance matrix of daily returns\n"
+            f"- Objective: {objective}, which "
+            f"{describe_objective(objective, result.get('target_volatility'), result.get('target_return'))}\n"
+            f"- L2 regularization: {gamma_text}"
+            + (" (none)" if not gamma else " (spreads the weights across assets)") + "\n"
+            "- Risk-free rate: 3% a year"
+        )
+    else:
+        n_views = len(result.get('viewdict') or {})
+        views_text = (
+            f"your views on {n_views} asset{'s' if n_views != 1 else ''}; each view's range is "
+            "read as one standard deviation on either side, so a narrower range moves the "
+            "posterior more"
+            if n_views else
+            "none, so the posterior equals the prior (market equilibrium)"
+        )
+        methodology_text = (
+            "Black-Litterman model, following the PyPortfolioOpt cookbook:\n\n"
+            "- Prior: the returns implied by market capitalizations (market equilibrium), with "
+            "risk aversion estimated from SPY\n"
+            f"- Views: {views_text}\n"
+            "- Posterior: the Bayesian blend of prior and views, with a Ledoit-Wolf shrunk "
+            "covariance matrix of daily returns\n"
+            "- Optimization: highest expected Sharpe ratio on the posterior returns (3% "
+            f"risk-free rate), with an L2 penalty ({gamma_text}) that spreads the weights"
+        )
     pdf.multi_cell(available_width, 5, methodology_text)
     pdf.ln(5)
 
 
-def add_disclaimers(pdf) -> None:
+def add_disclaimers(pdf, model_type: str = 'Black-Litterman') -> None:
     """Add disclaimers page."""
     pdf.set_font('helvetica', 'B', 14)
     pdf.cell(0, 10, 'Important Disclaimers', align='C',
@@ -259,6 +319,14 @@ def add_disclaimers(pdf) -> None:
 
     available_width = pdf.w - pdf.l_margin - pdf.r_margin
 
+    model_limitations = (
+        "Mean-variance optimization depends on its estimates of expected return and "
+        "risk, which are uncertain: small changes in the estimates can change the "
+        "weights a lot."
+        if model_type == 'Markowitz' else
+        "The Black-Litterman model rests on assumptions about market equilibrium, "
+        "investor views and how returns behave. Real markets can differ from them."
+    )
     disclaimers = [
         ("Not Investment Advice",
          "This report is for informational and educational purposes only. It does not "
@@ -267,19 +335,16 @@ def add_disclaimers(pdf) -> None:
         ("Consult Professionals",
          "Always do your own research and consult with a licensed financial advisor "
          "before making any investment decisions. Your financial situation is unique, "
-         "and any recommendations may not be suitable for your circumstances."),
+         "and this analysis may not suit your circumstances."),
         ("Past Performance",
-         "Past performance is not indicative of future results. Historical returns, "
-         "expected returns, and probability projections are provided for illustrative "
-         "purposes only and may not reflect actual future performance."),
+         "Past performance is not indicative of future results. Historical returns and "
+         "the model's expected returns are shown for illustration only and may not "
+         "reflect actual future performance."),
         ("Risk Disclosure",
-         "All investments carry risk, including potential loss of principal. Stock "
-         "prices can be volatile and unpredictable. The value of your investment may "
+         "All investments carry risk, including potential loss of principal. Prices "
+         "can be volatile and unpredictable. The value of your investment may "
          "fluctuate over time."),
-        ("Model Limitations",
-         "The Black-Litterman model is a mathematical framework that makes certain "
-         "assumptions about markets and returns. Real-world conditions may differ "
-         "from model assumptions."),
+        ("Model Limitations", model_limitations),
         ("No Guarantees",
          "No representation is being made that any account will or is likely to "
          "achieve profits or losses similar to those shown. Diversification does not "
@@ -302,40 +367,44 @@ def add_disclaimers(pdf) -> None:
         pdf.ln(2)
 
 
-def add_chart_description(pdf, chart_type: str) -> None:
-    """Add descriptive text after a chart."""
+def add_chart_description(pdf, chart_type: str, result: dict = None) -> None:
+    """Add descriptive text after a chart (texts match the web page's captions)."""
     pdf.ln(2)
     pdf.set_font('helvetica', '', 9)
+    result = result or {}
 
+    objective = result.get('obj_function', 'Max Sharpe')
     descriptions = {
         'prior': (
-            "The market-implied prior returns reflect current market expectations "
-            "based on asset capitalizations and historical risk premiums."
+            "The market-implied prior returns are the returns that make current "
+            "market capitalizations the optimal portfolio, given the covariance matrix "
+            "and a risk aversion estimated from SPY."
         ),
         'posterior': (
-            "The posterior returns represent the Black-Litterman model's optimal "
-            "blend of market expectations and your personal views."
+            "The posterior returns are the Black-Litterman model's blend of the "
+            "market-implied returns and your views."
         ),
         'comparison': (
-            "This comparison shows how the Black-Litterman framework reconciles "
-            "market expectations (Prior) with your views to produce the final "
-            "expected returns (Posterior)."
+            "Prior: the returns implied by market capitalizations (the market "
+            "equilibrium). Posterior: the Black-Litterman blend of the prior and your "
+            "views, which the optimizer uses. Assets without a view have no view bar."
         ),
         'correlation': (
-            "The correlation matrix shows how assets move together. Strong "
-            "positive correlations (red) indicate assets that tend to move in the "
-            "same direction, while negative correlations (blue) suggest "
-            "diversification benefits."
+            "Correlations implied by the Ledoit-Wolf shrunk covariance matrix estimated "
+            "from daily returns, the risk model both optimizers start from. Shrinkage "
+            "pulls every correlation toward zero. Blue cells: assets that tend to move "
+            "together; red cells: assets that tend to move in opposite directions."
         ),
         'allocation': (
-            "The allocation reflects the optimizer's solution for maximizing "
-            "risk-adjusted returns. Larger positions indicate assets with "
-            "attractive return prospects relative to their risk."
+            f"The weights are the optimizer's solution for the chosen objective "
+            f"({objective}). They follow from the model's estimates of return and risk, "
+            "which are uncertain, and they are not a forecast. Shares are whole units "
+            "bought at the last close with a price for every asset: Target Value is "
+            "weight x budget, Actual Value is shares x price."
         ),
         'historical': (
-            "This historical backtest shows how the recommended portfolio would "
-            "have performed over the analysis period compared to the SPY benchmark. "
-            "Note that past performance does not guarantee future results."
+            "Cumulative returns of the portfolio and of SPY over the backtest period. "
+            "Past performance does not guarantee future results."
         ),
     }
 
@@ -390,15 +459,19 @@ def add_historical_header(pdf, historical_data: dict) -> None:
 
     pdf.set_font('helvetica', '', 9)
     available_width = pdf.w - pdf.l_margin - pdf.r_margin
-    period = historical_data.get('period', '5 years')
+    period = historical_data.get('period', 'the backtest period')
     pdf.multi_cell(
         available_width, 5,
-        f"Performance if this portfolio had been held during the period {period}:"
+        f"In-sample backtest, {period}: the weights were estimated from this same price "
+        "history, so it does not show how they would have done out of sample, and it "
+        "tends to flatter the optimized portfolio. The target weights are kept every day "
+        "(daily rebalancing); whole-share rounding, costs and taxes are ignored."
     )
     pdf.ln(2)
 
 
-def add_historical_metrics(pdf, historical_data: dict) -> None:
+def add_historical_metrics(pdf, historical_data: dict,
+                           model_type: str = 'Black-Litterman') -> None:
     """Add backtest metrics in card layout (matching web) and comparative analysis."""
     available_width = pdf.w - pdf.l_margin - pdf.r_margin
     gap = 4
@@ -419,11 +492,11 @@ def add_historical_metrics(pdf, historical_data: dict) -> None:
     spy_sortino = float(historical_data["spy_sortino"])
     spy_calmar  = float(historical_data["spy_calmar"])
 
-    # Column titles (match web: BL Portfolio | SPY Benchmark)
+    # Column titles (match web: <model> Portfolio | SPY Benchmark)
     pdf.ln(2)
     pdf.set_font('helvetica', 'B', 10)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(col_width, 6, 'BL Portfolio', align='C')
+    pdf.cell(col_width, 6, f'{model_type} Portfolio', align='C')
     pdf.cell(col_width, 6, 'SPY Benchmark', align='C',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(1)
@@ -507,36 +580,34 @@ def add_historical_metrics(pdf, historical_data: dict) -> None:
     # Volatility comparison
     if abs(vol_diff) < RETURN_COMPARISON_TOLERANCE:
         analysis_parts.append(
-            f"Risk levels were similar, with portfolio volatility at "
-            f"{portfolio_vol:.2f}% compared to SPY's {spy_vol:.2f}%."
+            f"Volatility was similar: {portfolio_vol:.2f}% for the portfolio, "
+            f"{spy_vol:.2f}% for SPY."
         )
     elif vol_diff < 0:
         analysis_parts.append(
-            f"The portfolio exhibited lower volatility ({portfolio_vol:.2f}% "
-            f"vs {spy_vol:.2f}%), suggesting better risk management."
+            f"Its volatility was lower ({portfolio_vol:.2f}% vs {spy_vol:.2f}%)."
         )
     else:
         analysis_parts.append(
-            f"The portfolio showed higher volatility ({portfolio_vol:.2f}% "
-            f"vs {spy_vol:.2f}%), reflecting a more aggressive risk profile."
+            f"Its volatility was higher ({portfolio_vol:.2f}% vs {spy_vol:.2f}%)."
         )
 
     # Sharpe comparison
     if sharpe_diff > SHARPE_COMPARISON_TOLERANCE:
         analysis_parts.append(
-            f"The portfolio achieved a superior risk-adjusted return "
-            f"(Sharpe: {portfolio_sharpe:.2f} vs {spy_sharpe:.2f})."
+            f"Its realized Sharpe ratio was higher ({portfolio_sharpe:.2f} vs {spy_sharpe:.2f})."
         )
     elif sharpe_diff < -SHARPE_COMPARISON_TOLERANCE:
         analysis_parts.append(
-            f"The benchmark demonstrated better risk-adjusted performance "
-            f"(Sharpe: {spy_sharpe:.2f} vs {portfolio_sharpe:.2f})."
+            f"Its realized Sharpe ratio was lower ({portfolio_sharpe:.2f} vs {spy_sharpe:.2f})."
         )
     else:
         analysis_parts.append(
-            f"Risk-adjusted returns were comparable (Sharpe: "
-            f"{portfolio_sharpe:.2f} vs {spy_sharpe:.2f})."
+            f"The realized Sharpe ratios were similar ({portfolio_sharpe:.2f} vs {spy_sharpe:.2f})."
         )
+    analysis_parts.append(
+        "These are in-sample results: the weights were chosen with this history in view."
+    )
 
     analysis_text = " ".join(analysis_parts)
     pdf.multi_cell(available_width, 4, analysis_text)

@@ -143,6 +143,36 @@ def _calculate_annualized_metrics(
     )
 
 
+def prepare_backtest_prices(
+    prices: pd.DataFrame,
+    tickers: List[str],
+    benchmark_col: str = BENCHMARK_TICKER,
+) -> pd.DataFrame:
+    """
+    The backtest's price table: the portfolio's assets plus the benchmark, on
+    the dates where every one of them has a price.
+
+    The web chart (utils/visualizations.py) and the PDF report
+    (utils/optimizer_wrapper.run_backtest) both build their input here, so the
+    two show the same period and the same numbers. Dropping incomplete rows
+    also keeps weekend rows out when crypto is mixed with stocks: annualizing
+    uses 252 trading days a year.
+
+    Args:
+        prices: Prices by date (DatetimeIndex); may contain other columns and NaN.
+        tickers: Portfolio tickers (not including the benchmark).
+        benchmark_col: Benchmark column name.
+
+    Returns:
+        DataFrame with the tickers present in `prices` plus the benchmark (when
+        present), sorted by date, without incomplete rows.
+    """
+    columns = [t for t in tickers if t in prices.columns]
+    if benchmark_col in prices.columns:
+        columns.append(benchmark_col)
+    return prices[columns].sort_index().dropna()
+
+
 def run_backtest(
     prices: pd.DataFrame,
     weights: Dict[str, float],
@@ -160,7 +190,7 @@ def run_backtest(
 
     Args:
         prices: DataFrame with columns for each ticker AND the benchmark.
-                Must already be cleaned (NaN rows dropped).
+                Must already be cleaned (prepare_backtest_prices).
                 Index must be DatetimeIndex.
         weights: {ticker: weight} dict from optimizer (e.g. {'MSFT': 0.4, 'AAPL': 0.6}).
         tickers: List of portfolio ticker symbols (NOT including benchmark).

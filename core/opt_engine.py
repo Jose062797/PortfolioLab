@@ -252,7 +252,9 @@ def calculate_prior(prices, market_prices, mcaps):
             valid = prices[ticker].notna().sum()
             logger.debug("  %s: %d valid observations", ticker, valid)
 
-        # Let PyPortfolioOpt handle NaNs internally like the notebook
+        # utils/optimizer_wrapper passes complete rows (the dates where every
+        # asset has a price). With gaps, PyPortfolioOpt's Ledoit-Wolf counts
+        # missing returns as zeros.
         S = pp.risk_models.CovarianceShrinkage(prices).ledoit_wolf()
         logger.info("Covariance matrix calculated (Ledoit-Wolf shrinkage)")
 
@@ -451,7 +453,7 @@ def optimize_portfolio(ret_bl, S_bl, obj_function="Max Sharpe", target_volatilit
                 logger.debug("  %s: %.1f%%", ticker, weight * 100)
 
         ret, vol, sharpe = ef.portfolio_performance(verbose=False, risk_free_rate=RISK_FREE_RATE)
-        logger.info("Optimization complete: return=%.1f%%, vol=%.1f%%, sharpe=%.2f",
+        logger.debug("Optimization complete: return=%.1f%%, vol=%.1f%%, sharpe=%.2f",
                      ret * 100, vol * 100, sharpe)
 
         performance_metrics = {
@@ -471,7 +473,8 @@ def calculate_allocation(weights, prices, portfolio_value):
     """Calculate discrete share allocation with fractional display."""
     pp = _get_pypfopt()
 
-    logger.info("Calculating discrete allocation for $%.0f", portfolio_value)
+    # DEBUG: the budget is the user's input, kept out of the server log
+    logger.debug("Calculating discrete allocation for $%.0f", portfolio_value)
 
     try:
         # Forward-fill then take last row so every ticker has a valid price
@@ -490,9 +493,10 @@ def calculate_allocation(weights, prices, portfolio_value):
 
         da = pp.DiscreteAllocation(weights, latest_prices, total_portfolio_value=portfolio_value)
 
-        # lp_portfolio() requires the ECOS_BB solver (mixed-integer LP).
-        # On environments where ECOS_BB is not installed (e.g. Streamlit Cloud),
-        # fall back to greedy_portfolio() which has no solver dependency.
+        # lp_portfolio() requires the ECOS_BB solver (mixed-integer LP), from
+        # the ecos package: installed on Streamlit Cloud, but it has no wheel
+        # for Python 3.14 on Windows. Where it is missing, or finds nothing,
+        # fall back to greedy_portfolio(), which has no solver dependency.
         method = "lp"
         try:
             allocation, leftover = da.lp_portfolio()

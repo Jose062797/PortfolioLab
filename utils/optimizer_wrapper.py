@@ -14,6 +14,7 @@ import re
 import pandas as pd
 import streamlit as st
 
+from core.backtest import prepare_backtest_prices
 from core.opt_engine import (
     download_data,
     download_market_caps,
@@ -25,6 +26,7 @@ from core.opt_engine import (
     calculate_allocation
 )
 from core.constants import (
+    MIN_DATA_POINTS,
     RISK_FREE_RATE,
     MIN_TICKERS,
     MAX_TICKERS,
@@ -48,6 +50,40 @@ def _download_data_from_tuples(tickers_tuple, date_range_tuple):
     tickers = list(tickers_tuple)
     date_range = list(date_range_tuple) if date_range_tuple else None
     return download_data(tickers, date_range)
+
+
+def _data_notes(prices: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Facts about the downloaded prices that shape the estimation window.
+
+    run_optimization estimates on the dates where every asset has a price,
+    and the page tells the user when that shortened the data:
+
+    - late_assets: assets whose history starts more than a week after the
+      earliest one, so the common window starts with the youngest of them.
+    - mixed_calendar: some assets have weekend prices (crypto) and others do
+      not, so the window keeps the weekdays when all of them trade.
+
+    Args:
+        prices: Downloaded close prices, one column per portfolio asset.
+
+    Returns:
+        Dict with 'data_start' (earliest first price), 'late_assets' (list of
+        (ticker, first date), latest last) and 'mixed_calendar' (bool).
+    """
+    firsts = {t: prices[t].first_valid_index() for t in prices.columns}
+    data_start = min(firsts.values())
+    late = sorted(
+        ((t, d) for t, d in firsts.items() if (d - data_start).days > 7),
+        key=lambda item: item[1],
+    )
+    weekend = prices.index.dayofweek >= 5
+    mixed_calendar = bool(weekend.any() and prices.loc[weekend].isna().any().any())
+    return {
+        'data_start': data_start.strftime('%Y-%m-%d'),
+        'late_assets': [(t, d.strftime('%Y-%m-%d')) for t, d in late],
+        'mixed_calendar': mixed_calendar,
+    }
 
 
 def validate_inputs(
@@ -205,6 +241,28 @@ def run_optimization(
         tickers_tuple = tuple(sorted(tickers))
         date_range_tuple = tuple(date_range) if date_range else None
         prices, market_prices = _download_data_from_tuples(tickers_tuple, date_range_tuple)
+        data_notes = _data_notes(prices)
+
+        # Estimate on the dates where EVERY asset has a price. PyPortfolioOpt's
+        # Ledoit-Wolf covariance turns missing returns into zeros, so the years
+        # before a young asset listed would count as years without risk: a
+        # real Min Variance run on MSFT, AAPL, SNOW and KO put half the money
+        # in SNOW, the most volatile of the four (2026-09-26). Dropping the
+        # incomplete rows also lines crypto's weekend prices up with
+        # weekday-traded assets, so returns and annualization (252 days) hold.
+        # The cookbook passes raw prices; with complete histories this is the
+        # same input, which keeps the parity tests meaningful.
+        prices = prices.dropna()
+        if len(prices) < MIN_DATA_POINTS:
+            return {
+                'success': False,
+                'error': (
+                    f"Not enough data in common: these assets have a price on the same "
+                    f"day only {len(prices)} times (at least {MIN_DATA_POINTS} are needed). "
+                    f"Use assets with more history in common, or a longer date range."
+                ),
+                'timestamp': datetime.now().isoformat(),
+            }
 
         S = None
         delta = None
@@ -265,14 +323,32 @@ def run_optimization(
         # Exclude SPY from prices for allocation (only need portfolio tickers)
         prices_for_allocation = prices_clean[[t for t in tickers if t in prices_clean.columns]]
         allocation, leftover, allocation_method = calculate_allocation(weights, prices_for_allocation, portfolio_value)
+        # The prices the shares are bought at: each asset's last close, as
+        # calculate_allocation takes it (forward-filled past missing days)
+        latest_prices = prices_for_allocation.ffill().iloc[-1]
 
-        # Extract date ranges:
-        # - Full data range: used for covariance estimation (pairwise, max data)
-        # - Common data range: from dropna, used for backtest/allocation
+        # Periods the result is based on:
+        # - full_data_range: the estimation window (every asset has a price
+        #   on each of its dates). Expected returns and the covariance are
+        #   estimated on it, and share counts use its last closes.
+        # - backtest_range: the rows where every asset and SPY have a price
+        #   (core.backtest.prepare_backtest_prices), used by the web chart and
+        #   the PDF alike.
         full_data_start = prices.index[0].strftime('%Y-%m-%d')
         full_data_end = prices.index[-1].strftime('%Y-%m-%d')
-        analysis_start = prices_clean.index[0].strftime('%Y-%m-%d')
-        analysis_end = prices_clean.index[-1].strftime('%Y-%m-%d')
+        bt_prices = prepare_backtest_prices(prices_clean, tickers)
+        backtest_range = (
+            (bt_prices.index[0].strftime('%Y-%m-%d'), bt_prices.index[-1].strftime('%Y-%m-%d'))
+            if len(bt_prices) else None
+        )
+
+        # Correlation display: the Ledoit-Wolf covariance both models start
+        # from (for Black-Litterman with views, the optimizer then uses the
+        # posterior covariance), in the order the user typed the tickers.
+        # The matrix itself is in the download's alphabetical order, so it
+        # MUST be reindexed: pairing it with `tickers` as-is mislabels cells.
+        cov_source = S if S is not None else S_bl
+        display_cov = cov_source.loc[tickers, tickers]
 
         # Build result dictionary
         result = {
@@ -285,21 +361,28 @@ def run_optimization(
             'weights': weights,
             'allocation': allocation,
             'allocation_method': allocation_method,
+            'latest_prices': {t: float(latest_prices[t]) for t in latest_prices.index},
             'leftover': float(leftover),
             'market_prior': market_prior.to_dict() if market_prior is not None else {},
             'posterior': ret_bl.to_dict() if hasattr(ret_bl, 'to_dict') else {},
             'tickers': tickers,
             'portfolio_value': float(portfolio_value),
             'timestamp': datetime.now().isoformat(),
-            'date_range': (analysis_start, analysis_end),
+            'date_range': (full_data_start, full_data_end),
             'full_data_range': (full_data_start, full_data_end),
+            'backtest_range': backtest_range,
+            'data_notes': data_notes,
             'viewdict': viewdict if viewdict else {},
             'views_detail': views if views else {},
             'model_type': model_type,
-            'covariance_matrix': S_bl.tolist() if (S_bl is not None and hasattr(S_bl, 'tolist')) else (S_bl.values.tolist() if (S_bl is not None and hasattr(S_bl, 'values')) else None),
+            'covariance_matrix': display_cov.values.tolist(),
+            'covariance_tickers': list(display_cov.index),
             'risk_free_rate': RISK_FREE_RATE,
             'benchmark': BENCHMARK_TICKER,
             'obj_function': obj_function,
+            'target_volatility': target_volatility,
+            'target_return': target_return,
+            'l2_gamma': l2_gamma,
             'returns_estimator': returns_estimator if model_type == "Markowitz" else None,
             'ef_data': ef_data,
             # Include cleaned price data for consistent backtesting
@@ -372,8 +455,9 @@ def run_backtest(
                     price_data[BENCHMARK_TICKER] = spy_data['Close']
                 else:
                     price_data[BENCHMARK_TICKER] = spy_data['Adj Close']
-                price_data = price_data.dropna()
 
+            # The same rows the web chart backtests (see prepare_backtest_prices)
+            price_data = prepare_backtest_prices(price_data, tickers, BENCHMARK_TICKER)
             logger.info("Backtest: reusing cleaned data from optimization (%d days)", len(price_data))
         else:
             # Fallback: Download data if not available
@@ -417,9 +501,10 @@ def find_highly_correlated_pairs(cov_matrix, tickers, threshold: float = 0.95):
     """
     Detect asset pairs whose return correlation exceeds `threshold`.
 
-    Used to warn about redundant holdings — e.g. an ETF held alongside its
-    own dominant constituents (AAPL next to QQQ), where the optimizer sees
-    two assets but the diversification between them is illusory.
+    Used to warn about redundant holdings, such as two funds that track the
+    same index (VOO and IVV) or two share classes of one company (GOOGL and
+    GOOG): the optimizer sees two assets, but diversifying between them does
+    almost nothing.
 
     Args:
         cov_matrix: Covariance matrix (nested list or ndarray, as stored in

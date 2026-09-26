@@ -6,6 +6,7 @@ Modern layout: no sidebar, top navbar, clean card-based UI
 import logging
 import os
 import io
+import re
 from datetime import datetime, timedelta
 
 import utils.ssl_fix  # noqa: F401 — applies SSL cert fix on import
@@ -119,7 +120,7 @@ def main():
     <div style="margin-bottom: 2rem;">
         <p class="bl-eyebrow">Black-Litterman · Markowitz</p>
         <h1 class="page-title">Portfolio</h1>
-        <p class="page-subtitle">Build your optimal portfolio using advanced optimization models</p>
+        <p class="page-subtitle">Optimize a portfolio with Black-Litterman or Markowitz on market data from Yahoo Finance</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -140,7 +141,8 @@ def main():
             options=["Black-Litterman", "Markowitz"],
             index=0,
             key="model_type_select",
-            help="Select the optimization engine. Black-Litterman allows custom views, Markowitz relies only on historical data."
+            help="Black-Litterman starts from the returns implied by market capitalizations and lets you "
+                 "add your own views. Markowitz estimates expected returns from price history only."
         )
 
         st.markdown("<br>", unsafe_allow_html=True)
@@ -155,7 +157,10 @@ def main():
                 options=["Min Variance", "Max Sharpe", "Maximise Return for a Given Risk", "Minimise Risk for a Given Return"],
                 index=0,
                 key="obj_function_select",
-                help="Objective function to minimize/maximize. Min Variance seeks the lowest possible risk. Max Sharpe seeks the best risk-adjusted return (using L2 gamma for diversification). Maximise Return for a Given Risk lets you specify a volatility ceiling. Minimise Risk for a Given Return minimizes risk given a return goal."
+                help="Min Variance: the lowest-risk portfolio. Max Sharpe: the highest expected return "
+                     "per unit of risk, with a 3% risk-free rate. Maximise Return for a Given Risk: the "
+                     "highest expected return that stays within a target volatility. Minimise Risk for a "
+                     "Given Return: the lowest risk that reaches at least a target return."
             )
             
             if obj_function == "Maximise Return for a Given Risk":
@@ -166,7 +171,8 @@ def main():
                     value=0.20,
                     step=0.01,
                     format="%.2f",
-                    help="The desired portfolio volatility (e.g. 0.20 = 20% annual risk)."
+                    help="The highest annual volatility you accept (e.g. 0.20 = 20%). The optimizer "
+                         "maximizes expected return without exceeding it."
                 )
             
             target_return = 0.10
@@ -178,7 +184,8 @@ def main():
                     value=0.10,
                     step=0.01,
                     format="%.2f",
-                    help="The desired portfolio return (e.g. 0.15 = 15% annual return)."
+                    help="The lowest expected annual return you accept (e.g. 0.10 = 10%). The optimizer "
+                         "minimizes risk while reaching at least this return."
                 )
             
         with st.expander("Advanced Optimization Settings"):
@@ -190,10 +197,10 @@ def main():
                     index=0,
                     key="returns_estimator_select",
                     help="CAPM derives expected returns from each asset's beta against "
-                         "SPY — the PyPortfolioOpt cookbook default, designed for equities. "
+                         "SPY: the PyPortfolioOpt cookbook default, designed for stocks. "
                          "Historical mean uses each asset's own compounded average return: "
-                         "less stable, but asset-class agnostic — prefer it when the "
-                         "portfolio includes crypto, commodities or other non-equity assets."
+                         "less stable, but it does not measure assets against the stock "
+                         "market, which suits commodities, bonds or crypto better."
                 )
                 returns_estimator = "historical" if _estimator_label.startswith("Historical") else "capm"
 
@@ -213,11 +220,12 @@ def main():
 
         # Ticker input
         tickers_input = st.text_input(
-            "Stock Tickers (comma-separated)",
+            "Tickers (comma-separated)",
             value="",
             placeholder="e.g. AAPL, MSFT, GOOGL, AMZN",
             key="tickers_input",
-            help="Enter 2-20 stock tickers separated by commas (e.g., AAPL, MSFT, GOOGL)"
+            help="2 to 20 Yahoo Finance symbols separated by commas: stocks, ETFs, crypto "
+                 "(BTC-USD) or, with Markowitz, forex (EURUSD=X)."
         )
 
         # Parse tickers
@@ -227,10 +235,16 @@ def main():
         _crypto_tickers  = [t for t in tickers if t.endswith("-USD") or t.endswith("-BTC")]
         _forex_tickers   = [t for t in tickers if t.endswith("=X")]
         _non_equity      = _crypto_tickers + _forex_tickers
+        # Prices in another currency: Yahoo gives listings outside the US an
+        # exchange suffix after a dot (SAP.DE, 7203.T, VOD.L; US share classes
+        # use a dash, BRK-B), and crypto quoted in euros ends in -EUR.
+        _other_currency = [t for t in tickers
+                           if re.fullmatch(r"[A-Z0-9\-]+\.[A-Z]{1,3}", t)
+                           or (re.fullmatch(r"[A-Z0-9]+-[A-Z]{3}", t) and not t.endswith("-USD"))]
 
         # Validation
         if len(tickers) == 0:
-            st.info("Enter 2 to 20 stock tickers to begin")
+            st.info("Enter 2 to 20 tickers to begin")
         elif len(tickers) < 2:
             st.warning("Please enter at least 2 tickers")
         elif len(tickers) > 20:
@@ -251,16 +265,36 @@ def main():
         elif _non_equity:
             _estimator_hint = (
                 " Tip: in *Advanced Optimization Settings*, switch the Expected "
-                "Returns Estimator to **Historical mean**, which does not assume "
-                "equity-market betas." if model_type == "Markowitz" else ""
+                "Returns Estimator to **Historical mean**, which does not measure "
+                "assets against the stock market."
+                if model_type == "Markowitz" and returns_estimator == "capm" else ""
+            )
+            # Crypto has weekend prices and stocks do not: the wrapper keeps
+            # the days when all of them trade (see run_optimization)
+            _calendar_note = (
+                " Crypto also trades on weekends: the estimates will use the weekdays "
+                "when every asset trades."
+                if _crypto_tickers and len(_crypto_tickers) < len(tickers) else ""
             )
             st.warning(
                 f"**Model limitation:** {', '.join(_non_equity)} "
                 f"{'is' if len(_non_equity) == 1 else 'are'} not equity instruments. "
-                "Both CAPM (Markowitz) and Black-Litterman are designed for equity portfolios — "
-                "they use SPY as the market proxy and assume equity-factor betas. "
-                "Results for crypto or forex assets may be theoretically inconsistent."
-                + _estimator_hint
+                "CAPM, the default Markowitz estimator, measures each asset against SPY, a "
+                "stock index, and Black-Litterman starts from market capitalizations. Results "
+                "for crypto or forex may not be meaningful."
+                + _calendar_note + _estimator_hint
+            )
+
+        if _other_currency:
+            st.warning(
+                f"**Currency:** {', '.join(_other_currency)} "
+                f"{'is' if len(_other_currency) == 1 else 'are'} priced in a currency other than "
+                "the US dollar. PortfolioLab treats every price as dollars: share counts for "
+                f"{'it' if len(_other_currency) == 1 else 'them'} will be wrong, because the budget "
+                "is in USD"
+                + (", and Black-Litterman will compare market capitalizations across currencies"
+                   if model_type == "Black-Litterman" else "")
+                + ". Returns are measured in each asset's own currency."
             )
 
         # Portfolio value
@@ -333,7 +367,7 @@ def main():
 
         views = {}
         if add_views and tickers:
-            st.markdown("**Enter your expected annual returns and confidence intervals:**")
+            st.markdown("**Enter your expected annual returns and a range around each one:**")
 
             # Allow user to select which tickers to add views for
             st.caption("Click on the box below and select one or more assets to add your expected returns.")
@@ -371,7 +405,9 @@ def main():
                                 step=0.01,
                                 format="%.2f",
                                 key=f"low_{ticker}",
-                                help="Conservative estimate"
+                                help="Low end of a range you consider likely, about one standard "
+                                     "deviation below your view. Only the width of the range counts: "
+                                     "narrower means more confidence."
                             )
 
                         with col_c:
@@ -383,7 +419,8 @@ def main():
                                 step=0.01,
                                 format="%.2f",
                                 key=f"upp_{ticker}",
-                                help="Optimistic estimate"
+                                help="High end of that range, about one standard deviation above "
+                                     "your view."
                             )
 
                         # Validate bounds
@@ -487,14 +524,28 @@ def main():
                         "capitalizations its prior needs. Try again in a minute, or switch to "
                         f"**Markowitz**, which does not use them.\n\nDetails: {error_msg}"
                     )
-            elif "No data found" in error_msg or "Download failed" in error_msg:
+            elif ("No data found" in error_msg or "No price data found" in error_msg
+                  or "Download failed" in error_msg):
                 st.error(f"⚠️ **Data Error**: Could not download data for one or more tickers. Please verify the tickers are valid on Yahoo Finance.\n\nDetails: {error_msg}")
+            elif "in common" in error_msg:
+                # utils/optimizer_wrapper: too few dates with a price for every asset
+                st.error(f"⚠️ **Not enough data in common**: {error_msg.split(': ', 1)[-1]}")
             elif "Not enough data" in error_msg or "insufficient" in error_msg.lower():
-                st.error(f"⚠️ **Insufficient Data**: Some assets don't have enough historical data for the selected date range. Try shortening the date range or removing recently listed assets.\n\nDetails: {error_msg}")
+                # core/opt_engine.download_data: the whole download has fewer
+                # than MIN_DATA_POINTS rows, i.e. the date range is too short.
+                st.error(f"⚠️ **Not enough data**: the selected date range contains fewer than 20 trading days. Choose a longer range.\n\nDetails: {error_msg}")
+            elif "exceeding the risk-free rate" in error_msg:
+                # PyPortfolioOpt's max_sharpe needs one asset above the risk-free rate
+                _next_step = (
+                    "Try the Min Variance objective, or another date range."
+                    if model_type == "Markowitz" else
+                    "Add a view above 3% for an asset you expect to do better, try another date range, or use Markowitz."
+                )
+                st.error(f"⚠️ **No asset beats the risk-free rate**: maximizing the Sharpe ratio needs at least one asset whose expected return is above the 3% risk-free rate, and none is here. {_next_step}\n\nDetails: {error_msg}")
             elif "optimization" in error_msg.lower() or "solver" in error_msg.lower() or "Infeasible" in error_msg:
-                st.error(f"⚠️ **Optimization Failed**: The mathematical solver could not find a solution. Try adjusting your constraints, target returns, or investment views.\n\nDetails: {error_msg}")
+                st.error(f"⚠️ **Optimization Failed**: no portfolio meets the request. With a target, it may be out of reach for these assets (a volatility below their minimum, or a return above their highest); the details say which.\n\nDetails: {error_msg}")
             else:
-                st.error(f"⚠️ **Optimization failed**: {error_msg}. Please check your inputs and try again.")
+                st.error(f"⚠️ **Optimization failed**: {error_msg.rstrip('.')}. Please check your inputs and try again.")
 
     # ── Display Results ──
     result = get_result()
@@ -546,9 +597,17 @@ def main():
                 value=f"{num_assets}"
             )
 
-        # Overlap check: near-perfectly correlated pairs (e.g. an ETF held
-        # alongside its own dominant constituents) look like diversification
-        # to the optimizer but aren't. Uses the EMPIRICAL correlation from
+        # What the three figures are (a caption, not help icons: icons
+        # truncate the metric labels on ~1024 px screens)
+        st.caption(
+            "Expected return, volatility and Sharpe ratio are the model's annual estimates "
+            "for this portfolio (ex-ante, 3% risk-free rate), not forecasts. The Historical "
+            "Performance tab shows the realized ones. Assets: weights above 0.1%."
+        )
+
+        # Overlap check: near-perfectly correlated pairs (two funds tracking
+        # the same index, two share classes) look like diversification to the
+        # optimizer but aren't. Uses the EMPIRICAL correlation from
         # prices — the stored Ledoit-Wolf covariance deliberately shrinks
         # correlations (VOO-IVV: 0.9997 empirical vs ~0.949 shrunk) and
         # would mask true overlaps.
@@ -572,8 +631,28 @@ def main():
                 f"🔗 **Possible overlapping holdings** — these assets are almost "
                 f"perfectly correlated (≥ 0.95): {_pairs_txt}. The optimizer "
                 f"treats them as separate assets, but the diversification "
-                f"between them is largely illusory (e.g. an ETF held alongside "
-                f"its own top constituents)."
+                f"between them is largely illusory (for example two funds that "
+                f"track the same index, such as VOO and IVV, or two share "
+                f"classes such as GOOGL and GOOG)."
+            )
+
+        # Data notes (utils/optimizer_wrapper._data_notes): when the
+        # estimation window is shorter than the download, say why.
+        _notes = result.get('data_notes') or {}
+        _window = result.get('full_data_range')
+        _window_txt = f": {_window[0]} to {_window[1]}" if _window else ""
+        if _notes.get('late_assets'):
+            _late_txt = ", ".join(f"**{t}** from {d}" for t, d in _notes['late_assets'])
+            st.info(
+                f"📅 **Shorter common history**: prices start on {_notes['data_start']}, but "
+                f"{_late_txt}. The estimates use only the dates when every asset has a "
+                f"price{_window_txt}."
+            )
+        if _notes.get('mixed_calendar'):
+            st.info(
+                "📅 **Weekend prices**: some of these assets trade on weekends (crypto) and others do "
+                "not. The estimates use the days when all of them trade, so weekend moves count "
+                "toward the following Monday."
             )
 
         st.markdown("<br>", unsafe_allow_html=True)
@@ -608,36 +687,54 @@ def main():
             with col2:
                 st.markdown("#### Optimal Weights")
 
-                # Show unified weights + shares table
+                # Weights and whole shares, with the same columns as the PDF.
+                # Target Value = weight x budget, before rounding to whole
+                # shares; Actual Value = shares x the price they were bought at.
                 allocation = result.get('allocation', {})
+                latest_prices = result.get('latest_prices') or {}
                 weights_data = []
                 for ticker, weight in sorted(weights.items(), key=lambda x: x[1], reverse=True):
                     if weight > MIN_WEIGHT_THRESHOLD:
+                        shares = allocation.get(ticker, 0)
+                        price = latest_prices.get(ticker)
                         weights_data.append({
                             'Asset': ticker,
                             'Weight': f"{weight*100:.2f}%",
-                            'Shares': allocation.get(ticker, 0),
-                            # Weight x budget, before whole-share rounding (the
-                            # PDF uses the same name). Not shares x price.
-                            'Target Value': f"${weight * result['portfolio_value']:,.2f}"
+                            'Shares': shares,
+                            'Price': f"${price:,.2f}" if price else "N/A",
+                            'Target Value': f"${weight * result['portfolio_value']:,.2f}",
+                            'Actual Value': f"${shares * price:,.2f}" if price else "N/A",
                         })
 
                 if weights_data:
                     df_weights = pd.DataFrame(weights_data)
                     st.dataframe(df_weights, width='stretch', hide_index=True)
 
+                _prices_as_of = (result.get('full_data_range') or (None, None))[1]
+                st.caption(
+                    f"Shares are bought at each asset's close on {_prices_as_of}, the last day with a price for every asset. "
+                    f"Cash left over: ${result.get('leftover', 0):,.2f}."
+                    + ("" if is_markowitz else
+                       " Black-Litterman's market weights use today's market capitalizations.")
+                )
+
                 if result.get('allocation_method') == 'greedy':
                     st.caption(
                         "ℹ️ Share counts were computed with the greedy method "
-                        "(the exact integer-optimization solver is not available "
-                        "in this environment). Weights are unaffected; whole-share "
-                        "rounding may differ slightly from the exact optimum."
+                        "(the exact integer-optimization solver was unavailable or "
+                        "found no solution for this run). Weights are unaffected; "
+                        "whole-share rounding may differ slightly from the exact optimum."
                     )
 
         if "Efficient Frontier" in tab_mapping:
             with tab_mapping["Efficient Frontier"]:
                 st.markdown("### Efficient Frontier")
-                st.caption("The Efficient Frontier represents the set of optimal portfolios that offer the highest expected return for a defined level of risk.")
+                st.caption(
+                    "The efficient frontier is the set of portfolios with the highest expected return for "
+                    "each level of risk, from the same expected returns and covariance as the optimization. "
+                    "It is drawn without L2 regularization, so with a gamma above 0 your portfolio (amber) "
+                    "can sit below the curve."
+                )
                 ef_data = result.get('ef_data')
                 if ef_data:
                     # Build selected portfolio marker from the actual optimization result
@@ -659,6 +756,11 @@ def main():
         if "Returns Analysis" in tab_mapping:
             with tab_mapping["Returns Analysis"]:
                 st.markdown("### Returns Analysis")
+                st.caption(
+                    "Prior: the returns implied by market capitalizations (the market equilibrium). "
+                    "Posterior: the Black-Litterman blend of the prior and your views, which the "
+                    "optimizer uses. Assets without a view have no view bar."
+                )
 
                 # Returns comparison chart
                 market_prior = result.get('market_prior', {})
@@ -745,11 +847,18 @@ def main():
 
                 st.plotly_chart(fig_historical, width='stretch', config={'scrollZoom': False})
 
-                # Backtest metrics (matching PDF Historical Performance section)
+                # Backtest metrics: the same rows and numbers as the PDF's
+                # Historical Performance page (core.backtest.prepare_backtest_prices)
                 if bt_result is not None:
+                    _bt_start, _bt_end = bt_result.dates[0], bt_result.dates[-1]
+                    st.markdown("#### Backtest metrics")
+                    st.caption(
+                        f"Realized over the full backtest period, {_bt_start} to {_bt_end}, "
+                        "whichever window the chart shows."
+                    )
                     col_bl, col_spy = st.columns(2)
-                    
-                    portfolio_name = "Markowitz Portfolio" if is_markowitz else "BL Portfolio"
+
+                    portfolio_name = f"{model_type} Portfolio"
                     
                     with col_bl:
                         st.markdown(f"**{portfolio_name}**")
@@ -770,11 +879,13 @@ def main():
                         st.metric("Sortino Ratio", f"{bm.sortino_ratio:.2f}")
                         st.metric("Calmar Ratio", f"{bm.calmar_ratio:.2f}")
 
-                # Add explanation
+                # What this backtest is, and is not
                 st.caption(
-                    "This backtest shows how your optimized portfolio would have performed historically "
-                    "compared to the S&P 500 (SPY). Returns are rebased to 0% at the start of the selected period. "
-                    "Past performance does not guarantee future results."
+                    "In-sample backtest: the weights were estimated from this same price history, so it "
+                    "does not show how they would have done out of sample, and it tends to flatter the "
+                    "optimized portfolio. It keeps the target weights every day (daily rebalancing) and "
+                    "ignores whole-share rounding, costs and taxes. The chart rebases returns to 0% at "
+                    "the start of the selected window. Past performance does not guarantee future results."
                 )
 
             except Exception as e:
@@ -782,12 +893,21 @@ def main():
 
         with tab_mapping["Correlation"]:
             st.markdown("### Correlation Matrix")
+            st.caption(
+                "Correlations implied by the Ledoit-Wolf shrunk covariance matrix estimated from daily "
+                "returns, the risk model both optimizers start from. Shrinkage pulls every correlation "
+                "toward zero, so these are never stronger than the raw price correlations (the overlap "
+                "check above uses raw ones). Blue: assets that tend to move together; red: assets "
+                "that tend to move in opposite directions."
+            )
 
             # Correlation heatmap
             if 'covariance_matrix' in result and result['covariance_matrix']:
                 try:
                     cov_matrix = np.array(result['covariance_matrix'])
-                    fig_corr = create_correlation_heatmap(cov_matrix, result['tickers'])
+                    # Labels in the matrix's own order (see optimizer_wrapper)
+                    fig_corr = create_correlation_heatmap(
+                        cov_matrix, result.get('covariance_tickers') or result['tickers'])
                     st.plotly_chart(fig_corr, width='stretch', config={'scrollZoom': False})
                 except Exception as e:
                     st.warning(f"Could not display correlation matrix: {e}")
@@ -800,19 +920,38 @@ def main():
             st.markdown("#### Portfolio Summary")
             st.markdown(f"**Total Value:** ${result['portfolio_value']:,.2f}")
             st.markdown(f"**Number of Assets:** {num_assets}")
-            st.markdown(f"**Cash Remaining:** ${result.get('leftover', 0):.2f}")
+            st.markdown(f"**Cash Remaining:** ${result.get('leftover', 0):,.2f}")
 
-            if 'full_data_range' in result and result['full_data_range']:
-                full_start, full_end = result['full_data_range']
-                common_start, common_end = result.get('date_range', (full_start, full_end))
-                if full_start != common_start:
-                    st.markdown(f"**Price Data:** {full_start} to {full_end} (covariance)")
-                    st.markdown(f"**Common Period:** {common_start} to {common_end} (backtest)")
-                else:
-                    st.markdown(f"**Analysis Period:** {common_start} to {common_end}")
-            elif 'date_range' in result and result['date_range']:
-                st.markdown(f"**Analysis Period:** {result['date_range'][0]} to {result['date_range'][1]}")
+            # The periods each part of the result used (see optimizer_wrapper)
+            full_range = result.get('full_data_range') or result.get('date_range')
+            if full_range:
+                st.markdown(f"**Price Data:** {full_range[0]} to {full_range[1]} "
+                            "(dates with a price for every asset: expected returns, covariance "
+                            "and share prices)")
+            if result.get('backtest_range'):
+                bt_start, bt_end = result['backtest_range']
+                st.markdown(f"**Backtest Period:** {bt_start} to {bt_end} "
+                            "(days with a price for every asset and SPY)")
 
+            st.markdown("#### Model Settings")
+            _objective = result.get('obj_function', 'Max Sharpe')
+            if _objective == "Maximise Return for a Given Risk" and result.get('target_volatility') is not None:
+                _objective += f" (target volatility {result['target_volatility']*100:.0f}%)"
+            elif _objective == "Minimise Risk for a Given Return" and result.get('target_return') is not None:
+                _objective += f" (target return {result['target_return']*100:.0f}%)"
+            st.markdown(f"**Model:** {model_type}")
+            st.markdown(f"**Objective:** {_objective}")
+            if is_markowitz:
+                _estimator = ("Historical mean" if result.get('returns_estimator') == "historical"
+                              else "CAPM against SPY")
+                st.markdown(f"**Expected Returns:** {_estimator}")
+            else:
+                st.markdown(f"**Expected Returns:** market-implied prior"
+                            + (" blended with your views" if result.get('viewdict') else ""))
+            st.markdown("**Covariance:** Ledoit-Wolf shrinkage")
+            if result.get('l2_gamma') is not None:
+                st.markdown(f"**L2 Regularization (Gamma):** {result['l2_gamma']:.1f}")
+            st.markdown(f"**Risk-Free Rate:** {result.get('risk_free_rate', 0.03)*100:.0f}%")
             st.markdown(f"**Optimization Date:** {result.get('timestamp', 'N/A')[:10]}")
 
         # ── Export Results (outside tabs, always visible) ──

@@ -10,7 +10,6 @@ import datetime as _dt
 
 import streamlit as st
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
 
 # ── Paths ────────────────────────────────────────────────
@@ -30,7 +29,7 @@ render_navbar(active_page="stocks")
 from core.data_provider import (  # noqa: E402
     download_ohlcv, get_asset_info, get_quarterly_financials,
 )
-from utils.visualizations import apply_brand_layout  # noqa: E402
+from utils.visualizations import apply_brand_layout, create_price_chart  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -214,185 +213,6 @@ def _calculate_returns(close_prices: pd.Series, current_price: float = None) -> 
 
 
 # ═══════════════════════════════════════════════════════════
-# Chart builder
-# ═══════════════════════════════════════════════════════════
-
-def _create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=False):
-    fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True,
-        vertical_spacing=0.03, row_heights=[0.8, 0.2],
-    )
-
-    x_vals = list(range(len(ohlcv))) if is_intraday else ohlcv.index
-
-    # Prepare custom hover data
-    custom_data = []
-    for i in range(len(ohlcv)):
-        ts_val = ohlcv.index[i]
-        if hasattr(ts_val, "strftime"):
-            date_str = ts_val.strftime("%m/%d %I:%M %p").replace(" 0", " ") if is_intraday else ts_val.strftime("%m/%d/%Y")
-        else:
-            date_str = str(ts_val)
-        c = ohlcv['Close'].iloc[i] if not pd.isna(ohlcv['Close'].iloc[i]) else 0
-        o = ohlcv['Open'].iloc[i] if not pd.isna(ohlcv['Open'].iloc[i]) else 0
-        h = ohlcv['High'].iloc[i] if not pd.isna(ohlcv['High'].iloc[i]) else 0
-        l = ohlcv['Low'].iloc[i] if not pd.isna(ohlcv['Low'].iloc[i]) else 0
-        v = ohlcv['Volume'].iloc[i] if 'Volume' in ohlcv.columns and not pd.isna(ohlcv['Volume'].iloc[i]) else 0
-        custom_data.append([date_str, f"{c:,.2f}", f"{o:,.2f}", f"{h:,.2f}", f"{l:,.2f}", f"{v:,.0f}"])
-
-    # The hover label is DM Mono (apply_brand_layout), so padding every label
-    # to the same width lines the values up exactly.
-    hover_temp = (
-        "<b>Date:   %{customdata[0]}</b><br><br>"
-        "Close:  %{customdata[1]}<br>"
-        "Open:   %{customdata[2]}<br>"
-        "High:   %{customdata[3]}<br>"
-        "Low:    %{customdata[4]}<br>"
-        "Volume: %{customdata[5]}"
-        "<extra></extra>"
-    )
-
-    if chart_type == "Candles":
-        fig.add_trace(go.Candlestick(
-            x=x_vals, open=ohlcv['Open'], high=ohlcv['High'],
-            low=ohlcv['Low'], close=ohlcv['Close'], name=ticker,
-            increasing_line_color='#10B981', decreasing_line_color='#EF4444',
-            showlegend=False, customdata=custom_data, hovertemplate=hover_temp,
-        ), row=1, col=1)
-    else:
-        fig.add_trace(go.Scatter(
-            x=x_vals, y=ohlcv['Close'], mode='lines', name=ticker,
-            line=dict(color='#2E6FC7', width=2),
-            fill='tozeroy' if not is_intraday else None,
-            fillcolor='rgba(46,111,199,0.08)' if not is_intraday else None,
-            showlegend=False, customdata=custom_data, hovertemplate=hover_temp,
-        ), row=1, col=1)
-
-    colors = ['#10B981' if c >= o else '#EF4444'
-              for c, o in zip(ohlcv['Close'], ohlcv['Open'])]
-    fig.add_trace(go.Bar(
-        x=x_vals, y=ohlcv['Volume'], marker_color=colors,
-        opacity=0.4, name='Volume', showlegend=False,
-        hoverinfo='skip'
-    ), row=2, col=1)
-
-    fig.update_layout(
-        height=480, margin=dict(l=0, r=0, t=10, b=0),
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-        xaxis_rangeslider_visible=False,
-        showlegend=False,
-    )
-
-    if prev_close and is_intraday:
-        fig.add_hline(
-            y=prev_close, line_dash="dash", line_color="#94A3B8", line_width=1, row=1, col=1,
-            annotation_text=f"Prev Close {prev_close:,.2f}",
-            annotation_position="right", annotation_font_color="#94A3B8", annotation_font_size=10,
-        )
-
-    apply_brand_layout(fig)
-    fig.update_xaxes(showgrid=True)
-    fig.update_yaxes(showgrid=True)
-
-    if is_intraday:
-        timestamps = ohlcv.index
-        if hasattr(timestamps, 'tz') and timestamps.tz is not None:
-            timestamps = timestamps.tz_localize(None)
-        tickvals, ticktext, prev_date = [], [], None
-        num_days = len(set(ts.date() for ts in timestamps))
-        for i, ts in enumerate(timestamps):
-            current_date = ts.date()
-            if current_date != prev_date:
-                if prev_date is not None:
-                    fig.add_vline(x=i - 0.5, line_dash="dot", line_color="#CBD5E1", line_width=1, row='all', col=1)
-                if num_days > 1:
-                    tickvals.append(i)
-                    ticktext.append(ts.strftime("%b %d"))
-                prev_date = current_date
-            if ts.minute == 0:
-                if num_days == 1:
-                    tickvals.append(i)
-                    ticktext.append(ts.strftime("%I %p").lstrip("0").replace(" ", "\n"))
-                elif ts.hour in (12, 15) and ts.hour != 9:
-                    tickvals.append(i)
-                    ticktext.append(ts.strftime("%I %p").lstrip("0"))
-        fig.update_xaxes(tickvals=tickvals, ticktext=ticktext, type="linear", row=1, col=1)
-        fig.update_xaxes(tickvals=tickvals, ticktext=ticktext, type="linear", row=2, col=1)
-
-        # ── Pre/Post-market markers and shading ──────────────────────────────
-        # Collect per-day boundary indices
-        from collections import defaultdict as _dd
-        day_idx = _dd(list)
-        for i, ts in enumerate(timestamps):
-            day_idx[ts.date()].append(i)
-
-        mkt_open_indices  = []  # index of first bar at/after 9:30 AM per day
-        mkt_close_indices = []  # index of first bar at/after 4:00 PM  per day
-
-        for date_key in sorted(day_idx):
-            idxs = day_idx[date_key]
-            open_i = close_i = None
-            for i in idxs:
-                ts = timestamps[i]
-                if open_i is None and (ts.hour > 9 or (ts.hour == 9 and ts.minute >= 30)):
-                    open_i = i
-                if close_i is None and ts.hour >= 16:
-                    close_i = i
-            if open_i is not None:  mkt_open_indices.append((idxs[0],  open_i))
-            if close_i is not None: mkt_close_indices.append((close_i, idxs[-1]))
-
-        has_extended = bool(mkt_open_indices or mkt_close_indices)
-
-        if has_extended:
-            # Shade pre-market and post-market zones (light gray, behind data)
-            for start_i, open_i in mkt_open_indices:
-                if open_i > start_i:
-                    fig.add_vrect(x0=start_i - 0.5, x1=open_i - 0.5,
-                                  fillcolor="#EFF2F7", opacity=0.55,
-                                  layer="below", line_width=0)
-            for close_i, end_i in mkt_close_indices:
-                if end_i > close_i:
-                    fig.add_vrect(x0=close_i - 0.5, x1=end_i + 0.5,
-                                  fillcolor="#EFF2F7", opacity=0.55,
-                                  layer="below", line_width=0)
-
-            # For 1D only: show labeled Mkt Open / Mkt Close vlines
-            if num_days == 1:
-                if mkt_open_indices:
-                    _, open_i = mkt_open_indices[0]
-                    fig.add_vline(x=open_i, line_dash="dot", line_color="#94A3B8",
-                                  line_width=1, row='all', col=1,
-                                  annotation_text="Mkt Open", annotation_position="top",
-                                  annotation_font_size=9, annotation_font_color="#94A3B8")
-                if mkt_close_indices:
-                    close_i, _ = mkt_close_indices[0]
-                    fig.add_vline(x=close_i, line_dash="dot", line_color="#94A3B8",
-                                  line_width=1, row='all', col=1,
-                                  annotation_text="Mkt Close", annotation_position="top",
-                                  annotation_font_size=9, annotation_font_color="#94A3B8")
-
-    # Calculate dynamic Y-axis range to avoid flattening on short periods
-    if chart_type == "Candles":
-        y_min = ohlcv['Low'].min()
-        y_max = ohlcv['High'].max()
-    else:
-        y_min = ohlcv['Close'].min()
-        y_max = ohlcv['Close'].max()
-        
-    if prev_close and is_intraday:
-        y_min = min(y_min, prev_close)
-        y_max = max(y_max, prev_close)
-        
-    y_padding = (y_max - y_min) * 0.1
-    if y_padding == 0:
-        y_padding = y_max * 0.05 if y_max != 0 else 1.0
-        
-    fig.update_yaxes(title_text="Price", range=[y_min - y_padding, y_max + y_padding], side="right", row=1, col=1)
-    fig.update_yaxes(title_text="Vol", side="right", row=2, col=1)
-    return fig
-
-
-# ═══════════════════════════════════════════════════════════
 # Stat table builder (reusable for all tabs)
 # ═══════════════════════════════════════════════════════════
 
@@ -436,8 +256,8 @@ def _render_key_stats(info, asset_type):
 
     if asset_type in ("ETF", "INDEX"):
         left = [
-            ("Previous Close", _fmt_safe(info.get('previous_close'), "${:,.2f}")),
-            ("Open", _fmt_safe(info.get('open_price'), "${:,.2f}")),
+            ("Previous Close", _fmt_safe(info.get('previous_close'), "{:,.2f}")),
+            ("Open", _fmt_safe(info.get('open_price'), "{:,.2f}")),
             ("Day's Range", _fmt_range(info.get('day_low'), info.get('day_high'))),
         ]
         right = [
@@ -448,16 +268,16 @@ def _render_key_stats(info, asset_type):
 
     elif asset_type == "CRYPTOCURRENCY":
         left = [
-            ("Previous Close", _fmt_safe(info.get('previous_close'), "${:,.2f}")),
-            ("Open", _fmt_safe(info.get('open_price'), "${:,.2f}")),
+            ("Previous Close", _fmt_safe(info.get('previous_close'), "{:,.2f}")),
+            ("Open", _fmt_safe(info.get('open_price'), "{:,.2f}")),
             ("Day's Range", _fmt_range(info.get('day_low'), info.get('day_high'))),
             ("52-Week Range", _fmt_range(info.get('fifty_two_week_low'), info.get('fifty_two_week_high'))),
         ]
         right = [
-            ("Market Cap", _fmt_number(info.get('market_cap'), prefix="$")),
+            ("Market Cap", _fmt_number(info.get('market_cap'))),
             ("Circulating Supply", _fmt_supply(info.get('circulating_supply'))),
             ("Max Supply", _fmt_supply(info.get('max_supply'))),
-            ("Volume (24h)", _fmt_number(info.get('volume_24h'), prefix="$")),
+            ("Volume (24h)", _fmt_number(info.get('volume_24h'))),
         ]
 
     else:  # EQUITY (default)
@@ -469,14 +289,14 @@ def _render_key_stats(info, asset_type):
         if bid and bid_size:
             bid_str = f"{bid:,.2f} x {int(bid_size):,}"
         elif bid:
-            bid_str = f"${bid:,.2f}"
+            bid_str = f"{bid:,.2f}"
         else:
             bid_str = "N/A"
 
         if ask and ask_size:
             ask_str = f"{ask:,.2f} x {int(ask_size):,}"
         elif ask:
-            ask_str = f"${ask:,.2f}"
+            ask_str = f"{ask:,.2f}"
         else:
             ask_str = "N/A"
 
@@ -492,8 +312,8 @@ def _render_key_stats(info, asset_type):
             fwd_div_str = "N/A"
 
         left = [
-            ("Previous Close", _fmt_safe(info.get('previous_close'), "${:,.2f}")),
-            ("Open", _fmt_safe(info.get('open_price'), "${:,.2f}")),
+            ("Previous Close", _fmt_safe(info.get('previous_close'), "{:,.2f}")),
+            ("Open", _fmt_safe(info.get('open_price'), "{:,.2f}")),
             ("Bid", bid_str),
             ("Ask", ask_str),
             ("Day's Range", _fmt_range(info.get('day_low'), info.get('day_high'))),
@@ -502,14 +322,14 @@ def _render_key_stats(info, asset_type):
             ("Avg. Volume", _fmt_number(info.get('avg_volume'))),
         ]
         right = [
-            ("Market Cap (intraday)", _fmt_number(info.get('market_cap'), prefix="$")),
+            ("Market Cap (intraday)", _fmt_number(info.get('market_cap'))),
             ("Beta (5Y Monthly)", _fmt_safe(info.get('beta'))),
             ("PE Ratio (TTM)", _fmt_safe(info.get('pe_ratio'))),
-            ("EPS (TTM)", _fmt_safe(info.get('eps'), "${:,.2f}")),
+            ("EPS (TTM)", _fmt_safe(info.get('eps'), "{:,.2f}")),
             ("Earnings Date (est.)", _fmt_date(info.get('next_earnings_date'))),
             ("Forward Dividend & Yield", fwd_div_str),
             ("Ex-Dividend Date", _fmt_date(info.get('ex_dividend_date'))),
-            ("1y Target Est", _fmt_safe(info.get('target_mean_price'), "${:,.2f}")),
+            ("1y Target Est", _fmt_safe(info.get('target_mean_price'), "{:,.2f}")),
         ]
 
     # Check if any data is actually available (not all N/A)
@@ -528,10 +348,13 @@ def _render_key_stats(info, asset_type):
 
 
 def _quarter_label(dt) -> str:
-    """Convert a datetime to a calendar-quarter label like 'Q3 FY25'."""
-    q = (dt.month - 1) // 3 + 1
-    fy = dt.year % 100
-    return f"Q{q} FY{fy:02d}"
+    """
+    Label a quarter by the month it ends ('Sep 2025').
+
+    Fiscal years differ by company (Apple's quarter ending in September is
+    its fiscal Q4), so a calendar label like 'Q3 FY25' would be wrong for many.
+    """
+    return dt.strftime("%b %Y")
 
 
 def _render_performance(ticker: str, hist_close: pd.Series, price, spy_close: pd.Series):
@@ -558,8 +381,8 @@ def _render_performance(ticker: str, hist_close: pd.Series, price, spy_close: pd
 
     st.markdown(
         f'<div style="font-size:0.82rem;color:#64748B;margin-bottom:1.2rem;">'
-        f'Trailing total returns as of {note_date}, which may include dividends or other distributions. '
-        f'Benchmark is S&amp;P 500 (^GSPC).</div>',
+        f'Trailing price returns as of {note_date}, from closing prices adjusted for splits only, '
+        f'so dividends are not included. Benchmark: the S&amp;P 500 price index (^GSPC).</div>',
         unsafe_allow_html=True,
     )
 
@@ -597,8 +420,12 @@ def _render_performance(ticker: str, hist_close: pd.Series, price, spy_close: pd
                 unsafe_allow_html=True,
             )
 
-def _render_revenue(fin_df: pd.DataFrame):
-    """Render Revenue vs. Earnings tab — grouped bar chart by quarter."""
+def _render_revenue(fin_df: pd.DataFrame, currency: str = None):
+    """Render Revenue vs. Earnings tab — grouped bar chart by quarter.
+
+    `currency` is the financial statements' currency, which can differ from
+    the quote's (Taiwan Semiconductor's US listing reports in TWD).
+    """
 
     if fin_df.empty:
         st.info("Revenue data is not available for this asset.")
@@ -625,18 +452,24 @@ def _render_revenue(fin_df: pd.DataFrame):
     def _sc(vals):
         return [v / scale if v is not None and pd.notna(v) else None for v in vals]
 
+    unit = f" {currency}" if currency else ""
+    st.caption(
+        "Quarterly revenue and net income by the month each quarter ends"
+        + (f", in {currency}." if currency else ".")
+    )
+
     fig = go.Figure()
     if revenues:
         fig.add_trace(go.Bar(
             x=q_labels, y=_sc(revenues), name='Revenue',
             marker_color='#2E6FC7',
-            hovertemplate=f'Revenue: $%{{y:.2f}}{suffix}<extra></extra>',
+            hovertemplate=f'Revenue: %{{y:.2f}}{suffix}{unit}<extra></extra>',
         ))
     if net_incomes:
         fig.add_trace(go.Bar(
             x=q_labels, y=_sc(net_incomes), name='Earnings',
             marker_color='#F59E0B',
-            hovertemplate=f'Earnings: $%{{y:.2f}}{suffix}<extra></extra>',
+            hovertemplate=f'Earnings: %{{y:.2f}}{suffix}{unit}<extra></extra>',
         ))
 
     fig.update_layout(
@@ -645,17 +478,17 @@ def _render_revenue(fin_df: pd.DataFrame):
         margin=dict(l=40, r=40, t=20, b=40),
         showlegend=True,
         legend=dict(orientation='h', y=1.12, x=0, xanchor='left', font=dict(size=11)),
-        yaxis=dict(tickprefix='$', ticksuffix=suffix, tickformat='.2f'),
+        yaxis=dict(ticksuffix=suffix, tickformat='.2f'),
     )
     apply_brand_layout(fig)
-    st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False})
+    st.plotly_chart(fig, width='stretch', config={'scrollZoom': False})
 
 def _render_fund_details(info):
     """Render Fund Details tab (ETFs only)."""
     items = [
         ("Fund Family", info.get('fund_family') or "N/A"),
-        ("Net Assets", _fmt_number(info.get('net_assets'), prefix="$")),
-        ("NAV", _fmt_safe(info.get('nav_price'), "${:,.2f}")),
+        ("Net Assets", _fmt_number(info.get('net_assets'))),
+        ("NAV", _fmt_safe(info.get('nav_price'), "{:,.2f}")),
         ("Expense Ratio", _fmt_pct(info.get('expense_ratio'))),
         ("Yield", _fmt_pct(info.get('yield_pct'))),
         ("YTD Return", _fmt_pct(info.get('ytd_return'))),
@@ -683,7 +516,7 @@ def main():
     <div style="margin-bottom: 1.5rem;">
         <p class="bl-eyebrow">Stocks · ETFs · Crypto · Indices</p>
         <h1 class="page-title">Stocks</h1>
-        <p class="page-subtitle">Explore any stock, ETF, crypto asset or index with live market data from Yahoo Finance</p>
+        <p class="page-subtitle">Explore any stock, ETF, crypto asset or index with market data from Yahoo Finance</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -720,7 +553,7 @@ def main():
         ).strip().upper()
 
     with col_search:
-        search_clicked = st.button("🔍", type="primary", use_container_width=True)
+        search_clicked = st.button("🔍", type="primary", width="stretch")
 
     # Validate: reject multiple symbols (comma/space separated)
     _is_multi = len([t for t in ticker_input.replace(',', ' ').split() if t]) > 1
@@ -761,7 +594,11 @@ def main():
 
     try:
         with st.spinner(f"Loading {active_ticker}..."):
-            ohlcv = _cached_ohlcv(active_ticker, period=yf_period, interval=yf_interval)
+            # auto_adjust=False: the quoted closes (adjusted for splits only),
+            # as Yahoo charts them and as the returns strip computes them.
+            # The default would also subtract past dividends.
+            ohlcv = _cached_ohlcv(active_ticker, period=yf_period, interval=yf_interval,
+                                  auto_adjust=False)
             info = _cached_asset_info(active_ticker)
     except ValueError as e:
         st.error(f"❌ {e}")
@@ -822,6 +659,13 @@ def main():
             'font-size:0.75rem;font-weight:500;margin-left:12px;">Index</span>'
         )
 
+    # Index levels are points; everything else is quoted in a currency
+    currency = info.get('currency') if asset_type != "INDEX" else None
+    currency_html = (
+        f'<span class="bl-mono" style="color:#64748B;font-size:1rem;margin-left:8px;">{currency}</span>'
+        if currency else ""
+    )
+
     if price:
         chg_str = ""
         if change is not None and change_pct is not None:
@@ -838,7 +682,8 @@ def main():
             f'{tag_html}'
             f'</div>'
             f'<div style="margin-bottom:0.8rem;">'
-            f'<span class="bl-mono" style="font-size:2.2rem;font-weight:700;color:#0A1628;">${price:,.2f}</span>'
+            f'<span class="bl-mono" style="font-size:2.2rem;font-weight:700;color:#0A1628;">{price:,.2f}</span>'
+            f'{currency_html}'
             f'{chg_str}'
             f'</div>', unsafe_allow_html=True)
 
@@ -870,10 +715,10 @@ def main():
             if period_label == "5D":
                 _start_5d = (_dt.datetime.now() - _dt.timedelta(days=5)).strftime("%Y-%m-%d")
                 ohlcv = _dl(active_ticker, start=_start_5d,
-                            interval=yf_interval, prepost=use_prepost)
+                            interval=yf_interval, prepost=use_prepost, auto_adjust=False)
             else:
                 ohlcv = _dl(active_ticker, period=yf_period,
-                            interval=yf_interval, prepost=use_prepost)
+                            interval=yf_interval, prepost=use_prepost, auto_adjust=False)
             if is_intraday and ohlcv.index.tz is not None:
                 try:
                     ohlcv.index = ohlcv.index.tz_convert('America/New_York').tz_localize(None)
@@ -905,7 +750,7 @@ def main():
             pass
 
     st.plotly_chart(
-        _create_price_chart(ohlcv, active_ticker, chart_type,
+        create_price_chart(ohlcv, active_ticker, chart_type,
                             prev_close=info.get('previous_close'), is_intraday=is_intraday),
         width='stretch', config={'scrollZoom': False}
     )
@@ -981,7 +826,8 @@ def main():
         with tab_perf:
             _render_performance(active_ticker, hist_close, price, spy_close)
         with tab_rev:
-            _render_revenue(quarterly_fin_df)
+            _render_revenue(quarterly_fin_df,
+                            info.get('financial_currency') or info.get('currency'))
 
     elif asset_type == "ETF":
         tab_stats, tab_fund = st.tabs(["📊 Market Data", "🏦 Fund Details"])

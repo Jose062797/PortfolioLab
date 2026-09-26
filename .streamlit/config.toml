@@ -9,6 +9,10 @@ font = "sans serif"
 toolbarMode = "minimal"
 showSidebarNavigation = false
 
+[browser]
+# No usage statistics to Streamlit (README, "Privacy")
+gatherUsageStats = false
+
 [server]
 headless = true
 port = 8501

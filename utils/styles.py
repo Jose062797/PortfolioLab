@@ -470,15 +470,17 @@ def get_shared_css() -> str:
         color: var(--on-dark-2) !important;
     }
 
-    /* Fig. 1: the card around the Plotly chart on the hero */
+    /* Figure cards: white, like the charts inside the tools. Fig. 1 on the
+       hero holds the Portfolio tool's own frontier chart (streamlit_app.py). */
     .st-key-bl-figure {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid var(--on-dark-line);
+        background: var(--color-surface);
         border-radius: var(--radius-lg);
+        box-shadow: 0 18px 40px rgba(3, 8, 18, 0.35);
         padding: 1rem 1.1rem 0.9rem 1.1rem;
         gap: 0.4rem !important;
     }
 
+    /* Head line of a figure card: what it shows, and an "Example data" tag */
     .bl-fig-head {
         display: flex;
         justify-content: space-between;
@@ -486,59 +488,29 @@ def get_shared_css() -> str:
         gap: 0.75rem;
         font-family: var(--font-mono) !important;
         font-size: 0.78rem !important;
-        color: var(--on-dark-2) !important;
+        color: var(--color-text-secondary) !important;
     }
 
     .bl-fig-head b {
-        color: #FFFFFF !important;
+        color: var(--color-primary) !important;
         font-weight: 500;
     }
 
     .bl-tag {
-        border: 1px solid rgba(232, 238, 248, 0.2);
+        border: 1px solid var(--color-line-strong);
         border-radius: var(--radius-full);
         padding: 0.1rem 0.6rem;
         white-space: nowrap;
     }
 
-    .bl-fig-legend {
-        list-style: none;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem 1.1rem;
-        padding: 0 !important;
+    p.bl-fig-caption {
         margin: 0 !important;
-    }
-
-    .bl-fig-legend li {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        margin: 0 !important;
-        font-family: var(--font-mono) !important;
-        font-size: 0.74rem !important;
-        color: var(--on-dark-2) !important;
-    }
-
-    .bl-fig-legend i {
-        display: inline-block;
-        flex: none;
-    }
-
-    .bl-fig-legend .sw-line { width: 18px; height: 3px; border-radius: 2px; background: var(--color-sky); }
-    .bl-fig-legend .sw-dash { width: 18px; border-top: 2px dashed #34D399; }
-    .bl-fig-legend .sw-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 0 1.5px #FFFFFF; }
-    .bl-fig-legend .sw-diamond { width: 9px; height: 9px; background: var(--color-accent); transform: rotate(45deg); box-shadow: 0 0 0 1.3px #FFFFFF; }
-    .bl-fig-legend .sw-square { width: 8px; height: 8px; border: 1.6px solid #E8EEF8; }
-
-    .bl-dark p.bl-fig-caption {
-        margin: 0.4rem 0 0 0 !important;
         font-size: 0.8rem !important;
         line-height: 1.5 !important;
-        color: var(--on-dark-2) !important;
+        color: var(--color-text-secondary) !important;
     }
 
-    /* Verification band: facts on the left, the parity schematic on the right */
+    /* Verification band: facts on the left, the parity table on the right */
     .bl-verify-grid {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -569,56 +541,105 @@ def get_shared_css() -> str:
         color: var(--on-dark-2) !important;
     }
 
+    /* Parity table: Fig. 1's portfolio as solved by the engine and by
+       PyPortfolioOpt directly, on a white card like Fig. 1 */
     .bl-parity {
         display: grid;
-        gap: 1.1rem;
-        padding: 1.4rem;
-        border: 1px solid var(--on-dark-line);
-        border-radius: var(--radius-lg);
-        background: rgba(255, 255, 255, 0.03);
-    }
-
-    .bl-parity-row {
-        display: grid;
-        gap: 0.5rem;
-    }
-
-    .bl-parity-label {
-        display: flex;
-        justify-content: space-between;
-        gap: 0.6rem;
-        font-family: var(--font-mono) !important;
-        font-size: 0.75rem !important;
-        color: var(--on-dark-2) !important;
-    }
-
-    .bl-parity-bar {
-        display: flex;
-        height: 34px;
-        border-radius: var(--radius-sm);
-        overflow: hidden;
-    }
-
-    .bl-parity-bar span {
-        display: grid;
-        place-items: center;
+        gap: 1rem;
         min-width: 0;
-        overflow: hidden;
+        padding: 1.2rem 1.3rem 1.3rem 1.3rem;
+        border-radius: var(--radius-lg);
+        background: var(--color-surface);
+        box-shadow: 0 18px 40px rgba(3, 8, 18, 0.35);
+    }
+
+    /* Safety net: a table wider than the card scrolls inside it */
+    .bl-parity-scroll {
+        overflow-x: auto;
+    }
+
+    /* Below ~1100 px the half-width card is too narrow for the four
+       columns (the Difference column would scroll out of sight): stack the
+       facts above the table instead. */
+    @media (max-width: 1100px) {
+        .bl-verify-grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 2.25rem;
+        }
+    }
+
+    table.bl-parity-table {
+        width: 100%;
+        margin: 0 !important;
+        border-collapse: collapse;
+        border: none !important;
         font-family: var(--font-mono) !important;
-        font-size: 0.72rem;
+        font-size: 0.8rem !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .bl-parity-table th,
+    .bl-parity-table td {
+        padding: 0.38rem 0.5rem !important;
+        border: none !important;
+        border-bottom: 1px solid var(--color-line) !important;
+        background: transparent !important;
+        text-align: right;
+        white-space: nowrap;
+        font-family: var(--font-mono) !important;
+        color: var(--color-text) !important;
+    }
+
+    .bl-parity-table th {
+        vertical-align: bottom;
+        white-space: normal;
+        font-size: 0.72rem !important;
+        font-weight: 500 !important;
+        color: var(--color-text-secondary) !important;
+    }
+
+    .bl-parity-table th:first-child,
+    .bl-parity-table td:first-child {
+        text-align: left;
+        padding-left: 0 !important;
+    }
+
+    .bl-parity-table th:last-child,
+    .bl-parity-table td:last-child {
+        padding-right: 0 !important;
+    }
+
+    .bl-parity-table tr.bl-group td {
+        padding-top: 0.85rem !important;
+        text-align: left;
+        font-size: 0.7rem !important;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--color-accent) !important;
+    }
+
+    .bl-parity-table .zero {
         font-weight: 500;
-        color: #06101E !important;
+        color: var(--color-success) !important;
+    }
+
+    .bl-dot {
+        display: inline-block;
+        width: 0.6rem;
+        height: 0.6rem;
+        margin-right: 0.55rem;
+        border-radius: 50%;
     }
 
     .bl-parity-eq {
         display: flex;
         align-items: center;
         gap: 0.65rem;
-        padding: 0.75rem 0.9rem;
+        padding: 0.7rem 0.9rem;
         border-radius: var(--radius-md);
-        background: rgba(16, 185, 129, 0.10);
+        background: var(--color-success-light);
         border: 1px solid rgba(16, 185, 129, 0.35);
-        color: var(--on-dark) !important;
+        color: var(--color-primary) !important;
         font-size: 0.9rem !important;
     }
 
@@ -631,32 +652,11 @@ def get_shared_css() -> str:
         background: var(--color-success) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2 5 8.2 9 4' fill='none' stroke='%23FFFFFF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
     }
 
-    .bl-parity-foot {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.75rem;
-        font-family: var(--font-mono) !important;
-        font-size: 0.75rem !important;
-        color: var(--on-dark-2) !important;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .bl-parity-foot > div {
-        color: var(--on-dark-2) !important;
-    }
-
-    .bl-parity-foot b {
-        display: block;
-        font-size: 1.25rem;
-        font-weight: 500;
-        color: #FFFFFF !important;
-    }
-
-    .bl-dark p.bl-parity-note {
+    p.bl-parity-note {
         margin: 0 !important;
         font-size: 0.78rem !important;
         line-height: 1.5 !important;
-        color: var(--on-dark-2) !important;
+        color: var(--color-text-secondary) !important;
     }
 
     /* Streamlit appends a hover "link to heading" icon to every markdown
@@ -668,152 +668,54 @@ def get_shared_css() -> str:
     .bl-block-head [data-testid="stHeaderActionElements"],
     .bl-steps [data-testid="stHeaderActionElements"],
     .bl-facts [data-testid="stHeaderActionElements"],
-    .bl-tool-card [data-testid="stHeaderActionElements"] {
+    .bl-tool-body [data-testid="stHeaderActionElements"] {
         display: none !important;
     }
 
-    /* ===== Tool cards (Home) — equal height via Streamlit columns ===== */
+    /* ===== Tool cards (Home) ===== */
+    /* Each card is an st.container, because it holds a Plotly chart:
+       .st-key-bl-card-* is the card, .st-key-bl-visual-* its chart area and
+       the text below is .bl-tool-body markdown. The columns stretch to the
+       taller card, and each card fills its column. */
     [data-testid="stHorizontalBlock"] {
         align-items: stretch;
     }
 
-    .bl-tool-card {
-        display: flex;
-        flex-direction: column;
+    [data-testid="stColumn"]:has(.st-key-bl-card-stocks) > [data-testid="stVerticalBlock"],
+    [data-testid="stColumn"]:has(.st-key-bl-card-portfolio) > [data-testid="stVerticalBlock"] {
         height: 100%;
+    }
+
+    /* Streamlit wraps each container in a layout wrapper that does not grow */
+    [data-testid="stLayoutWrapper"]:has(> .st-key-bl-card-stocks),
+    [data-testid="stLayoutWrapper"]:has(> .st-key-bl-card-portfolio) {
+        flex: 1 1 auto;
+    }
+
+    .st-key-bl-card-stocks,
+    .st-key-bl-card-portfolio {
+        flex: 1 1 auto;
+        gap: 0 !important;
         background: var(--color-surface);
         border: 1px solid var(--color-line);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-card);
         overflow: hidden;
-        text-decoration: none !important;
-        color: inherit !important;
-        transition: transform var(--transition-base), box-shadow var(--transition-base);
     }
 
-    .bl-tool-card:hover {
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-lg);
-    }
-
-    .bl-tool-visual {
-        /* Tall enough for the Portfolio picture (weights plus metrics), so
-           both cards line up; the candle strip grows to fill it. */
-        min-height: 14.6rem;
-        background: var(--color-surface-2);
+    .st-key-bl-visual-stocks,
+    .st-key-bl-visual-portfolio {
+        padding: 1rem 1.15rem 0.9rem 1.15rem;
         border-bottom: 1px solid var(--color-line);
-        padding: 1rem 1.15rem;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        gap: 0.75rem;
+        gap: 0.5rem !important;
     }
 
-    .bl-tool-visual-head {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.4rem 0.75rem;
-        font-family: var(--font-mono) !important;
-        font-size: 0.75rem !important;
-        color: var(--color-text-secondary) !important;
-    }
-
-    .bl-chips {
-        display: flex;
-        gap: 0.2rem;
-    }
-
-    .bl-chips span {
-        font-size: 0.7rem;
-        padding: 0.1rem 0.45rem;
-        border-radius: var(--radius-full);
-    }
-
-    .bl-chips span.on {
-        background: var(--color-accent);
-        color: #FFFFFF !important;
-    }
-
-    /* Decorative candlesticks (example data): a wick <i> and a body <b> per
-       candle, placed with inline top/height percentages */
-    .bl-candles {
-        display: flex;
-        gap: 4px;
-        flex: 1 1 auto;
-        min-height: 118px;
-    }
-
-    .bl-candles span {
-        position: relative;
-        flex: 1 1 0;
-        color: var(--color-success);
-    }
-
-    .bl-candles span.dn {
-        color: var(--color-error);
-    }
-
-    .bl-candles i,
-    .bl-candles b {
-        position: absolute;
-        display: block;
-        background: currentColor;
-    }
-
-    .bl-candles i {
-        left: 50%;
-        width: 1px;
-        margin-left: -0.5px;
-    }
-
-    .bl-candles b {
-        left: 0;
-        right: 0;
-        min-height: 2px;
-        border-radius: 1px;
-    }
-
-    /* Example allocation bars */
-    .bl-weights {
-        display: grid;
-        gap: 0.5rem;
-    }
-
-    .bl-w-row {
-        display: grid;
-        grid-template-columns: 1.4rem minmax(0, 1fr) 3rem;
-        align-items: center;
-        gap: 0.6rem;
-        font-family: var(--font-mono) !important;
-        font-size: 0.75rem !important;
-        color: var(--color-text-secondary) !important;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .bl-w-row .pct {
-        text-align: right;
-        color: var(--color-primary) !important;
-    }
-
-    .bl-w-track {
-        height: 12px;
-        border-radius: var(--radius-full);
-        background: var(--color-line);
-        overflow: hidden;
-    }
-
-    .bl-w-fill {
-        height: 100%;
-        border-radius: var(--radius-full);
-    }
-
+    /* Headline metrics under the Portfolio card's pie */
     .bl-metrics {
         display: flex;
         flex-wrap: wrap;
+        justify-content: center;
         gap: 0.3rem 1.1rem;
-        margin-top: 0.7rem;
         padding-top: 0.6rem;
         border-top: 1px solid var(--color-line);
         font-family: var(--font-mono) !important;
@@ -832,7 +734,6 @@ def get_shared_css() -> str:
         display: flex;
         flex-direction: column;
         gap: 0.85rem;
-        flex: 1;
     }
 
     .bl-tool-body h3 {
@@ -877,15 +778,16 @@ def get_shared_css() -> str:
         background: var(--color-accent-light) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2 5 8.2 9 4' fill='none' stroke='%232E6FC7' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
     }
 
-    .bl-tool-link {
-        margin-top: auto;
+    a.bl-tool-link {
+        align-self: flex-start;
         padding-top: 0.35rem;
         font-weight: 600;
         color: var(--color-accent) !important;
+        text-decoration: none !important;
     }
 
-    .bl-tool-card:hover .bl-tool-link {
-        text-decoration: underline;
+    a.bl-tool-link:hover {
+        text-decoration: underline !important;
         text-underline-offset: 3px;
     }
 
@@ -1398,6 +1300,19 @@ def get_shared_css() -> str:
             grid-template-columns: minmax(0, 1fr);
             gap: 2rem;
         }
+        .bl-parity {
+            padding: 1rem;
+        }
+        table.bl-parity-table {
+            font-size: 0.7rem !important;
+        }
+        .bl-parity-table th,
+        .bl-parity-table td {
+            padding: 0.34rem 0.3rem !important;
+        }
+        .bl-parity-table td:first-child {
+            white-space: normal;
+        }
         /* Titles on navy: keep long words whole */
         .bl-dark h1 {
             word-break: keep-all;
@@ -1452,6 +1367,21 @@ def get_shared_css() -> str:
         }
         .bl-steps {
             grid-template-columns: minmax(0, 1fr);
+        }
+        /* Parity table: small enough that all four columns fit a 360 px
+           phone (measured), so the Difference column stays in view */
+        .bl-parity {
+            padding: 0.9rem 0.7rem;
+        }
+        table.bl-parity-table {
+            font-size: 0.66rem !important;
+        }
+        .bl-parity-table th {
+            font-size: 0.6rem !important;
+        }
+        .bl-parity-table th,
+        .bl-parity-table td {
+            padding: 0.3rem 0.18rem !important;
         }
         /* Even smaller tabs on very narrow screens */
         .stTabs [role="tab"] {

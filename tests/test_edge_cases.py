@@ -145,10 +145,12 @@ class TestBadTickerDetection:
 
 class TestUnequalHistories:
     def test_nan_head_ticker_survives_pipeline(self, synthetic_prices):
-        """A ticker with a shorter history (NaN head) must still optimize.
+        """The engine functions tolerate a shorter history (NaN head).
 
-        Covariance uses pairwise-available data (Ledoit-Wolf on NaN-tolerant
-        returns), matching the notebook behaviour documented in CLAUDE.md.
+        run_optimization no longer passes one (it estimates on the dates where
+        every asset has a price, see test_result_consistency), but the engine
+        must stay defensive: PyPortfolioOpt's Ledoit-Wolf turns the gap into
+        zero returns rather than NaN.
         """
         prices = synthetic_prices[["AAPL", "MSFT", "GOOGL"]].copy()
         prices.iloc[:200, prices.columns.get_loc("GOOGL")] = np.nan
