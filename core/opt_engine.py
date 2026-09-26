@@ -99,12 +99,25 @@ def download_data(tickers, date_range):
             # A ticker that doesn't exist (or was delisted — Yahoo returns no
             # history for those) comes back as an all-NaN column and would
             # otherwise poison the optimization with cryptic solver errors.
+            # Yahoo also sends an empty column now and then for a symbol that
+            # does exist, when it limits requests from shared cloud servers
+            # (production, 2026-09-26: AAPL came back empty, and the next
+            # click worked), so retry before blaming the symbol.
             failed_tickers = [t for t in prices.columns if prices[t].isna().all()]
             if failed_tickers:
+                if attempt < max_retries - 1:
+                    logger.warning("No prices for %d ticker(s) on attempt %d; retrying",
+                                   len(failed_tickers), attempt + 1)
+                    continue
                 raise DataDownloadError(
                     f"No price data found for: {', '.join(failed_tickers)}. "
-                    f"Check that the symbol exists on Yahoo Finance (delisted "
-                    f"tickers are no longer available)."
+                    f"Yahoo Finance returned no prices for "
+                    f"{'this symbol' if len(failed_tickers) == 1 else 'these symbols'} in "
+                    f"{max_retries} attempts. Check that "
+                    f"{'it exists' if len(failed_tickers) == 1 else 'they exist'} on Yahoo "
+                    f"Finance (delisted tickers are no longer available); if "
+                    f"{'it does' if len(failed_tickers) == 1 else 'they do'}, Yahoo may be "
+                    f"limiting requests, so try again in a minute."
                 )
 
             if len(prices) < MIN_DATA_POINTS:
@@ -115,8 +128,8 @@ def download_data(tickers, date_range):
             break
 
         except (DataDownloadError, InsufficientDataError):
-            # Deterministic data problems — retrying cannot fix a bad ticker
-            # or a too-short history.
+            # Raised after the retries above (empty columns) or for a history
+            # too short for the date range, which retrying cannot fix.
             raise
         except Exception as e:
             if attempt == max_retries - 1:

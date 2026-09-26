@@ -382,6 +382,16 @@ vez del precio y el test solo buscaba "$nan"). En la app real: corrida
 Markowitz MSFT/AAPL/SNOW/KO con todas las pestañas, Stocks con SAP.DE, ^GSPC y
 BTC-USD, y los PDF de ambos modelos leídos página por página.
 
+**Después de publicar (`1147c0e`).** La verificación en producción encontró
+dos cosas más. (1) La cifra de tests publicada decía 127: el último test se
+añadió después de fijarla (corregido a 129). (2) Una corrida real falló con
+"No price data found for: AAPL" y funcionó al segundo clic: Yahoo, limitando
+pedidos desde los servidores compartidos, a veces devuelve vacía la columna de
+un símbolo real, y la app lo trataba como símbolo inexistente, sin reintentar.
+Ahora la columna vacía se reintenta como cualquier otra falla de descarga (3
+intentos) y el mensaje nombra las dos causas posibles; un test cubre el caso
+transitorio y verifica los 3 intentos (sin reintento, fallan 2 tests).
+
 **Pendiente de decisión del usuario:**
 - Black-Litterman calcula el prior y la aversión al riesgo con tasa libre 0 %
   (defaults de PyPortfolioOpt, como el cookbook) pero optimiza con 3 %: sin

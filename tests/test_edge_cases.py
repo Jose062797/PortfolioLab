@@ -131,9 +131,19 @@ class TestBadTickerDetection:
 
     def test_all_nan_column_raises_with_ticker_name(self):
         mock_df = self._mock_download(["AAPL", "MSFT"], ["XXXXFAKE99"])
-        with patch("yfinance.download", return_value=mock_df):
+        with patch("yfinance.download", return_value=mock_df) as mock_dl, patch("time.sleep"):
             with pytest.raises(DataDownloadError, match="XXXXFAKE99"):
                 download_data(["AAPL", "MSFT", "XXXXFAKE99"], None)
+        assert mock_dl.call_count == 3, "an empty column is retried before it is blamed on the symbol"
+
+    def test_transient_empty_column_is_retried(self):
+        """Yahoo sometimes sends an empty column for a real symbol when it limits
+        requests (production, 2026-09-26): the next attempt must be used."""
+        bad = self._mock_download(["MSFT"], ["AAPL"])
+        good = self._mock_download(["AAPL", "MSFT"], [])
+        with patch("yfinance.download", side_effect=[bad, good, good]), patch("time.sleep"):
+            prices, market = download_data(["AAPL", "MSFT"], None)
+        assert not prices["AAPL"].isna().all()
 
     def test_all_valid_tickers_pass(self):
         mock_df = self._mock_download(["AAPL", "MSFT"], [])

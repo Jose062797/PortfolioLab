@@ -526,7 +526,7 @@ def main():
                     )
             elif ("No data found" in error_msg or "No price data found" in error_msg
                   or "Download failed" in error_msg):
-                st.error(f"⚠️ **Data Error**: Could not download data for one or more tickers. Please verify the tickers are valid on Yahoo Finance.\n\nDetails: {error_msg}")
+                st.error(f"⚠️ **Data Error**: Yahoo Finance returned no prices for one or more tickers. Check the symbols; if they are valid, Yahoo may be limiting requests, so try again in a minute.\n\nDetails: {error_msg}")
             elif "in common" in error_msg:
                 # utils/optimizer_wrapper: too few dates with a price for every asset
                 st.error(f"⚠️ **Not enough data in common**: {error_msg.split(': ', 1)[-1]}")
