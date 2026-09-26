@@ -79,7 +79,8 @@ The app will open at `http://localhost:8501`.
 │   ├── backtest.py           # Historical simulation
 │   ├── data_provider.py      # yfinance data layer
 │   ├── pdf_shared.py         # Shared PDF chart builders
-│   └── constants.py          # Centralized constants
+│   ├── constants.py          # Centralized constants
+│   └── example_market.py     # Example data for the Home page charts
 ├── utils/                    # Streamlit integration layer
 │   ├── styles.py             # Design system & CSS
 │   ├── visualizations.py     # Plotly interactive charts
@@ -88,7 +89,7 @@ The app will open at `http://localhost:8501`.
 │   └── session_manager.py    # Streamlit session state
 ├── tests/                    # pytest test suite (parity, regression, edge cases)
 ├── static/                   # Navbar logo and PWA assets
-├── assets/                   # Logo
+├── assets/                   # Logo, favicon, Home example results
 └── .github/workflows/        # CI (pytest on Python 3.12 & 3.14)
 ```
 

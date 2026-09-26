@@ -328,10 +328,13 @@ eran. Ahora el inicio dibuja con las mismas funciones que las herramientas
 (`create_efficient_frontier_chart`, `create_price_chart`, `create_allocation_pie`)
 sobre resultados del propio motor para cinco activos inventados, y la tabla de
 paridad compara el motor con PyPortfolioOpt llamado directamente (diferencia 0).
-Solo cambia la altura de cada gráfico. Afirmación falsa retirada: "6 MIT
-reference cases" (la guía manual sigue los notebooks del cookbook; solo el
-escenario 5 lleva la etiqueta "MIT", con el notebook de Black-Litterman como
-referencia).
+Solo cambia la altura de cada gráfico. Afirmación retirada de la página
+pública: "6 MIT reference cases" / "six scenarios from MIT course material".
+El repositorio no lo documenta: la guía manual cita los notebooks del cookbook
+y solo el escenario 5 lleva la etiqueta "Caso MIT" (según D1.2, reproduce el
+portafolio de referencia del código original del profesor del MIT). Nombrar
+al MIT en público requiere la redacción del usuario y una fuente; queda a su
+decisión.
 
 **Errores de cifras corregidos (con test cada uno):**
 1. **Mapa de correlaciones con etiquetas cruzadas** (web y PDF) salvo que los
@@ -392,6 +395,17 @@ Ahora la columna vacía se reintenta como cualquier otra falla de descarga (3
 intentos) y el mensaje nombra las dos causas posibles; un test cubre el caso
 transitorio y verifica los 3 intentos (sin reintento, fallan 2 tests).
 
+**Guía manual re-ejecutada con la ventana común (2026-09-26, `fa06a10`,
+datos en vivo).** Los 6 escenarios cumplen lo que la guía pide: Min Variance
+con la menor volatilidad y sobre su marcador, Max Sharpe con el mayor Sharpe,
+el techo de 20 % respetado, el piso de 10 % cumplido, KO en 0 % y AMZN/BAC
+como mayores pesos en el escenario 5, posterior = prior sin views. Dos
+precisiones incorporadas a la guía: en el escenario 5 el posterior de BAC bajó
+levemente pese a su view de 30 % (rango ancho, arrastrado por las demás views
+vía correlaciones; los otros 9 se movieron hacia su view, antes eran 10/10), y
+en el escenario 6 los pesos no son los de capitalización (ver el punto 1 de
+abajo). La guía trae ahora una tabla con los resultados de ese día.
+
 **Pendiente de decisión del usuario:**
 - Black-Litterman calcula el prior y la aversión al riesgo con tasa libre 0 %
   (defaults de PyPortfolioOpt, como el cookbook) pero optimiza con 3 %: sin
@@ -422,3 +436,8 @@ Deuda restante (menor, sin plan): logo del navbar en base64 (~70 KB).
 
 Actualización 2026-07-20 (Fase 5): la capa `pages/` ya tiene cobertura
 automatizada (D4.4). Suite: 35 → 102 tests.
+
+Actualización 2026-09-26 (Fase 6): coherencia de lo que se muestra (inicio,
+herramientas, PDF, README) y estimación sobre la ventana común. Suite:
+110 → 129 tests; publicado y verificado en producción en `fa06a10`. Quedan
+tres decisiones de modelo para el usuario (ver Fase 6).

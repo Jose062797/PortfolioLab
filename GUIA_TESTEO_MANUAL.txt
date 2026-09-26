@@ -14,7 +14,11 @@
   C:\Users\jose_\portfoliolab-env, para que Dropbox no lo sincronice.)
 
   Se abre en: http://localhost:8501
-  Click en "Portfolio Optimizer" para entrar.
+  Entra a la herramienta con "Portfolio" en el menú superior o con el
+  botón "Build a portfolio" del inicio.
+
+  Si cambiaste algo en core/ o utils/, reinicia el servidor: Streamlit
+  guarda en memoria los módulos importados.
 
 
 2. CORRER LOS TESTS AUTOMATIZADOS
@@ -32,6 +36,16 @@ Para comparar con los notebooks, usa los mismos tickers y
 configuración, y verifica que los resultados sean razonables
 (no idénticos, porque los datos cambian cada día).
 
+La app estima con las fechas en que TODOS los activos tienen precio.
+Si un activo cotiza desde hace menos tiempo, la ventana empieza en su
+primer precio y la página lo avisa ("Shorter common history").
+
+Dónde está cada opción: el modelo y el objetivo son listas
+desplegables ("Optimization Model", "Optimization Objective"); los
+tickers van en "Tickers (comma-separated)"; L2 Gamma, en "Advanced
+Optimization Settings". El marcador del portafolio elegido en la
+pestaña "Efficient Frontier" es la estrella ámbar ("Portfolio").
+
 
 ------------------------------------------------------
 ESCENARIO 1: MARKOWITZ — Min Variance
@@ -42,12 +56,12 @@ Objetivo:          Min Variance
 Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
 Portfolio Value:   $20,000
 Fecha:             Sin rango (usar todos los datos)
-L2 Gamma:          0.0 (default para Markowitz, slider en "Advanced Optimization Settings")
+L2 Gamma:          0.0 (default para Markowitz)
 
 Qué verificar:
-  - El portafolio debe tener la MENOR volatilidad posible
-  - En el gráfico EF, el rombo amber (resultado) debe coincidir
-    con el rombo azul (Min Variance de referencia)
+  - El portafolio debe tener la MENOR volatilidad de los escenarios 1 a 4
+  - En la pestaña "Efficient Frontier", la estrella ámbar debe quedar
+    sobre el rombo azul (Min Variance de referencia)
   - Los pesos se concentran en activos de baja volatilidad
 
 
@@ -63,10 +77,10 @@ Fecha:             Sin rango
 L2 Gamma:          0.0
 
 Qué verificar:
-  - Sharpe ratio debe ser el máximo alcanzable
-  - En el gráfico EF, el rombo amber debe coincidir con
-    el círculo verde (Max Sharpe de referencia)
-  - Pesos concentrados en pocos activos de alto retorno/riesgo
+  - El Sharpe ratio debe ser el mayor de los escenarios 1 a 4
+  - La estrella ámbar debe quedar sobre el círculo verde (Max Sharpe
+    de referencia)
+  - Los pesos van a los activos con mejor retorno por unidad de riesgo
 
 
 ------------------------------------------------------
@@ -82,11 +96,10 @@ Fecha:             Sin rango
 L2 Gamma:          0.0
 
 Qué verificar:
-  - La volatilidad reportada DEBE ser ≤ 20% (el target)
-  - Si el target es mayor que el Max Sharpe, el retorno debe
-    ser mayor que Max Sharpe (está más arriba en la frontera)
-  - En el gráfico EF, el rombo amber debe estar sobre la
-    curva a la altura del risk level indicado
+  - La volatilidad reportada DEBE ser ≤ 20% (el target es un techo)
+  - Si 20% es mayor que la volatilidad de Max Sharpe, el retorno debe
+    ser mayor que el de Max Sharpe (está más arriba en la frontera)
+  - La estrella ámbar debe estar sobre la curva, a esa altura de riesgo
 
 
 ------------------------------------------------------
@@ -102,8 +115,10 @@ Fecha:             Sin rango
 L2 Gamma:          0.0
 
 Qué verificar:
-  - El retorno reportado debe ser ≥ 10% (el target)
-  - La volatilidad debe ser la mínima posible para ese retorno
+  - El retorno reportado debe ser ≥ 10% (el target es un piso)
+  - La volatilidad debe ser la mínima posible para ese retorno. Si Min
+    Variance ya rinde 10% o más, el resultado es el mismo que en el
+    escenario 1 (la restricción no aprieta), como pasó el 2026-09-26
   - NOTA: si el target return es infactible (mayor que el max
     return del universo), el optimizador dará error. Usa un
     target razonable (ej: 0.10 o 0.12)
@@ -119,7 +134,8 @@ Portfolio Value:   $20,000
 Fecha:             Sin rango
 L2 Gamma:          1.0 (default para Black-Litterman, replica el notebook)
 
-Views (activar "Add Views" y añadir uno por uno):
+Views (marcar "Add custom investment views", elegir los 10 tickers en
+"Select assets to add views for" y completar Expected / Lower / Upper):
   MSFT:  Expected 0.10,  Lower 0.08,  Upper 0.12
   AMZN:  Expected 0.10,  Lower 0.00,  Upper 0.25
   NAT:   Expected 0.50,  Lower 0.10,  Upper 0.90
@@ -132,9 +148,13 @@ Views (activar "Add Views" y añadir uno por uno):
   SBUX:  Expected 0.10,  Lower 0.00,  Upper 0.30
 
 Qué verificar:
-  - Tab "Returns Analysis" muestra Prior vs Posterior
-  - Los retornos posteriores se mueven hacia las views
-  - KO debe tener peso ≈ 0% (view negativo)
+  - La pestaña "Returns Analysis" muestra Market Prior, Your Views y
+    Posterior (BL)
+  - En general el posterior se mueve hacia cada view. Una view de rango
+    ancho (poca confianza) puede quedar dominada por las demás a través
+    de las correlaciones: el 2026-09-26, BAC (view 30%, rango 10% a
+    40%) bajó de 19,1% a 18,2%; los otros 9 se movieron hacia su view
+  - KO debe tener peso ≈ 0% (view negativa)
   - AMZN y BAC deben tener los mayores pesos
 
 
@@ -146,12 +166,34 @@ Tickers:           MSFT, AMZN, KO, MA, COST, JPM
 Portfolio Value:   $10,000
 Fecha:             Sin rango
 L2 Gamma:          1.0 (default para Black-Litterman)
-Views:             NO activar "Add Views"
+Views:             NO marcar "Add custom investment views"
 
 Qué verificar:
-  - Posterior = Prior (sin views, el modelo usa solo
-    el equilibrio de mercado)
-  - Los pesos reflejan capitalización de mercado
+  - Posterior = Prior (sin views, el modelo usa solo el equilibrio
+    de mercado)
+  - Los pesos NO son los de capitalización de mercado: el prior se
+    calcula con tasa libre 0% (como el cookbook), pero el optimizador
+    maximiza el Sharpe con tasa libre 3% y regularización L2 (gamma 1).
+    Un activo con retorno implícito bajo 3% puede quedar en 0%
+
+
+====================================================
+  REFERENCIA DEL 2026-09-26
+====================================================
+
+Resultados con el código fa06a10 y los datos de ese día (retorno
+esperado / volatilidad / Sharpe). Sirven para ver si algo cambió
+mucho; con datos de otro día las cifras se mueven un poco.
+
+  1. Min Variance      11,10% / 14,26% / 0,568   ventana 2010-06-29 a
+                       2026-09-25 (por TSLA); KO 37,8%, COST 20,5%
+  2. Max Sharpe        15,00% / 17,62% / 0,681   MSFT 16,0%, JPM 13,2%
+  3. Target risk 20%   16,46% / 20,00% / 0,673   MSFT 20,3%, JPM 19,5%
+  4. Target return 10% igual al escenario 1 (11,10% ≥ 10%)
+  5. BL con views      14,57% / 23,36% / 0,495   ventana desde 2004-07-13
+                       (por DPZ); AMZN 21,1%, BAC 17,8%, KO 0,00%
+  6. BL sin views      20,67% / 24,30% / 0,727   ventana desde 2006-05-25
+                       (por MA); AMZN 30,0%, MSFT 22,7%, JPM 18,2%
 
 
 ====================================================
@@ -167,7 +209,9 @@ Qué verificar:
 - Si un escenario da error, verifica que:
   1. El target return/risk sea factible para el universo
   2. Los tickers existan en Yahoo Finance
-  3. Haya suficientes datos históricos
+  3. Los activos tengan al menos 20 días con precio en común
+  4. Yahoo no esté limitando pedidos: la app ya reintenta 3 veces
+     cada descarga; si el error sigue, espera un minuto
 
 - El L2 Gamma tiene defaults distintos por modelo:
   - Markowitz: 0.0 (sin regularización, resultados puros de textbook)
