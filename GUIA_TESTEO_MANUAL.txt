@@ -38,13 +38,22 @@ configuración, y verifica que los resultados sean razonables
 
 La app estima con las fechas en que TODOS los activos tienen precio.
 Si un activo cotiza desde hace menos tiempo, la ventana empieza en su
-primer precio y la página lo avisa ("Shorter common history").
+primer precio y la página lo dice en la caja plegada "Notes about
+these results" ("Shorter common history").
 
-Dónde está cada opción: el modelo y el objetivo son listas
-desplegables ("Optimization Model", "Optimization Objective"); los
-tickers van en "Tickers (comma-separated)"; L2 Gamma, en "Advanced
-Optimization Settings". El marcador del portafolio elegido en la
-pestaña "Efficient Frontier" es la estrella ámbar ("Portfolio").
+Dónde está cada opción (rediseño del 2026-09-27): a la izquierda,
+"Tickers" y "Budget ($)"; a la derecha, "Model" y, con Markowitz,
+"Goal". Los objetivos aparecen en lenguaje simple:
+
+  Lowest risk                         = Min Variance
+  Best return for the risk            = Max Sharpe
+  Highest return within a risk limit  = Maximise Return for a Given Risk
+  Lowest risk for a target return     = Minimise Risk for a Given Return
+
+Los límites y las views se escriben en PORCENTAJE (20 = 20 %), no en
+fracción. L2 Gamma y el estimador de retornos están en "Advanced
+settings". El marcador del portafolio elegido en la pestaña
+"Efficient frontier" es la estrella ámbar ("Your portfolio").
 
 
 ------------------------------------------------------
@@ -52,15 +61,15 @@ ESCENARIO 1: MARKOWITZ — Min Variance
 Ref: 2-Mean-Variance-Optimisation.ipynb (Section 1)
 ------------------------------------------------------
 Modelo:            Markowitz
-Objetivo:          Min Variance
+Objetivo:          Lowest risk (Min Variance)
 Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
-Portfolio Value:   $20,000
+Budget:            $20,000
 Fecha:             Sin rango (usar todos los datos)
 L2 Gamma:          0.0 (default para Markowitz)
 
 Qué verificar:
   - El portafolio debe tener la MENOR volatilidad de los escenarios 1 a 4
-  - En la pestaña "Efficient Frontier", la estrella ámbar debe quedar
+  - En la pestaña "Efficient frontier", la estrella ámbar debe quedar
     sobre el rombo azul (Min Variance de referencia)
   - Los pesos se concentran en activos de baja volatilidad
 
@@ -70,9 +79,9 @@ ESCENARIO 2: MARKOWITZ — Max Sharpe
 Ref: 2-Mean-Variance-Optimisation.ipynb (Section 2)
 ------------------------------------------------------
 Modelo:            Markowitz
-Objetivo:          Max Sharpe
+Objetivo:          Best return for the risk (Max Sharpe)
 Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
-Portfolio Value:   $20,000
+Budget:            $20,000
 Fecha:             Sin rango
 L2 Gamma:          0.0
 
@@ -88,10 +97,10 @@ ESCENARIO 3: MARKOWITZ — Maximise Return for a Given Risk
 Ref: 2-Mean-Variance-Optimisation.ipynb (Section 3)
 ------------------------------------------------------
 Modelo:            Markowitz
-Objetivo:          Maximise Return for a Given Risk
-Target Volatility: 0.20 (20%)
+Objetivo:          Highest return within a risk limit (Maximise Return for a Given Risk)
+Risk limit:        20 (%)
 Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
-Portfolio Value:   $20,000
+Budget:            $20,000
 Fecha:             Sin rango
 L2 Gamma:          0.0
 
@@ -107,10 +116,10 @@ ESCENARIO 4: MARKOWITZ — Minimise Risk for a Given Return
 Ref: 2-Mean-Variance-Optimisation.ipynb (Section 4)
 ------------------------------------------------------
 Modelo:            Markowitz
-Objetivo:          Minimise Risk for a Given Return
-Target Return:     0.10 (10%, default)
+Objetivo:          Lowest risk for a target return (Minimise Risk for a Given Return)
+Target return:     10 (%, default)
 Tickers:           MSFT, AMZN, KO, MA, COST, LUV, XOM, PFE, JPM, UNH, ACN, DIS, GILD, F, TSLA
-Portfolio Value:   $20,000
+Budget:            $20,000
 Fecha:             Sin rango
 L2 Gamma:          0.0
 
@@ -121,7 +130,7 @@ Qué verificar:
     escenario 1 (la restricción no aprieta), como pasó el 2026-09-26
   - NOTA: si el target return es infactible (mayor que el max
     return del universo), el optimizador dará error. Usa un
-    target razonable (ej: 0.10 o 0.12)
+    target razonable (ej: 10 o 12)
 
 
 ------------------------------------------------------
@@ -130,25 +139,25 @@ Ref: 4-Black-Litterman-Allocation.ipynb
 ------------------------------------------------------
 Modelo:            Black-Litterman
 Tickers:           MSFT, AMZN, NAT, BAC, DPZ, DIS, KO, MCD, COST, SBUX
-Portfolio Value:   $20,000
+Budget:            $20,000
 Fecha:             Sin rango
 L2 Gamma:          1.0 (default para Black-Litterman, replica el notebook)
 
-Views (marcar "Add custom investment views", elegir los 10 tickers en
-"Select assets to add views for" y completar Expected / Lower / Upper):
-  MSFT:  Expected 0.10,  Lower 0.08,  Upper 0.12
-  AMZN:  Expected 0.10,  Lower 0.00,  Upper 0.25
-  NAT:   Expected 0.50,  Lower 0.10,  Upper 0.90
-  BAC:   Expected 0.30,  Lower 0.10,  Upper 0.40
-  DPZ:   Expected 0.20,  Lower 0.15,  Upper 0.25
-  DIS:   Expected 0.05,  Lower -0.05, Upper 0.10
-  KO:    Expected -0.05, Lower -0.10, Upper 0.00
-  MCD:   Expected 0.15,  Lower 0.10,  Upper 0.20
-  COST:  Expected 0.05,  Lower -0.10, Upper 0.15
-  SBUX:  Expected 0.10,  Lower 0.00,  Upper 0.30
+Views (marcar "Add my own views", elegir los 10 tickers en "Assets
+with a view" y completar Expected return / Low / High, en %):
+  MSFT:  Expected 10,  Low 8,    High 12
+  AMZN:  Expected 10,  Low 0,    High 25
+  NAT:   Expected 50,  Low 10,   High 90
+  BAC:   Expected 30,  Low 10,   High 40
+  DPZ:   Expected 20,  Low 15,   High 25
+  DIS:   Expected 5,   Low -5,   High 10
+  KO:    Expected -5,  Low -10,  High 0
+  MCD:   Expected 15,  Low 10,   High 20
+  COST:  Expected 5,   Low -10,  High 15
+  SBUX:  Expected 10,  Low 0,    High 30
 
 Qué verificar:
-  - La pestaña "Returns Analysis" muestra Market Prior, Your Views y
+  - La pestaña "Returns analysis" muestra Market Prior, Your Views y
     Posterior (BL)
   - En general el posterior se mueve hacia cada view. Una view de rango
     ancho (poca confianza) puede quedar dominada por las demás a través
@@ -163,10 +172,10 @@ ESCENARIO 6: BLACK-LITTERMAN — Sin Views
 ------------------------------------------------------
 Modelo:            Black-Litterman
 Tickers:           MSFT, AMZN, KO, MA, COST, JPM
-Portfolio Value:   $10,000
+Budget:            $10,000
 Fecha:             Sin rango
 L2 Gamma:          1.0 (default para Black-Litterman)
-Views:             NO marcar "Add custom investment views"
+Views:             NO marcar "Add my own views"
 
 Qué verificar:
   - Posterior = Prior (sin views, el modelo usa solo el equilibrio
@@ -175,6 +184,26 @@ Qué verificar:
     calcula con tasa libre 0% (como el cookbook), pero el optimizador
     maximiza el Sharpe con tasa libre 3% y regularización L2 (gamma 1).
     Un activo con retorno implícito bajo 3% puede quedar en 0%
+
+
+------------------------------------------------------
+ESCENARIO 7: EJEMPLOS DEL INICIO
+------------------------------------------------------
+En el inicio, sección "Try an example", haz clic en cada tarjeta.
+
+Qué verificar:
+  - Se abre Portfolio con el formulario lleno (aparece un aviso
+    arriba a la derecha) y la dirección queda en /Portfolio, sin
+    "?example=..."; NO se ejecuta solo: hay que presionar "Run
+    optimization"
+  - Big Tech: AAPL, MSFT, GOOGL, AMZN, META; Markowitz; Best return
+    for the risk
+  - Dividend stocks: KO, PEP, JNJ, PG, XOM; Markowitz; Lowest risk
+  - Stocks, bonds and gold: VTI, AGG, GLD; Markowitz; Highest return
+    within a risk limit, 10 %; en "Advanced settings", Expected
+    returns = Historical mean (con CAPM el oro queda casi en 0 %)
+  - Cada uno corre sin error y reparte el peso entre varios activos
+  - Cambiar un ticker después de abrir el ejemplo NO se revierte
 
 
 ====================================================
@@ -194,6 +223,15 @@ mucho; con datos de otro día las cifras se mueven un poco.
                        (por DPZ); AMZN 21,1%, BAC 17,8%, KO 0,00%
   6. BL sin views      20,67% / 24,30% / 0,727   ventana desde 2006-05-25
                        (por MA); AMZN 30,0%, MSFT 22,7%, JPM 18,2%
+
+Escenario 7, con los datos del 2026-09-27 (rediseño):
+
+  Big Tech             17,35% / 23,09% / 0,621   ventana desde 2012-05-18
+                       (por META); MSFT 33,0%, AAPL 29,5%, GOOGL 21,9%
+  Dividend stocks       7,70% / 16,78% / 0,280   ventana desde 1972-06-01;
+                       PG 25,3%, XOM 23,7%, JNJ 23,4%, PEP 16,2%, KO 11,4%
+  Stocks, bonds, gold   8,47% / 10,00% / 0,547   ventana desde 2004-11-18
+                       (por GLD); VTI 35,8%, GLD 35,0%, AGG 29,2%
 
 
 ====================================================
@@ -216,6 +254,6 @@ mucho; con datos de otro día las cifras se mueven un poco.
 - El L2 Gamma tiene defaults distintos por modelo:
   - Markowitz: 0.0 (sin regularización, resultados puros de textbook)
   - Black-Litterman: 1.0 (replica el notebook de PyPortfolioOpt)
-  Puedes cambiarlo manualmente en "Advanced Optimization Settings".
+  Puedes cambiarlo manualmente en "Advanced settings".
 
 ====================================================

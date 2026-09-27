@@ -21,6 +21,31 @@ TRADING_DAYS_PER_YEAR = 252  # Trading days for annualization
 # Application Constants
 BENCHMARK_TICKER = "SPY"  # S&P 500 ETF for market data
 
+# Plain-language names of the four optimization objectives, shown in the app
+# and the PDF. The keys are the engine's names (core/opt_engine.
+# optimize_portfolio), which stay the values everywhere else. Black-Litterman
+# always uses Max Sharpe.
+OBJECTIVE_LABELS = {
+    "Min Variance": "Lowest risk",
+    "Max Sharpe": "Best return for the risk",
+    "Maximise Return for a Given Risk": "Highest return within a risk limit",
+    "Minimise Risk for a Given Return": "Lowest risk for a target return",
+}
+
+
+def goal_text(obj_function: str, target_volatility=None, target_return=None) -> str:
+    """
+    An objective in plain words, with its target when it has one
+    ("Highest return within a risk limit of 12.5%"). The Home page, the
+    Portfolio page and the PDF all word it this way.
+    """
+    text = OBJECTIVE_LABELS.get(obj_function, obj_function)
+    if obj_function == "Maximise Return for a Given Risk" and target_volatility is not None:
+        text += f" of {target_volatility * 100:g}%"
+    elif obj_function == "Minimise Risk for a Given Return" and target_return is not None:
+        text += f" of {target_return * 100:g}%"
+    return text
+
 # Asset colors, ordered so neighboring pie slices differ, covering MAX_TICKERS
 # (20) with lighter and darker shades of the brand hues. The web charts
 # (utils/visualizations.py) and the PDF (core/pdf_shared.py) hand them out in

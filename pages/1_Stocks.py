@@ -223,26 +223,25 @@ def _build_stat_table(items):
     for label, val in items:
         if val == "N/A":
             continue
-        # Figures in DM Mono; text values (fund family, category) stay in Inter
-        mono = ' class="bl-mono"' if str(val)[:1] in "$+-0123456789" else ""
+        # Figures get same-width digits; text values (fund family) stay as is
+        num = ' class="bl-num"' if str(val)[:1] in "$+-0123456789" else ""
         html += (
-            f'<div style="display:flex;justify-content:space-between;padding:8px 0;'
+            f'<div style="display:flex;justify-content:space-between;gap:1rem;padding:9px 0;'
             f'border-bottom:1px solid #F1F5F9;">'
-            f'<span style="color:#64748B;font-size:0.85rem;">{label}</span>'
-            f'<span{mono} style="font-weight:600;color:#1E3A5F;font-size:0.85rem;">{val}</span>'
+            f'<span style="color:#64748B;font-size:0.9rem;">{label}</span>'
+            f'<span{num} style="font-weight:600;color:#0A1628;font-size:0.9rem;text-align:right;">{val}</span>'
             f'</div>'
         )
     return f'<div style="padding:4px 0;">{html}</div>'
 
 
-def _render_metric_card(label, value, color="#1E3A5F"):
+def _render_metric_card(label, value, color="#0A1628"):
     """Render a single metric card for Financials section."""
     return (
         f'<div style="background:white;border:1px solid #E2E8F0;border-radius:12px;'
         f'padding:16px;text-align:center;">'
-        f'<div style="font-size:0.75rem;color:#64748B;text-transform:uppercase;'
-        f'letter-spacing:0.05em;margin-bottom:4px;">{label}</div>'
-        f'<div class="bl-mono" style="font-size:1.3rem;font-weight:700;color:{color};">{value}</div>'
+        f'<div style="font-size:0.85rem;color:#64748B;margin-bottom:4px;">{label}</div>'
+        f'<div class="bl-num" style="font-size:1.3rem;font-weight:700;color:{color};">{value}</div>'
         f'</div>'
     )
 
@@ -337,7 +336,7 @@ def _render_key_stats(info, asset_type):
     has_data = any(v != "N/A" for _, v in all_items)
 
     if not has_data:
-        st.info("⏳ Market data is temporarily unavailable. This can happen due to rate limiting — please try again in a few seconds.")
+        st.info("Market data is temporarily unavailable, probably because Yahoo Finance is limiting requests. Try again in a few seconds.")
         return
 
     col1, col2 = st.columns(2)
@@ -407,15 +406,15 @@ def _render_performance(ticker: str, hist_close: pd.Series, price, spy_close: pd
             st.markdown(
                 f'<div style="border:1px solid #E2E8F0;border-radius:12px;padding:20px;'
                 f'background:white;margin-bottom:1rem;">'
-                f'<div style="font-size:0.875rem;font-weight:600;color:#1E3A5F;margin-bottom:14px;">'
+                f'<div style="font-size:0.9rem;font-weight:600;color:#0A1628;margin-bottom:14px;">'
                 f'{period_label}</div>'
                 f'<div style="margin-bottom:12px;">'
-                f'<div style="font-size:0.72rem;color:#64748B;margin-bottom:2px;">{ticker}</div>'
-                f'<div class="bl-mono" style="font-size:1.9rem;font-weight:700;color:{t_color};">{t_str}</div>'
+                f'<div style="font-size:0.8rem;color:#64748B;margin-bottom:2px;">{ticker}</div>'
+                f'<div class="bl-num" style="font-size:1.9rem;font-weight:700;color:{t_color};">{t_str}</div>'
                 f'</div>'
                 f'<div style="border-top:1px solid #F1F5F9;padding-top:10px;">'
-                f'<div style="font-size:0.72rem;color:#64748B;margin-bottom:2px;">S&amp;P 500 (^GSPC)</div>'
-                f'<div class="bl-mono" style="font-size:1.3rem;font-weight:600;color:{s_color};">{s_str}</div>'
+                f'<div style="font-size:0.8rem;color:#64748B;margin-bottom:2px;">S&amp;P 500 (^GSPC)</div>'
+                f'<div class="bl-num" style="font-size:1.3rem;font-weight:600;color:{s_color};">{s_str}</div>'
                 f'</div></div>',
                 unsafe_allow_html=True,
             )
@@ -514,14 +513,13 @@ def main():
     # ── Page Header ──
     st.markdown("""
     <div style="margin-bottom: 1.5rem;">
-        <p class="bl-eyebrow">Stocks · ETFs · Crypto · Indices</p>
         <h1 class="page-title">Stocks</h1>
-        <p class="page-subtitle">Explore any stock, ETF, crypto asset or index with market data from Yahoo Finance</p>
+        <p class="page-subtitle">Look up any stock, ETF, crypto asset or index with market data from Yahoo Finance.</p>
     </div>
     """, unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════
-    # Search bar — empty by default, user must click 🔍
+    # Search bar — empty by default, user must click Search
     # ═══════════════════════════════════════════════════════
     # Inject search bar styling — perfectly align search button with input
     st.markdown("""
@@ -531,29 +529,29 @@ def main():
         display: flex;
         align-items: flex-end;
     }
-    /* Fine-tune button size to align perfectly with standard 40px input */
+    /* Match the search button to the input's height */
     [data-testid="stHorizontalBlock"] > div:has(button) button {
-        height: 40px !important;
-        min-height: 40px !important;
-        padding: 0 !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        padding: 0 1rem !important;
         margin-bottom: 0px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    col_pad_l, col_input, col_search, col_pad_r = st.columns([0.5, 3, 0.4, 0.5])
+    col_pad_l, col_input, col_search, col_pad_r = st.columns([0.5, 3, 0.7, 0.5])
 
     with col_input:
         ticker_input = st.text_input(
-            "Ticker Symbol",
+            "Ticker symbol",
             value="",
-            placeholder="e.g. GOOGL",
-            help="Stocks, ETFs, crypto (BTC-USD), indices (^GSPC) — any Yahoo Finance symbol",
+            placeholder="e.g. AAPL, VOO, BTC-USD or ^GSPC",
+            help="Stocks, ETFs, crypto (BTC-USD), indices (^GSPC): any Yahoo Finance symbol",
             label_visibility="collapsed",
         ).strip().upper()
 
     with col_search:
-        search_clicked = st.button("🔍", type="primary", width="stretch")
+        search_clicked = st.button("Search", icon=":material/search:", type="primary", width="stretch")
 
     # Validate: reject multiple symbols (comma/space separated)
     _is_multi = len([t for t in ticker_input.replace(',', ' ').split() if t]) > 1
@@ -565,10 +563,10 @@ def main():
     # Track searched ticker in session state
     if search_clicked and ticker_input:
         if _is_multi:
-            st.warning("⚠️ Please enter **one symbol at a time** (e.g. `AAPL`). This tool analyses a single asset.")
+            st.warning("Enter **one symbol at a time** (e.g. `AAPL`): this page looks up a single asset.")
             st.session_state['stocks_ticker'] = None
         elif not _is_valid_symbol:
-            st.warning(f"⚠️ **{ticker_input}** is not a valid ticker symbol. Use letters, digits and `.` `-` `^` `=` only (e.g. `AAPL`, `BRK-B`, `^GSPC`, `BTC-USD`).")
+            st.warning(f"**{ticker_input}** is not a valid ticker symbol. Use letters, digits and `.` `-` `^` `=` only (e.g. `AAPL`, `BRK-B`, `^GSPC`, `BTC-USD`).")
             st.session_state['stocks_ticker'] = None
         else:
             st.session_state['stocks_ticker'] = ticker_input
@@ -578,11 +576,12 @@ def main():
     active_ticker = st.session_state.get('stocks_ticker')
 
     if not active_ticker:
-        # Empty state — clean hint
+        # Empty state: what to do, with examples (a drawn icon, not an emoji)
         st.markdown("""
-        <div style="text-align:center;padding:80px 20px;color:#94A3B8;">
-            <div style="font-size:2.5rem;margin-bottom:8px;">🔍</div>
-            <div style="font-size:1rem;font-weight:500;">Search for any stock</div>
+        <div style="text-align:center;padding:72px 20px;">
+            <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <div style="font-size:1.05rem;font-weight:600;color:#0A1628;">Search for any stock</div>
+            <div style="font-size:0.95rem;color:#64748B;margin-top:4px;">Or an ETF, a crypto asset or an index: try AAPL, VOO, BTC-USD or ^GSPC.</div>
         </div>
         """, unsafe_allow_html=True)
         return
@@ -601,10 +600,10 @@ def main():
                                   auto_adjust=False)
             info = _cached_asset_info(active_ticker)
     except ValueError as e:
-        st.error(f"❌ {e}")
+        st.error(f"{e}")
         return
     except Exception as e:
-        st.error(f"❌ Could not fetch data for **{active_ticker}**: {e}")
+        st.error(f"Could not fetch data for **{active_ticker}**: {e}")
         return
 
     if ohlcv.empty:
@@ -631,38 +630,27 @@ def main():
     else:
         change, change_pct = None, None
 
-    # Sector/industry tag
-    tag_html = ""
+    # Sector/industry or asset-type tag, one quiet style for all
+    tag_text = None
     if sector:
-        tag_html = (
-            f'<span style="background:#EFF6FF;color:#2E6FC7;padding:2px 10px;border-radius:12px;'
-            f'font-size:0.75rem;font-weight:500;margin-left:12px;">{sector}'
-            + (f' · {industry}' if industry else '')
-            + '</span>'
-        )
+        tag_text = sector + (f' · {industry}' if industry else '')
     elif asset_type == "ETF":
         fund_family = info.get('fund_family')
-        tag_html = (
-            f'<span style="background:#F0FDF4;color:#16A34A;padding:2px 10px;border-radius:12px;'
-            f'font-size:0.75rem;font-weight:500;margin-left:12px;">ETF'
-            + (f' · {fund_family}' if fund_family else '')
-            + '</span>'
-        )
+        tag_text = 'ETF' + (f' · {fund_family}' if fund_family else '')
     elif asset_type == "CRYPTOCURRENCY":
-        tag_html = (
-            '<span style="background:#FFF7ED;color:#EA580C;padding:2px 10px;border-radius:12px;'
-            'font-size:0.75rem;font-weight:500;margin-left:12px;">Crypto</span>'
-        )
+        tag_text = 'Crypto'
     elif asset_type == "INDEX":
-        tag_html = (
-            '<span style="background:#F5F3FF;color:#7C3AED;padding:2px 10px;border-radius:12px;'
-            'font-size:0.75rem;font-weight:500;margin-left:12px;">Index</span>'
-        )
+        tag_text = 'Index'
+    tag_html = (
+        f'<span style="background:#F1F5F9;color:#334155;padding:3px 10px;border-radius:12px;'
+        f'font-size:0.8rem;font-weight:500;margin-left:12px;white-space:nowrap;">{tag_text}</span>'
+        if tag_text else ""
+    )
 
     # Index levels are points; everything else is quoted in a currency
     currency = info.get('currency') if asset_type != "INDEX" else None
     currency_html = (
-        f'<span class="bl-mono" style="color:#64748B;font-size:1rem;margin-left:8px;">{currency}</span>'
+        f'<span style="color:#64748B;font-size:1rem;margin-left:8px;">{currency}</span>'
         if currency else ""
     )
 
@@ -672,17 +660,17 @@ def main():
             chg_color = "#16A34A" if change >= 0 else "#DC2626"
             chg_sign = "+" if change >= 0 else ""
             chg_str = (
-                f'<span class="bl-mono" style="color:{chg_color};font-size:1.1rem;margin-left:12px;">'
+                f'<span class="bl-num" style="color:{chg_color};font-size:1.1rem;font-weight:600;margin-left:12px;">'
                 f'{chg_sign}{change:.2f} ({chg_sign}{change_pct:.2f}%)</span>'
             )
         st.markdown(
             f'<div style="margin-bottom:0.3rem;">'
-            f'<span style="font-size:1.3rem;font-weight:700;color:#1E3A5F;">{name}</span>'
+            f'<span style="font-size:1.3rem;font-weight:700;color:#0A1628;">{name}</span>'
             f'<span style="color:#64748B;margin-left:8px;">({active_ticker})</span>'
             f'{tag_html}'
             f'</div>'
             f'<div style="margin-bottom:0.8rem;">'
-            f'<span class="bl-mono" style="font-size:2.2rem;font-weight:700;color:#0A1628;">{price:,.2f}</span>'
+            f'<span class="bl-num" style="font-size:2.2rem;font-weight:700;color:#0A1628;">{price:,.2f}</span>'
             f'{currency_html}'
             f'{chg_str}'
             f'</div>', unsafe_allow_html=True)
@@ -785,8 +773,8 @@ def main():
             color, pct_str = "#94A3B8", "—"
         cells += (
             '<div style="text-align:center;flex:1 1 0;min-width:60px;padding:7px 4px;">'
-            f'<div style="font-size:0.68rem;color:#64748B;text-transform:uppercase;letter-spacing:0.04em;">{label}</div>'
-            f'<div class="bl-mono" style="font-size:0.82rem;font-weight:600;color:{color};white-space:nowrap;">{pct_str}</div>'
+            f'<div style="font-size:0.78rem;color:#64748B;">{label}</div>'
+            f'<div class="bl-num" style="font-size:0.9rem;font-weight:600;color:{color};white-space:nowrap;">{pct_str}</div>'
             '</div>'
         )
     st.markdown(
@@ -819,7 +807,7 @@ def main():
 
     if asset_type == "EQUITY":
         tab_stats, tab_perf, tab_rev = st.tabs([
-            "📊 Key Statistics", "📈 Performance", "📑 Revenue vs. Earnings",
+            "Key statistics", "Performance", "Revenue and earnings",
         ])
         with tab_stats:
             _render_key_stats(info, asset_type)
@@ -830,25 +818,25 @@ def main():
                             info.get('financial_currency') or info.get('currency'))
 
     elif asset_type == "ETF":
-        tab_stats, tab_fund = st.tabs(["📊 Market Data", "🏦 Fund Details"])
+        tab_stats, tab_fund = st.tabs(["Market data", "Fund details"])
         with tab_stats:
             _render_key_stats(info, asset_type)
         with tab_fund:
             _render_fund_details(info)
 
     elif asset_type == "CRYPTOCURRENCY":
-        tab_stats, = st.tabs(["📊 Market & Supply"])
+        tab_stats, = st.tabs(["Market and supply"])
         with tab_stats:
             _render_key_stats(info, asset_type)
 
     elif asset_type == "INDEX":
-        tab_stats, = st.tabs(["📊 Market Data"])
+        tab_stats, = st.tabs(["Market data"])
         with tab_stats:
             _render_key_stats(info, asset_type)
 
     else:
         # Unknown type — show basic overview
-        tab_stats, = st.tabs(["📊 Overview"])
+        tab_stats, = st.tabs(["Overview"])
         with tab_stats:
             _render_key_stats(info, "EQUITY")
 

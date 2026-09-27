@@ -1,10 +1,12 @@
 """
 Shared Design System for PortfolioLab Platform
 
-Modern design: clean, bold, no sidebar.
-Top navigation bar, navy sections with brand-blue and sky accents, DM Mono
-for figures, generous whitespace. The Home page (streamlit_app.py) is the
-public front door: hero with Fig. 1, tools, method and verification.
+Light and plain (2026-09-27 redesign, guided by the ui-ux-pro-max skill:
+"Minimalism & Swiss Style" for a financial tool): white cards on a pale
+background, navy headings, one accent (the logo's blue), Inter for text and
+figures (tabular digits), DM Sans for headings, sentence-case labels, no
+emoji icons. The Home page (streamlit_app.py) is the public front door:
+hero, example portfolios, the two tools, how it works.
 
 MAINTENANCE MAP — Streamlit-internal selectors this module overrides
 (these are the ONLY parts that can break when Streamlit updates; audit
@@ -26,10 +28,13 @@ them first after any `streamlit` version bump):
       [data-testid="stHeaderActionElements"] (heading link icons, hidden in
       designed blocks); the PWA helper iframe
       ([data-testid="stElementContainer"][height="1px"]); .stPlotlyChart
-      (touch-action); plus the same .block-container overrides for pages
-      (the mobile one must match the specificity of inject_critical_css()).
-  - Everything prefixed `bl-` (navbar, band, tool cards, steps, facts,
-      footer) is OUR namespace and does not depend on Streamlit internals.
+      (touch-action); [data-testid="stExpander"] details; plus the same
+      .block-container overrides for pages (the mobile one must match the
+      specificity of inject_critical_css()).
+  - Everything prefixed `bl-` (navbar, hero, example cards, tool cards,
+      steps, footer) is OUR namespace and does not depend on Streamlit
+      internals, except the tool cards, which are st.container(key=...)
+      blocks (.st-key-bl-*) inside Streamlit's layout wrappers.
 
 Split decision (audit D8.1, 2026-07): kept as one module. The CSS is a
 single coherent design system injected as one <style> block; splitting
@@ -46,66 +51,51 @@ def get_shared_css() -> str:
     Return the complete shared CSS for the application.
 
     Includes:
-    - Google Fonts (Inter for text, DM Sans for headings, DM Mono for figures)
-    - Design tokens (blue palette matching PortfolioLab logo)
+    - Google Fonts (Inter for text and figures, DM Sans for headings)
+    - Design tokens (blue accent matching the PortfolioLab logo)
     - Streamlit chrome hiding + sidebar hiding
     - Top navigation bar
-    - Modern typography, cards, buttons
-    - Hero band, tool cards, method steps and verification facts
+    - Typography, cards, buttons, tabs, metrics
+    - Home: hero, example cards, tool cards, steps
     """
     return """
 <style>
     /* ===== Google Fonts ===== */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@500;700&display=swap');
 
     /* ===== Design Tokens ===== */
     :root {
-        --color-primary: #0A1628;
-        --color-accent: #2E6FC7;
+        --color-primary: #0A1628;          /* navy: headings, strong figures */
+        --color-accent: #2E6FC7;           /* the only accent (4.99:1 on white) */
         --color-accent-hover: #1E5AB3;
-        --color-accent-light: rgba(46, 111, 199, 0.1);
+        --color-accent-light: rgba(46, 111, 199, 0.08);
+        --color-accent-ring: rgba(46, 111, 199, 0.35);
         --color-success: #10B981;
-        --color-success-light: rgba(16, 185, 129, 0.1);
         --color-warning: #F59E0B;
-        --color-warning-light: rgba(245, 158, 11, 0.1);
         --color-error: #EF4444;
-        --color-error-light: rgba(239, 68, 68, 0.1);
         --color-bg: #F8FAFC;
         --color-surface: #FFFFFF;
-        --color-border: rgba(226, 232, 240, 0.8);
-        --color-border-light: rgba(241, 245, 249, 0.8);
+        --color-surface-2: #F1F5F9;
+        --color-border: #E2E8F0;
+        --color-border-strong: #CBD5E1;
         --color-text: #334155;
-        --color-text-secondary: #64748B;
-        --color-text-muted: #94A3B8;
-        --color-sky: #8DB8F2;
-        --color-surface-2: #EEF3FA;
+        --color-text-secondary: #64748B;   /* 4.76:1 on white */
         --color-line: rgba(10, 22, 40, 0.10);
-        --color-line-strong: rgba(10, 22, 40, 0.18);
-        --on-dark: #E8EEF8;
-        --on-dark-2: #A3B4CC;
-        --on-dark-line: rgba(232, 238, 248, 0.12);
 
         --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         --font-display: 'DM Sans', 'Inter', sans-serif;
-        --font-mono: 'DM Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
 
         --radius-sm: 8px;
         --radius-md: 12px;
         --radius-lg: 16px;
-        --radius-xl: 24px;
         --radius-full: 9999px;
 
-        --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        --shadow-glow: 0 0 20px rgba(46, 111, 199, 0.25);
-        --shadow-card: 0 1px 2px rgba(10, 22, 40, 0.06), 0 10px 28px rgba(10, 22, 40, 0.07);
+        --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+        --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
+        --shadow-card-hover: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 28px rgba(15, 23, 42, 0.08);
 
         --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-        --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-        --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+        --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     /* ===== Hide ALL Streamlit Chrome ===== */
@@ -139,95 +129,87 @@ def get_shared_css() -> str:
         -moz-osx-font-smoothing: grayscale;
     }
 
+    /* Streamlit's markdown headings inherit their color from the enclosing
+       div (the global rule below), so the navy needs !important */
     h1, h2, h3 {
         font-family: var(--font-display) !important;
         font-weight: 700;
-        color: var(--color-primary);
-        letter-spacing: -0.025em;
+        color: var(--color-primary) !important;
+        letter-spacing: -0.02em;
+        text-wrap: balance;
     }
 
     h4, h5, h6 {
         font-family: var(--font-family) !important;
         font-weight: 600;
-        color: var(--color-primary);
+        color: var(--color-primary) !important;
     }
 
-    h1 { font-weight: 700; letter-spacing: -0.035em; }
+    p, li, div, label {
+        color: var(--color-text);
+        font-family: var(--font-family) !important;
+    }
 
-    /* ===== Utility Classes for Headers ===== */
+    /* Figures (prices, returns, ratios): Inter with same-width digits, so
+       columns of numbers line up and do not jump when they change */
+    .bl-num {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum" 1;
+    }
+
+    .js-plotly-plot .plotly text {
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ===== Page headers (Stocks, Portfolio, About) ===== */
     .page-title {
         font-family: var(--font-display) !important;
-        font-size: 2.4rem !important;
+        font-size: 2.25rem !important;
         font-weight: 700 !important;
-        line-height: 1.1 !important;
-        letter-spacing: -0.035em;
+        line-height: 1.15 !important;
+        letter-spacing: -0.03em;
         color: var(--color-primary) !important;
-        margin: 0.5rem 0 0.5rem 0 !important;
+        margin: 0.5rem 0 0.4rem 0 !important;
         padding: 0 !important;
     }
 
-    /* Small mono label above a title */
-    .bl-eyebrow {
-        font-family: var(--font-mono) !important;
-        font-size: 0.75rem !important;
-        font-weight: 500 !important;
-        line-height: 1.4 !important;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: var(--color-accent) !important;
+    .page-subtitle {
+        color: var(--color-text-secondary) !important;
+        font-size: 1.05rem;
+        line-height: 1.6;
+        max-width: 44rem;
         margin: 0 !important;
     }
 
-    /* Figures (prices, returns, ratios): DM Mono with aligned digits.
-       DM Mono has no bold face, so the weight is pinned to avoid faux bold. */
-    .bl-mono {
-        font-family: var(--font-mono) !important;
-        font-weight: 500 !important;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -0.01em;
-    }
-
-    .page-subtitle {
-        color: var(--color-text-secondary);
-        font-size: 1.05rem;
-        line-height: 1.6;
-        margin: 0;
-    }
-
-    /* ===== Step Headers ===== */
+    /* ===== Step headers (Portfolio form: 1, 2, 3) ===== */
     .step-header {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 1.25rem;
+        gap: 0.6rem;
+        margin-bottom: 1rem;
     }
 
     .step-circle {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--radius-sm);
+        width: 28px;
+        height: 28px;
+        flex: none;
+        border-radius: var(--radius-full);
         display: flex;
         align-items: center;
         justify-content: center;
         background: var(--color-accent-light);
-        border: 1px solid rgba(46, 111, 199, 0.22);
         color: var(--color-accent) !important;
-        font-family: var(--font-mono) !important;
-        font-size: 0.9rem;
-        font-weight: 500;
+        font-size: 0.85rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
     }
 
     .step-title {
         font-weight: 700;
         font-size: 1.15rem;
         color: var(--color-primary);
-        font-family: var(--font-display);
+        font-family: var(--font-display) !important;
         letter-spacing: -0.01em;
-    }
-
-    p, li, div, label {
-        color: var(--color-text);
-        font-family: var(--font-family) !important;
     }
 
     /* ===== Page Background ===== */
@@ -255,15 +237,24 @@ def get_shared_css() -> str:
         padding-top: 0 !important;
     }
 
+    /* ===== Focus: visible for keyboard users on everything clickable ===== */
+    a:focus-visible,
+    button:focus-visible,
+    [role="tab"]:focus-visible,
+    summary:focus-visible {
+        outline: 3px solid var(--color-accent-ring) !important;
+        outline-offset: 2px;
+    }
+
     /* ===== Top Navigation Bar ===== */
     .bl-navbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 0.5rem 0;
-        margin-top: -3.125rem; /* Ajustado para dejar exactamente 30px (~1.875rem) de margen superior */
+        margin-top: -3.125rem; /* leaves exactly 30px (~1.875rem) above the navbar */
         margin-bottom: 1rem;
-        border-bottom: 1px solid var(--color-border-light);
+        border-bottom: 1px solid var(--color-border);
     }
 
     .bl-navbar-brand {
@@ -290,16 +281,16 @@ def get_shared_css() -> str:
     .bl-navbar-links a {
         text-decoration: none;
         color: var(--color-text-secondary);
-        font-size: 0.9rem;
+        font-size: 0.92rem;
         font-weight: 500;
-        padding: 0.5rem 1rem;
+        padding: 0.5rem 0.95rem;
         border-radius: var(--radius-full);
-        transition: var(--transition-fast);
+        transition: color var(--transition-fast), background var(--transition-fast);
     }
 
     .bl-navbar-links a:hover {
-        color: var(--color-accent);
-        background: var(--color-accent-light);
+        color: var(--color-primary);
+        background: var(--color-surface-2);
     }
 
     .bl-navbar-links a.active {
@@ -308,375 +299,189 @@ def get_shared_css() -> str:
         font-weight: 600;
     }
 
-    /* ===== Navy sections: Home's hero and verification, About's header ===== */
-    /* The container's 3rem side padding becomes the section's own, so the
-       navy spans the main area. Not 100vw: that includes the scrollbar,
-       which shifts the band a few pixels off the content's left edge.
-       .st-key-bl-hero is the st.container(key="bl-hero") on Home: it holds
-       Streamlit columns (text and the Fig. 1 chart), so it cannot be HTML. */
-    .bl-band,
-    .st-key-bl-hero {
-        margin: -1rem -3rem 2.75rem -3rem;
-        background:
-            radial-gradient(900px 420px at 88% -10%, rgba(46, 111, 199, 0.30), transparent 65%),
-            var(--color-primary);
-        border-bottom: 1px solid var(--on-dark-line);
+    /* Streamlit appends a hover "link to heading" icon to every markdown
+       heading. Page titles and designed blocks are not document sections, so
+       hide it there. */
+    .page-title [data-testid="stHeaderActionElements"],
+    .bl-hero [data-testid="stHeaderActionElements"],
+    .bl-section-head [data-testid="stHeaderActionElements"],
+    .bl-steps [data-testid="stHeaderActionElements"],
+    .bl-tool-body [data-testid="stHeaderActionElements"] {
+        display: none !important;
     }
 
-    .st-key-bl-hero {
-        /* A flex item in Streamlit's layout wrapper: negative margins alone
-           only shift it, so it also needs the extra width explicitly. */
-        width: calc(100% + 6rem) !important;
-        max-width: none !important;
-        flex: 0 0 auto !important;
-        padding: 3.25rem 3rem 3rem 3rem;
+    /* ===== Home: hero ===== */
+    /* A pale blue wash under the navbar. The negative side margins cancel the
+       page's 3rem padding (1rem on phones) so the wash spans the page. */
+    .bl-hero {
+        margin: -1rem -3rem 0 -3rem;
+        padding: 4.5rem 3rem 3.25rem 3rem;
+        text-align: center;
+        background: linear-gradient(180deg, #E8F0FB 0%, rgba(248, 250, 252, 0) 100%);
     }
 
-    .st-key-bl-hero [data-testid="stHorizontalBlock"] {
-        align-items: center !important;
-        gap: 3.5rem;
-    }
-
-    .bl-band.bl-verify {
-        margin: 1.5rem -3rem 0 -3rem;
-        border-top: 1px solid var(--on-dark-line);
-    }
-
-    .bl-band-inner {
-        padding: 3rem 3rem 2.6rem 3rem;
-    }
-
-    .bl-verify .bl-band-inner {
-        padding: 3.5rem 3rem 3.5rem 3rem;
-    }
-
-    /* Type on navy: content marked .bl-dark */
-    .bl-dark .bl-eyebrow {
-        color: var(--color-sky) !important;
-    }
-
-    .bl-dark h1 {
-        font-family: var(--font-display) !important;
-        font-size: clamp(2.2rem, 4vw, 3.4rem) !important;
-        font-weight: 700 !important;
-        line-height: 1.06 !important;
+    .bl-hero h1 {
+        font-size: clamp(2.3rem, 5vw, 3.6rem) !important;
+        line-height: 1.08 !important;
         letter-spacing: -0.035em;
-        color: #FFFFFF !important;
-        margin: 0.9rem 0 1.1rem 0 !important;
+        max-width: 18ch;
+        margin: 0 auto 1.1rem auto !important;
         padding: 0 !important;
     }
 
-    .bl-hero-copy h1 {
-        font-size: clamp(2.2rem, 3.5vw, 3.3rem) !important;
+    .bl-hero p.bl-lead {
+        font-size: 1.15rem !important;
+        line-height: 1.65 !important;
+        color: var(--color-text-secondary) !important;
+        max-width: 40rem;
+        margin: 0 auto !important;
     }
 
-    .bl-dark h1 .accent {
-        display: block;
-        color: var(--color-sky) !important;
-    }
-
-    .bl-dark h2 {
-        font-size: clamp(1.6rem, 2.4vw, 2.1rem) !important;
-        line-height: 1.15 !important;
-        color: #FFFFFF !important;
-        margin: 0.65rem 0 0.7rem 0 !important;
-        padding: 0 !important;
-    }
-
-    .bl-dark p.bl-lead {
-        color: var(--on-dark-2) !important;
-        font-size: 1.1rem !important;
-        line-height: 1.6 !important;
-        max-width: 42rem;
-        margin: 0 !important;
-    }
-
-    .bl-band-stats {
-        display: grid;
-        grid-template-columns: repeat(4, auto);
-        justify-content: start;
-        column-gap: 2.5rem;
-        row-gap: 1.25rem;
-        max-width: 42rem;
-        margin: 2rem 0 0 0 !important;
-        padding: 1.4rem 0 0 0 !important;
-        border-top: 1px solid var(--on-dark-line);
-    }
-
-    .bl-band-stats dt {
-        font-family: var(--font-mono) !important;
-        font-size: 1.75rem;
-        font-weight: 500;
-        line-height: 1.1;
-        color: #FFFFFF !important;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .bl-band-stats dd {
-        margin: 0.3rem 0 0 0;
-        font-size: 0.82rem;
-        line-height: 1.35;
-        color: var(--on-dark-2) !important;
-    }
-
-    /* Hero calls to action (links styled as buttons; relative hrefs) */
     .bl-ctas {
         display: flex;
         flex-wrap: wrap;
+        justify-content: center;
         gap: 0.75rem;
-        margin: 1.8rem 0 0 0;
+        margin: 2rem 0 0 0;
     }
 
+    /* Links styled as buttons (relative hrefs, see render_navbar) */
     .bl-btn {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 0.45rem;
-        padding: 0.8rem 1.35rem;
+        min-height: 44px;
+        padding: 0.7rem 1.4rem;
         border-radius: var(--radius-full);
         font-weight: 600;
-        font-size: 0.98rem;
+        font-size: 1rem;
         line-height: 1.2;
         text-decoration: none !important;
-        transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
-    }
-
-    .bl-btn:hover {
-        transform: translateY(-1px);
+        cursor: pointer;
+        transition: background var(--transition-fast), border-color var(--transition-fast),
+                    color var(--transition-fast);
     }
 
     .bl-btn-primary {
         background: var(--color-accent);
         color: #FFFFFF !important;
-        box-shadow: 0 8px 22px rgba(46, 111, 199, 0.35);
     }
 
     .bl-btn-primary:hover {
         background: var(--color-accent-hover);
     }
 
-    .bl-btn-ondark {
-        border: 1px solid rgba(232, 238, 248, 0.28);
-        color: #FFFFFF !important;
-    }
-
-    .bl-btn-ondark:hover {
-        border-color: #FFFFFF;
-        background: rgba(255, 255, 255, 0.06);
-    }
-
-    .bl-dark p.bl-hero-meta {
-        margin: 1rem 0 0 0 !important;
-        font-size: 0.86rem;
-        color: var(--on-dark-2) !important;
-    }
-
-    /* Figure cards: white, like the charts inside the tools. Fig. 1 on the
-       hero holds the Portfolio tool's own frontier chart (streamlit_app.py). */
-    .st-key-bl-figure {
+    .bl-btn-secondary {
         background: var(--color-surface);
-        border-radius: var(--radius-lg);
-        box-shadow: 0 18px 40px rgba(3, 8, 18, 0.35);
-        padding: 1rem 1.1rem 0.9rem 1.1rem;
-        gap: 0.4rem !important;
-    }
-
-    /* Head line of a figure card: what it shows, and an "Example data" tag */
-    .bl-fig-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.75rem;
-        font-family: var(--font-mono) !important;
-        font-size: 0.78rem !important;
-        color: var(--color-text-secondary) !important;
-    }
-
-    .bl-fig-head b {
+        border: 1px solid var(--color-border-strong);
         color: var(--color-primary) !important;
-        font-weight: 500;
     }
 
-    .bl-tag {
-        border: 1px solid var(--color-line-strong);
-        border-radius: var(--radius-full);
-        padding: 0.1rem 0.6rem;
-        white-space: nowrap;
-    }
-
-    p.bl-fig-caption {
-        margin: 0 !important;
-        font-size: 0.8rem !important;
-        line-height: 1.5 !important;
-        color: var(--color-text-secondary) !important;
-    }
-
-    /* Verification band: facts on the left, the parity table on the right */
-    .bl-verify-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 3.5rem;
-        align-items: start;
-    }
-
-    .bl-facts-dark {
-        margin: 1.75rem 0 0 0 !important;
-        display: grid;
-    }
-
-    .bl-facts-dark > div {
-        padding: 1rem 0;
-        border-top: 1px solid var(--on-dark-line);
-    }
-
-    .bl-facts-dark dt {
-        font-weight: 600;
-        font-size: 1rem;
-        color: #FFFFFF !important;
-    }
-
-    .bl-facts-dark dd {
-        margin: 0.25rem 0 0 0;
-        font-size: 0.94rem;
-        line-height: 1.55;
-        color: var(--on-dark-2) !important;
-    }
-
-    /* Parity table: Fig. 1's portfolio as solved by the engine and by
-       PyPortfolioOpt directly, on a white card like Fig. 1 */
-    .bl-parity {
-        display: grid;
-        gap: 1rem;
-        min-width: 0;
-        padding: 1.2rem 1.3rem 1.3rem 1.3rem;
-        border-radius: var(--radius-lg);
-        background: var(--color-surface);
-        box-shadow: 0 18px 40px rgba(3, 8, 18, 0.35);
-    }
-
-    /* Safety net: a table wider than the card scrolls inside it */
-    .bl-parity-scroll {
-        overflow-x: auto;
-    }
-
-    /* Below ~1100 px the half-width card is too narrow for the four
-       columns (the Difference column would scroll out of sight): stack the
-       facts above the table instead. */
-    @media (max-width: 1100px) {
-        .bl-verify-grid {
-            grid-template-columns: minmax(0, 1fr);
-            gap: 2.25rem;
-        }
-    }
-
-    table.bl-parity-table {
-        width: 100%;
-        margin: 0 !important;
-        border-collapse: collapse;
-        border: none !important;
-        font-family: var(--font-mono) !important;
-        font-size: 0.8rem !important;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .bl-parity-table th,
-    .bl-parity-table td {
-        padding: 0.38rem 0.5rem !important;
-        border: none !important;
-        border-bottom: 1px solid var(--color-line) !important;
-        background: transparent !important;
-        text-align: right;
-        white-space: nowrap;
-        font-family: var(--font-mono) !important;
-        color: var(--color-text) !important;
-    }
-
-    .bl-parity-table th {
-        vertical-align: bottom;
-        white-space: normal;
-        font-size: 0.72rem !important;
-        font-weight: 500 !important;
-        color: var(--color-text-secondary) !important;
-    }
-
-    .bl-parity-table th:first-child,
-    .bl-parity-table td:first-child {
-        text-align: left;
-        padding-left: 0 !important;
-    }
-
-    .bl-parity-table th:last-child,
-    .bl-parity-table td:last-child {
-        padding-right: 0 !important;
-    }
-
-    .bl-parity-table tr.bl-group td {
-        padding-top: 0.85rem !important;
-        text-align: left;
-        font-size: 0.7rem !important;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
+    .bl-btn-secondary:hover {
+        border-color: var(--color-accent);
         color: var(--color-accent) !important;
     }
 
-    .bl-parity-table .zero {
-        font-weight: 500;
-        color: var(--color-success) !important;
-    }
-
-    .bl-dot {
-        display: inline-block;
-        width: 0.6rem;
-        height: 0.6rem;
-        margin-right: 0.55rem;
-        border-radius: 50%;
-    }
-
-    .bl-parity-eq {
-        display: flex;
-        align-items: center;
-        gap: 0.65rem;
-        padding: 0.7rem 0.9rem;
-        border-radius: var(--radius-md);
-        background: var(--color-success-light);
-        border: 1px solid rgba(16, 185, 129, 0.35);
-        color: var(--color-primary) !important;
+    .bl-hero p.bl-hero-meta {
+        margin: 1.4rem 0 0 0 !important;
         font-size: 0.9rem !important;
-    }
-
-    .bl-parity-eq::before {
-        content: '';
-        flex: none;
-        width: 1.2rem;
-        height: 1.2rem;
-        border-radius: 50%;
-        background: var(--color-success) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2 5 8.2 9 4' fill='none' stroke='%23FFFFFF' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
-    }
-
-    p.bl-parity-note {
-        margin: 0 !important;
-        font-size: 0.78rem !important;
-        line-height: 1.5 !important;
         color: var(--color-text-secondary) !important;
     }
 
-    /* Streamlit appends a hover "link to heading" icon to every markdown
-       heading. Page titles and designed blocks are not document sections, so
-       hide it there (in the band it would also drop onto an empty third
-       title line). */
-    .bl-dark [data-testid="stHeaderActionElements"],
-    .page-title [data-testid="stHeaderActionElements"],
-    .bl-block-head [data-testid="stHeaderActionElements"],
-    .bl-steps [data-testid="stHeaderActionElements"],
-    .bl-facts [data-testid="stHeaderActionElements"],
-    .bl-tool-body [data-testid="stHeaderActionElements"] {
-        display: none !important;
+    /* ===== Home: sections ===== */
+    .bl-section-head {
+        text-align: center;
+        max-width: 42rem;
+        margin: 3.5rem auto 1.75rem auto;
     }
 
-    /* ===== Tool cards (Home) ===== */
-    /* Each card is an st.container, because it holds a Plotly chart:
-       .st-key-bl-card-* is the card, .st-key-bl-visual-* its chart area and
-       the text below is .bl-tool-body markdown. The columns stretch to the
-       taller card, and each card fills its column. */
+    .bl-section-head h2 {
+        font-size: clamp(1.6rem, 2.6vw, 2.1rem) !important;
+        line-height: 1.2 !important;
+        margin: 0 0 0.5rem 0 !important;
+        padding: 0 !important;
+    }
+
+    .bl-section-head p {
+        margin: 0 !important;
+        font-size: 1.05rem;
+        line-height: 1.6;
+        color: var(--color-text-secondary) !important;
+    }
+
+    /* Example portfolios: each card is one link to the filled-in form */
+    .bl-examples {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.25rem;
+    }
+
+    a.bl-example {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+        padding: 1.35rem 1.4rem 1.25rem 1.4rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        text-decoration: none !important;
+        cursor: pointer;
+        transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    }
+
+    a.bl-example:hover {
+        border-color: rgba(46, 111, 199, 0.45);
+        box-shadow: var(--shadow-card-hover);
+    }
+
+    .bl-example-title {
+        font-family: var(--font-display) !important;
+        font-size: 1.2rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--color-primary) !important;
+    }
+
+    .bl-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    .bl-chip {
+        padding: 0.2rem 0.6rem;
+        border-radius: var(--radius-full);
+        background: var(--color-surface-2);
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--color-primary) !important;
+    }
+
+    .bl-example-goal {
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: var(--color-text) !important;
+    }
+
+    .bl-example-open {
+        margin-top: auto;
+        padding-top: 0.25rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--color-accent) !important;
+    }
+
+    a.bl-example:hover .bl-example-open {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+
+    /* Tool cards: each card is an st.container, because it holds a Plotly
+       chart: .st-key-bl-card-* is the card, .st-key-bl-visual-* its chart
+       area and the text below is .bl-tool-body markdown. The columns stretch
+       to the taller card, and each card fills its column. */
     [data-testid="stHorizontalBlock"] {
         align-items: stretch;
     }
@@ -697,7 +502,7 @@ def get_shared_css() -> str:
         flex: 1 1 auto;
         gap: 0 !important;
         background: var(--color-surface);
-        border: 1px solid var(--color-line);
+        border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-card);
         overflow: hidden;
@@ -705,39 +510,57 @@ def get_shared_css() -> str:
 
     .st-key-bl-visual-stocks,
     .st-key-bl-visual-portfolio {
-        padding: 1rem 1.15rem 0.9rem 1.15rem;
-        border-bottom: 1px solid var(--color-line);
-        gap: 0.5rem !important;
+        padding: 1rem 1.15rem 0.75rem 1.15rem;
+        border-bottom: 1px solid var(--color-border);
+        gap: 0.4rem !important;
     }
 
-    /* Headline metrics under the Portfolio card's pie */
+    /* Head line of a chart card: what it shows, and an "Example" tag */
+    .bl-fig-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.85rem !important;
+        color: var(--color-text-secondary) !important;
+    }
+
+    .bl-tag {
+        padding: 0.1rem 0.6rem;
+        border-radius: var(--radius-full);
+        background: var(--color-surface-2);
+        font-size: 0.78rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    /* Headline figures under the Portfolio card's chart */
     .bl-metrics {
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 0.3rem 1.1rem;
+        gap: 0.3rem 1.25rem;
         padding-top: 0.6rem;
-        border-top: 1px solid var(--color-line);
-        font-family: var(--font-mono) !important;
-        font-size: 0.75rem !important;
+        border-top: 1px solid var(--color-border);
+        font-size: 0.85rem !important;
         color: var(--color-text-secondary) !important;
         font-variant-numeric: tabular-nums;
     }
 
     .bl-metrics b {
         color: var(--color-primary) !important;
-        font-weight: 500;
+        font-weight: 600;
     }
 
     .bl-tool-body {
-        padding: 1.5rem;
+        padding: 1.4rem 1.5rem 1.5rem 1.5rem;
         display: flex;
         flex-direction: column;
-        gap: 0.85rem;
+        gap: 0.7rem;
     }
 
     .bl-tool-body h3 {
-        font-size: 1.45rem !important;
+        font-size: 1.4rem !important;
         line-height: 1.2 !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -749,38 +572,9 @@ def get_shared_css() -> str:
         line-height: 1.6;
     }
 
-    .bl-checks {
-        list-style: none;
-        padding: 0 !important;
-        margin: 0 !important;
-        display: grid;
-        gap: 0.55rem;
-    }
-
-    .bl-checks li {
-        position: relative;
-        padding-left: 1.75rem;
-        margin: 0 !important;
-        font-size: 0.94rem;
-        line-height: 1.5;
-        color: var(--color-text) !important;
-    }
-
-    /* Check mark in a soft blue circle */
-    .bl-checks li::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0.2rem;
-        width: 1.1rem;
-        height: 1.1rem;
-        border-radius: 50%;
-        background: var(--color-accent-light) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2 5 8.2 9 4' fill='none' stroke='%232E6FC7' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
-    }
-
     a.bl-tool-link {
         align-self: flex-start;
-        padding-top: 0.35rem;
+        padding-top: 0.25rem;
         font-weight: 600;
         color: var(--color-accent) !important;
         text-decoration: none !important;
@@ -791,92 +585,44 @@ def get_shared_css() -> str:
         text-underline-offset: 3px;
     }
 
-    /* ===== About: section heads, method steps, verification facts ===== */
-    .bl-block-head {
-        max-width: 46rem;
-        margin: 0.5rem 0 1.75rem 0;
-    }
-
-    .bl-block-head h2 {
-        font-size: clamp(1.6rem, 2.4vw, 2.1rem) !important;
-        line-height: 1.15 !important;
-        margin: 0.65rem 0 0.6rem 0 !important;
-        padding: 0 !important;
-    }
-
-    .bl-block-head p.bl-block-lead {
-        margin: 0 !important;
-        font-size: 1.05rem;
-        color: var(--color-text-secondary) !important;
-    }
-
+    /* How it works: three numbered steps */
     .bl-steps {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 1.75rem;
-        margin: 0 0 3.5rem 0;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.25rem;
     }
 
     .bl-step {
-        border-top: 2px solid var(--color-line-strong);
-        padding-top: 1.1rem;
-    }
-
-    .bl-step-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        padding: 1.35rem 1.4rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
     }
 
     .bl-step-num {
-        font-family: var(--font-mono) !important;
-        font-size: 0.8rem;
-        letter-spacing: 0.06em;
-        color: var(--color-accent) !important;
-    }
-
-    .bl-step-icon {
-        width: 64px;
-        height: 44px;
-        border-radius: var(--radius-md);
-        background: var(--color-surface);
-        border: 1px solid var(--color-line);
+        width: 2rem;
+        height: 2rem;
         display: grid;
         place-items: center;
-        color: var(--color-accent);
+        border-radius: var(--radius-full);
+        background: var(--color-accent-light);
+        color: var(--color-accent) !important;
+        font-weight: 700;
+        font-size: 0.95rem;
     }
 
-    .bl-step h3,
-    .bl-fact h3 {
+    .bl-step h3 {
         font-size: 1.15rem !important;
         line-height: 1.3 !important;
-        letter-spacing: -0.02em;
-        margin: 0.55rem 0 0.4rem 0 !important;
+        margin: 0.85rem 0 0.35rem 0 !important;
         padding: 0 !important;
     }
 
-    .bl-step p,
-    .bl-fact p {
+    .bl-step p {
         margin: 0 !important;
-        font-size: 0.94rem;
+        font-size: 0.95rem;
         line-height: 1.6;
         color: var(--color-text-secondary) !important;
-    }
-
-    .bl-facts {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        column-gap: 2.5rem;
-        margin: 0 0 3.5rem 0;
-    }
-
-    .bl-fact {
-        border-top: 1px solid var(--color-line);
-        padding: 1rem 0 1.1rem 0;
-    }
-
-    .bl-fact h3 {
-        margin-top: 0 !important;
     }
 
     /* ===== Buttons ===== */
@@ -885,15 +631,11 @@ def get_shared_css() -> str:
         font-family: var(--font-family) !important;
         font-weight: 600 !important;
         font-size: 0.95rem !important;
-        padding: 0.7rem 2rem !important;
-        transition: var(--transition-base) !important;
-        letter-spacing: 0.01em !important;
+        min-height: 44px;
+        padding: 0.6rem 1.75rem !important;
+        transition: background var(--transition-fast), border-color var(--transition-fast),
+                    color var(--transition-fast) !important;
         border: none !important;
-    }
-
-    .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: var(--shadow-lg) !important;
     }
 
     .stButton > button[kind="primary"] {
@@ -904,21 +646,24 @@ def get_shared_css() -> str:
 
     .stButton > button[kind="primary"]:hover {
         background: var(--color-accent-hover) !important;
-        box-shadow: var(--shadow-glow) !important;
+    }
+
+    .stButton > button[kind="primary"]:disabled {
+        background: var(--color-border-strong) !important;
+        color: #FFFFFF !important;
     }
 
     .stButton > button[kind="secondary"],
     .stButton > button:not([kind="primary"]) {
         background: var(--color-surface) !important;
-        color: var(--color-text) !important;
-        border: 1.5px solid var(--color-border) !important;
+        color: var(--color-primary) !important;
+        border: 1px solid var(--color-border-strong) !important;
     }
 
     .stButton > button[kind="secondary"]:hover,
     .stButton > button:not([kind="primary"]):hover {
         border-color: var(--color-accent) !important;
         color: var(--color-accent) !important;
-        background: var(--color-accent-light) !important;
     }
 
     /* ===== Download button ===== */
@@ -926,160 +671,15 @@ def get_shared_css() -> str:
         border-radius: var(--radius-full) !important;
         font-family: var(--font-family) !important;
         font-weight: 600 !important;
+        min-height: 44px;
         background: var(--color-accent) !important;
         color: white !important;
         border: none !important;
-        padding: 0.7rem 2rem !important;
+        padding: 0.6rem 1.75rem !important;
     }
 
     .stDownloadButton > button:hover {
         background: var(--color-accent-hover) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: var(--shadow-glow) !important;
-    }
-
-    /* ===== Form Inputs ===== */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input {
-        border-radius: var(--radius-md) !important;
-        font-family: var(--font-family) !important;
-        border: 1.5px solid var(--color-border) !important;
-        padding: 0.7rem 1rem !important;
-        transition: var(--transition-fast) !important;
-        background: var(--color-surface) !important;
-    }
-
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: var(--color-accent) !important;
-        box-shadow: 0 0 0 3px rgba(46, 111, 199, 0.1) !important;
-    }
-
-    .stSelectbox > div > div,
-    .stMultiSelect > div > div {
-        border-radius: var(--radius-md) !important;
-        font-family: var(--font-family) !important;
-        border: 1.5px solid var(--color-border) !important;
-    }
-
-    .stSelectbox [data-baseweb="select"] {
-        padding-top: 0.35rem !important;
-        padding-bottom: 0.35rem !important;
-    }
-
-    .stSelectbox > div > div:focus,
-    .stMultiSelect > div > div:focus-within {
-        border-color: var(--color-accent) !important;
-        box-shadow: 0 0 0 3px rgba(46, 111, 199, 0.1) !important;
-    }
-
-    /* ===== Checkboxes ===== */
-    .stCheckbox label {
-        font-weight: 500 !important;
-        color: var(--color-text) !important;
-    }
-
-    /* ===== Tabs ===== */
-    /* Streamlit 1.59 renders tabs with react-aria: a [role="tablist"] of
-       div[role="tab"] (aria-selected), each label in a <p>. The BaseWeb
-       selectors used before (data-baseweb="tab") no longer match anything,
-       which left the active tab as dark text on a bare blue block. */
-    .stTabs [role="tablist"] {
-        gap: 0.25rem;
-        width: fit-content;
-        max-width: 100%;
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: 4px;
-        box-shadow: var(--shadow-xs);
-    }
-
-    /* Streamlit's full-width underline and sliding indicator */
-    .stTabs [role="tablist"]::after,
-    .stTabs .react-aria-SelectionIndicator {
-        display: none !important;
-    }
-
-    .stTabs [role="tab"] {
-        height: auto !important;
-        padding: 0.45rem 1rem !important;
-        border-radius: var(--radius-md);
-        color: var(--color-text-secondary);
-        transition: var(--transition-fast);
-    }
-
-    .stTabs [role="tab"] p {
-        font-size: 0.875rem !important;
-        font-weight: 500;
-        color: inherit !important;
-        margin: 0 !important;
-        white-space: nowrap;
-    }
-
-    .stTabs [role="tab"]:hover {
-        color: var(--color-accent);
-        background: var(--color-accent-light);
-    }
-
-    .stTabs [role="tab"][aria-selected="true"] {
-        background: var(--color-accent) !important;
-        color: #FFFFFF !important;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .stTabs [role="tab"][aria-selected="true"] p {
-        font-weight: 600;
-    }
-
-    /* ===== Info Boxes ===== */
-    .bl-info {
-        background: rgba(46, 111, 199, 0.08);
-        border-left: 4px solid var(--color-accent);
-        border-right: 1px solid var(--color-border);
-        border-top: 1px solid var(--color-border);
-        border-bottom: 1px solid var(--color-border);
-        padding: 1.1rem 1.5rem;
-        border-radius: 0 var(--radius-md) var(--radius-md) 0;
-        margin: 1rem 0;
-        font-size: 0.92rem;
-        color: var(--color-text);
-        line-height: 1.6;
-    }
-
-    .bl-success {
-        background: rgba(16, 185, 129, 0.08);
-        border-left: 4px solid var(--color-success);
-        border-right: 1px solid var(--color-border);
-        border-top: 1px solid var(--color-border);
-        border-bottom: 1px solid var(--color-border);
-        padding: 1.1rem 1.5rem;
-        border-radius: 0 var(--radius-md) var(--radius-md) 0;
-        margin: 1rem 0;
-    }
-
-    /* ===== Metrics ===== */
-    [data-testid="stMetric"] {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: 1.5rem;
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition-base);
-    }
-
-    [data-testid="stMetric"]:hover {
-        box-shadow: var(--shadow-md);
-        transform: translateY(-2px);
-    }
-
-    [data-testid="stMetric"] label {
-        font-family: var(--font-family) !important;
-        font-size: 0.8rem !important;
-        color: var(--color-text-secondary) !important;
-        font-weight: 500 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
     }
 
     /* Button labels are a <p> nested in divs inside the button, which the
@@ -1092,40 +692,162 @@ def get_shared_css() -> str:
         color: inherit !important;
     }
 
-    /* Target specific components */
+    /* ===== Form Inputs ===== */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input {
+        border-radius: var(--radius-md) !important;
+        font-family: var(--font-family) !important;
+        border: 1px solid var(--color-border-strong) !important;
+        padding: 0.65rem 0.9rem !important;
+        transition: border-color var(--transition-fast), box-shadow var(--transition-fast) !important;
+        background: var(--color-surface) !important;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: var(--color-accent) !important;
+        box-shadow: 0 0 0 3px var(--color-accent-light) !important;
+    }
+
+    .stSelectbox > div > div,
+    .stMultiSelect > div > div {
+        border-radius: var(--radius-md) !important;
+        font-family: var(--font-family) !important;
+        border: 1px solid var(--color-border-strong) !important;
+    }
+
+    .stSelectbox [data-baseweb="select"] {
+        padding-top: 0.3rem !important;
+        padding-bottom: 0.3rem !important;
+    }
+
+    .stSelectbox > div > div:focus,
+    .stMultiSelect > div > div:focus-within {
+        border-color: var(--color-accent) !important;
+        box-shadow: 0 0 0 3px var(--color-accent-light) !important;
+    }
+
+    /* ===== Checkboxes ===== */
+    .stCheckbox label {
+        font-weight: 500 !important;
+        color: var(--color-text) !important;
+    }
+
+    /* ===== Tabs: a segmented control ===== */
+    /* Streamlit 1.59 renders tabs with react-aria: a [role="tablist"] of
+       div[role="tab"] (aria-selected), each label in a <p>. The BaseWeb
+       selectors used before (data-baseweb="tab") no longer match anything,
+       which left the active tab as dark text on a bare blue block. */
+    .stTabs [role="tablist"] {
+        gap: 0.2rem;
+        width: fit-content;
+        max-width: 100%;
+        background: var(--color-surface-2);
+        border-radius: var(--radius-md);
+        padding: 4px;
+    }
+
+    /* Streamlit's full-width underline and sliding indicator */
+    .stTabs [role="tablist"]::after,
+    .stTabs .react-aria-SelectionIndicator {
+        display: none !important;
+    }
+
+    .stTabs [role="tab"] {
+        height: auto !important;
+        padding: 0.45rem 1rem !important;
+        border-radius: var(--radius-sm);
+        color: var(--color-text-secondary);
+        transition: color var(--transition-fast), background var(--transition-fast);
+    }
+
+    .stTabs [role="tab"] p {
+        font-size: 0.9rem !important;
+        font-weight: 500;
+        color: inherit !important;
+        margin: 0 !important;
+        white-space: nowrap;
+    }
+
+    .stTabs [role="tab"]:hover {
+        color: var(--color-primary);
+    }
+
+    .stTabs [role="tab"][aria-selected="true"] {
+        background: var(--color-surface) !important;
+        color: var(--color-primary) !important;
+        box-shadow: var(--shadow-xs), 0 0 0 1px var(--color-border);
+    }
+
+    .stTabs [role="tab"][aria-selected="true"] p {
+        font-weight: 600;
+    }
+
+    /* ===== Metrics ===== */
+    [data-testid="stMetric"] {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 1rem 1.2rem;
+    }
+
+    [data-testid="stMetric"] label,
+    [data-testid="stMetricLabel"] p {
+        font-family: var(--font-family) !important;
+        font-size: 0.88rem !important;
+        color: var(--color-text-secondary) !important;
+        font-weight: 500 !important;
+    }
+
     [data-testid="stMetricValue"],
     [data-testid="stMetricValue"] * {
-        font-family: var(--font-mono) !important;
-        font-weight: 500 !important;
+        font-family: var(--font-family) !important;
+        font-weight: 600 !important;
         font-variant-numeric: tabular-nums;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.02em;
         color: var(--color-primary) !important;
     }
 
     [data-testid="stMetricValue"] {
-        font-size: 1.5rem !important;
+        font-size: 1.55rem !important;
+    }
+
+    /* Labels wrap instead of being cut ("Expected re…"): Streamlit sets
+       nowrap + ellipsis on the label's <p> and its markdown container */
+    [data-testid="stMetricLabel"] p,
+    [data-testid="stMetricLabel"] [data-testid="stMarkdownContainer"] {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+
+    /* Five cards in a row get narrow before the columns stack (about 640
+       px): every label keeps room for two lines, so the figures stay level */
+    @media (min-width: 641px) and (max-width: 1100px) {
+        [data-testid="stMetricLabel"] {
+            min-height: 2.6em;
+            align-items: flex-start;
+        }
     }
 
     /* ===== Dividers ===== */
     hr {
         border: none;
-        border-top: 1px solid var(--color-border-light);
+        border-top: 1px solid var(--color-border);
         margin: 2rem 0;
     }
 
     /* ===== Expanders ===== */
-    .streamlit-expanderHeader {
-        font-family: var(--font-family) !important;
-        font-weight: 600 !important;
-        color: var(--color-text) !important;
-        background: transparent !important;
-        border-radius: var(--radius-md) !important;
-    }
-
+    [data-testid="stExpander"] details,
     details {
         border: 1px solid var(--color-border) !important;
         border-radius: var(--radius-md) !important;
         background: var(--color-surface) !important;
+    }
+
+    [data-testid="stExpander"] summary p {
+        font-weight: 600 !important;
+        color: var(--color-primary) !important;
     }
 
     /* ===== Footer ===== */
@@ -1137,7 +859,7 @@ def get_shared_css() -> str:
         gap: 0.75rem 2rem;
         padding: 1.5rem 0 1.25rem 0;
         margin-top: 3.5rem;
-        border-top: 1px solid var(--color-line);
+        border-top: 1px solid var(--color-border);
     }
 
     .bl-footer,
@@ -1148,8 +870,6 @@ def get_shared_css() -> str:
 
     .bl-footer .bl-footer-note {
         margin-top: 0.25rem;
-        font-size: 0.78rem;
-        color: var(--color-text-muted);
     }
 
     .bl-footer-links {
@@ -1183,72 +903,40 @@ def get_shared_css() -> str:
         border-top-color: var(--color-accent) !important;
     }
 
-    /* ===== Page-specific: formula-box ===== */
-    .formula-box {
-        background: rgba(248, 250, 252, 0.8);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        padding: 1.25rem 1.5rem;
-        margin: 1rem 0;
-        font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
-        font-size: 1.05rem;
-        color: var(--color-accent);
-        font-weight: 600;
-    }
-
     /* ===== Custom scrollbar ===== */
     ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
     }
     ::-webkit-scrollbar-track {
         background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-        background: var(--color-border);
-        border-radius: 3px;
+        background: var(--color-border-strong);
+        border-radius: 4px;
     }
     ::-webkit-scrollbar-thumb:hover {
-        background: var(--color-text-muted);
+        background: var(--color-text-secondary);
     }
 
-    /* ===== Animations ===== */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
+    /* ===== Reduced motion: no transitions for users who ask for none ===== */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            transition: none !important;
+            animation: none !important;
+            scroll-behavior: auto !important;
         }
     }
 
-    .bl-animate {
-        animation: fadeInUp 0.5s ease-out;
-    }
-
-    .bl-animate-delay-1 { animation-delay: 0.1s; animation-fill-mode: both; }
-    .bl-animate-delay-2 { animation-delay: 0.2s; animation-fill-mode: both; }
-    .bl-animate-delay-3 { animation-delay: 0.3s; animation-fill-mode: both; }
-    .bl-animate-delay-4 { animation-delay: 0.4s; animation-fill-mode: both; }
-
-    /* ===== Back link ===== */
-    .bl-back-link {
-        margin-bottom: 1.5rem;
-    }
-
-    .bl-back-link a {
-        color: var(--color-accent);
-        text-decoration: none;
-        font-size: 0.9rem;
-        font-weight: 500;
-        transition: var(--transition-fast);
-    }
-
-    .bl-back-link a:hover {
-        color: var(--color-accent-hover);
-        text-decoration: underline;
+    /* ===== Tablets: the example cards and steps stack ===== */
+    @media (max-width: 1000px) {
+        .bl-examples,
+        .bl-steps {
+            grid-template-columns: minmax(0, 1fr);
+            max-width: 36rem;
+            margin-left: auto;
+            margin-right: auto;
+        }
     }
 
     /* ===== Mobile Responsiveness (PWA) ===== */
@@ -1267,85 +955,35 @@ def get_shared_css() -> str:
         }
 
         .bl-navbar {
-            padding: 0.75rem 1rem;
+            padding: 0.75rem 0;
         }
         .bl-navbar-links {
-            gap: 0.25rem;
+            gap: 0.15rem;
         }
         .bl-navbar-links a {
-            font-size: 0.8rem;
-            padding: 0.4rem 0.6rem;
+            font-size: 0.85rem;
+            padding: 0.5rem 0.65rem;
         }
         .page-title {
-            font-size: 2rem !important;
+            font-size: 1.9rem !important;
         }
-        .bl-band,
-        .st-key-bl-hero,
-        .bl-band.bl-verify {
+        .bl-hero {
             margin-left: -1rem;
             margin-right: -1rem;
+            padding: 3rem 1rem 2.25rem 1rem;
         }
-        .st-key-bl-hero {
-            width: calc(100% + 2rem) !important;
-            padding: 2.25rem 1rem 2rem 1rem;
-        }
-        .st-key-bl-hero [data-testid="stHorizontalBlock"] {
-            gap: 1.5rem;
-        }
-        .bl-band-inner,
-        .bl-verify .bl-band-inner {
-            padding: 2.25rem 1rem 2rem 1rem;
-        }
-        .bl-verify-grid {
-            grid-template-columns: minmax(0, 1fr);
-            gap: 2rem;
-        }
-        .bl-parity {
-            padding: 1rem;
-        }
-        table.bl-parity-table {
-            font-size: 0.7rem !important;
-        }
-        .bl-parity-table th,
-        .bl-parity-table td {
-            padding: 0.34rem 0.3rem !important;
-        }
-        .bl-parity-table td:first-child {
-            white-space: normal;
-        }
-        /* Titles on navy: keep long words whole */
-        .bl-dark h1 {
-            word-break: keep-all;
-            overflow-wrap: break-word;
-        }
-        .bl-band-stats {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            column-gap: 1.5rem;
-        }
-        .bl-steps {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        .bl-facts {
-            grid-template-columns: minmax(0, 1fr);
+        .bl-section-head {
+            margin-top: 2.75rem;
         }
         .step-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.5rem;
+            margin-bottom: 0.75rem;
         }
         /* Smaller tab text to fit more tabs */
         .stTabs [role="tab"] {
-            padding: 0.4rem 0.55rem !important;
+            padding: 0.4rem 0.6rem !important;
         }
         .stTabs [role="tab"] p {
-            font-size: 0.78rem !important;
-        }
-        /* Make columns stack gracefully in Streamlit */
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 100% !important;
-            min-width: 100% !important;
-            margin-bottom: 1rem;
+            font-size: 0.82rem !important;
         }
     }
 
@@ -1359,36 +997,21 @@ def get_shared_css() -> str:
             gap: 0.5rem;
         }
         .bl-navbar-links a {
-            font-size: 0.72rem;
-            padding: 0.35rem 0.5rem;
+            font-size: 0.8rem;
+            padding: 0.5rem 0.55rem;
         }
         .page-title {
             font-size: 1.75rem !important;
         }
-        .bl-steps {
-            grid-template-columns: minmax(0, 1fr);
-        }
-        /* Parity table: small enough that all four columns fit a 360 px
-           phone (measured), so the Difference column stays in view */
-        .bl-parity {
-            padding: 0.9rem 0.7rem;
-        }
-        table.bl-parity-table {
-            font-size: 0.66rem !important;
-        }
-        .bl-parity-table th {
-            font-size: 0.6rem !important;
-        }
-        .bl-parity-table th,
-        .bl-parity-table td {
-            padding: 0.3rem 0.18rem !important;
+        .bl-ctas .bl-btn {
+            width: 100%;
         }
         /* Even smaller tabs on very narrow screens */
         .stTabs [role="tab"] {
             padding: 0.35rem 0.45rem !important;
         }
         .stTabs [role="tab"] p {
-            font-size: 0.72rem !important;
+            font-size: 0.76rem !important;
         }
     }
 </style>
@@ -1410,10 +1033,9 @@ def render_navbar(active_page: str = "home") -> None:
     Args:
         active_page: Current page identifier ('home', 'stocks', 'portfolio', 'about')
     """
-    home_class = 'class="active"' if active_page == "home" else ""
-    stocks_class = 'class="active"' if active_page == "stocks" else ""
-    portfolio_class = 'class="active"' if active_page == "portfolio" else ""
-    about_class = 'class="active"' if active_page == "about" else ""
+    def _link(href: str, label: str, page: str) -> str:
+        current = ' class="active" aria-current="page"' if active_page == page else ""
+        return f'<a href="{href}" target="_self"{current}>{label}</a>'
 
     # Links MUST be relative, like the static URLs above. On Streamlit Cloud
     # the app runs in an iframe at /~/+/; an absolute "/Stocks" made that
@@ -1421,17 +1043,17 @@ def render_navbar(active_page: str = "home") -> None:
     # level deeper per click, address bar stuck on the first page). "./Stocks"
     # stays inside /~/+/, and the platform then updates the address bar.
     st.markdown(f"""
-    <div class="bl-navbar">
+    <nav class="bl-navbar" aria-label="Main">
         <a href="./" target="_self" class="bl-navbar-brand">
             <img src="{NAVBAR_LOGO_SRC}" alt="PortfolioLab" width="100" height="38">
         </a>
         <div class="bl-navbar-links">
-            <a href="./" target="_self" {home_class}>Home</a>
-            <a href="./Stocks" target="_self" {stocks_class}>Stocks</a>
-            <a href="./Portfolio" target="_self" {portfolio_class}>Portfolio</a>
-            <a href="./About" target="_self" {about_class}>About</a>
+            {_link("./", "Home", "home")}
+            {_link("./Stocks", "Stocks", "stocks")}
+            {_link("./Portfolio", "Portfolio", "portfolio")}
+            {_link("./About", "About", "about")}
         </div>
-    </div>
+    </nav>
     """, unsafe_allow_html=True)
 
 
@@ -1468,7 +1090,7 @@ def inject_critical_css() -> None:
         }
 
         /* ===== Aggressive Layout: Remove top gap & widen container ===== */
-        header[data-testid="stHeader"], 
+        header[data-testid="stHeader"],
         .stApp > header {
             display: none !important;
             height: 0 !important;
@@ -1539,8 +1161,10 @@ def inject_styles() -> None:
 
 def render_footer() -> None:
     """Renders the global footer at the bottom of the page."""
+    # A div with the footer role, not <footer>: the CSS hides every <footer>
+    # to remove Streamlit's own.
     st.markdown("""
-    <div class="bl-footer">
+    <div class="bl-footer" role="contentinfo">
         <div>
             <div>&copy; 2026 PortfolioLab &middot; Open source under the MIT License</div>
             <div class="bl-footer-note">For educational and informational purposes only — not investment advice. Market data provided by Yahoo Finance.</div>

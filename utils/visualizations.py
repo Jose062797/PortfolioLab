@@ -16,20 +16,22 @@ from core.constants import ASSET_COLORS, MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_
 
 # ── Brand chart style ──
 # Shared by every interactive chart (Portfolio results and the Stocks page; the
-# Home page draws those same charts on example data): Inter for text, DM Mono
-# for tick labels and hover figures, a faint navy grid, a navy hover label. The fonts are loaded by
-# the page CSS (utils/styles.py). The PDF charts are matplotlib and keep their
-# own style (core/pdf_shared.py).
+# Home page draws those same charts on example data): Inter for text and
+# figures (the page CSS gives chart text same-width digits), a faint navy
+# grid, a navy hover label. The fonts are loaded by the page CSS
+# (utils/styles.py). The PDF charts are matplotlib and keep their own style
+# (core/pdf_shared.py).
 BRAND_FONT = "Inter, sans-serif"
 BRAND_DISPLAY = "DM Sans, Inter, sans-serif"
-BRAND_MONO = "DM Mono, ui-monospace, Consolas, monospace"
 BRAND_INK = "#0A1628"
 BRAND_MUTED = "#64748B"
 BRAND_GRID = "rgba(10, 22, 40, 0.08)"
 BRAND_ZERO = "rgba(10, 22, 40, 0.20)"
-# Asset colors (core/constants.py, shared with the PDF). The Home page's
-# parity table colors each asset as create_allocation_pie does.
+# Asset colors (core/constants.py, shared with the PDF)
 BRAND_SEQUENCE = ASSET_COLORS
+# A donut reads well up to six slices; with more, slices get too thin to
+# compare and the allocation is drawn as bars (create_allocation_chart).
+MAX_DONUT_SLICES = 6
 
 
 def apply_brand_layout(fig: go.Figure, axes: bool = True) -> go.Figure:
@@ -51,7 +53,7 @@ def apply_brand_layout(fig: go.Figure, axes: bool = True) -> go.Figure:
         hoverlabel=dict(
             bgcolor=BRAND_INK,
             bordercolor=BRAND_INK,
-            font=dict(family=BRAND_MONO, size=12, color="#FFFFFF"),
+            font=dict(family=BRAND_FONT, size=12, color="#FFFFFF"),
         ),
     )
     # Only for figures that have a title: a title object without text makes
@@ -62,7 +64,7 @@ def apply_brand_layout(fig: go.Figure, axes: bool = True) -> go.Figure:
         axis_style = dict(
             gridcolor=BRAND_GRID,
             zerolinecolor=BRAND_ZERO,
-            tickfont=dict(family=BRAND_MONO, size=11, color=BRAND_MUTED),
+            tickfont=dict(family=BRAND_FONT, size=11, color=BRAND_MUTED),
         )
         fig.update_xaxes(**axis_style)
         fig.update_yaxes(**axis_style)
@@ -215,12 +217,14 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
     fig = go.Figure(data=[go.Pie(
         labels=tickers,
         values=values,
-        hole=0.3,
+        hole=0.55,
+        # Each slice is labeled directly, so there is no legend to look up
         textinfo='label+percent',
         textfont_size=12,
         # Small slices get their label outside the pie: let it widen the
         # margins instead of being cut off at the chart's edge
         automargin=True,
+        hovertemplate='<b>%{label}</b><br>Weight: %{percent}<extra></extra>',
         marker=dict(
             colors=corporate_colors,
             line=dict(color='#FFFFFF', width=2)
@@ -229,20 +233,80 @@ def create_allocation_pie(weights: Dict[str, float], min_weight: float = MIN_WEI
 
     fig.update_layout(
         height=500,
-        margin=dict(t=20, b=40, l=20, r=20),
+        margin=dict(t=20, b=20, l=20, r=20),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.2,
-            xanchor="center",
-            x=0.5
-        )
+        showlegend=False,
+        annotations=[dict(
+            text=f"{len(tickers)}<br>{'asset' if len(tickers) == 1 else 'assets'}",
+            showarrow=False, x=0.5, y=0.5, xref="paper", yref="paper",
+            font=dict(size=15, color=BRAND_MUTED),
+        )],
     )
 
     return apply_brand_layout(fig, axes=False)
+
+
+def create_allocation_bars(weights: Dict[str, float], min_weight: float = MIN_WEIGHT_THRESHOLD) -> go.Figure:
+    """
+    Horizontal bars of the portfolio weights, largest at the top.
+
+    For portfolios with more slices than a donut shows clearly
+    (create_allocation_chart picks).
+
+    Args:
+        weights: Portfolio weights dictionary
+        min_weight: Minimum weight threshold to display
+
+    Returns:
+        Plotly figure object
+    """
+    shown = sorted(((t, w) for t, w in weights.items() if w > min_weight), key=lambda x: x[1])
+    tickers = [t for t, _ in shown]
+    values = [w * 100 for _, w in shown]
+
+    fig = go.Figure(go.Bar(
+        x=values,
+        y=tickers,
+        orientation='h',
+        marker_color='#2E6FC7',
+        text=[f"{v:.1f}%" for v in values],
+        textposition='outside',
+        cliponaxis=False,
+        hovertemplate='<b>%{y}</b><br>Weight: %{x:.2f}%<extra></extra>',
+    ))
+
+    fig.update_layout(
+        height=max(300, 34 * len(tickers) + 60),
+        margin=dict(t=10, b=30, l=10, r=50),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+        bargap=0.35,
+        xaxis=dict(ticksuffix='%', rangemode='tozero'),
+    )
+
+    apply_brand_layout(fig)
+    fig.update_yaxes(showgrid=False)
+    return fig
+
+
+def create_allocation_chart(weights: Dict[str, float], min_weight: float = MIN_WEIGHT_THRESHOLD) -> go.Figure:
+    """
+    The Allocation tab's chart: a donut for up to MAX_DONUT_SLICES assets,
+    horizontal bars beyond that.
+
+    Args:
+        weights: Portfolio weights dictionary
+        min_weight: Minimum weight threshold to display
+
+    Returns:
+        Plotly figure object
+    """
+    shown = sum(1 for w in weights.values() if w > min_weight)
+    if shown > MAX_DONUT_SLICES:
+        return create_allocation_bars(weights, min_weight)
+    return create_allocation_pie(weights, min_weight)
 
 
 def create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=False):
@@ -274,14 +338,12 @@ def create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=F
         v = ohlcv['Volume'].iloc[i] if 'Volume' in ohlcv.columns and not pd.isna(ohlcv['Volume'].iloc[i]) else 0
         custom_data.append([date_str, f"{c:,.2f}", f"{o:,.2f}", f"{h:,.2f}", f"{l:,.2f}", f"{v:,.0f}"])
 
-    # The hover label is DM Mono (apply_brand_layout), so padding every label
-    # to the same width lines the values up exactly.
     hover_temp = (
-        "<b>Date:   %{customdata[0]}</b><br><br>"
-        "Close:  %{customdata[1]}<br>"
-        "Open:   %{customdata[2]}<br>"
-        "High:   %{customdata[3]}<br>"
-        "Low:    %{customdata[4]}<br>"
+        "<b>%{customdata[0]}</b><br>"
+        "Close: %{customdata[1]}<br>"
+        "Open: %{customdata[2]}<br>"
+        "High: %{customdata[3]}<br>"
+        "Low: %{customdata[4]}<br>"
         "Volume: %{customdata[5]}"
         "<extra></extra>"
     )
@@ -830,7 +892,7 @@ def create_historical_performance_chart(
                 xref="paper", yref="paper",
                 x=0.5, y=-0.18,
                 showarrow=False,
-                font=dict(family=BRAND_MONO, size=12, color="#64748B"),
+                font=dict(family=BRAND_FONT, size=12, color="#64748B"),
                 xanchor='center'
             )]
         )

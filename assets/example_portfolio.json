@@ -1,0 +1,17 @@
+{
+ "objective": "Maximise Return for a Given Risk",
+ "target_volatility": 0.14,
+ "rf": 0.03,
+ "portfolio": {
+  "weights": {
+   "A": 0.10837,
+   "B": 0.215,
+   "C": 0.27918,
+   "D": 0.34513,
+   "E": 0.05231
+  },
+  "return": 0.09457914584099215,
+  "volatility": 0.1399999977656175,
+  "sharpe": 0.46127962051190907
+ }
+}

@@ -22,12 +22,13 @@ Interactive dashboard to explore any asset available on Yahoo Finance (stocks, E
 - For stocks: YTD, 1Y, 3Y and 5Y price returns compared with the S&P 500 (^GSPC), and quarterly revenue vs. earnings
 
 ### 📈 Portfolio Optimizer
-Advanced portfolio construction engine supporting two mathematical models:
-- **Markowitz (Mean-Variance)**: Optimize for Max Sharpe, Min Variance, Target Risk, or Target Return — with a choice of expected-returns estimator (CAPM or historical mean, for non-equity assets)
+Portfolio construction engine supporting two mathematical models:
+- **Markowitz (Mean-Variance)**: four goals in plain words — lowest risk (min variance), best return for the risk (max Sharpe), highest return within a risk limit, and lowest risk for a target return — with a choice of expected-returns estimator (CAPM or historical mean, for non-equity assets)
 - **Black-Litterman**: Bayesian optimization combining market equilibrium with custom investor views
 - Efficient frontier visualization, historical backtesting, and correlation analysis
 - Overlapping-holdings detection (flags near-perfectly correlated assets, e.g. two funds that track the same index)
 - Downloadable PDF reports with full breakdown
+- Example portfolios on the Home page that open the tool with the form filled in
 
 The mathematical engine is verified to produce output **identical to raw
 [PyPortfolioOpt](https://pyportfolioopt.readthedocs.io/)** across all
@@ -80,7 +81,7 @@ The app will open at `http://localhost:8501`.
 │   ├── data_provider.py      # yfinance data layer
 │   ├── pdf_shared.py         # Shared PDF chart builders
 │   ├── constants.py          # Centralized constants
-│   └── example_market.py     # Example data for the Home page charts
+│   └── example_market.py     # Home page examples (portfolios and example charts)
 ├── utils/                    # Streamlit integration layer
 │   ├── styles.py             # Design system & CSS
 │   ├── visualizations.py     # Plotly interactive charts
@@ -89,7 +90,7 @@ The app will open at `http://localhost:8501`.
 │   └── session_manager.py    # Streamlit session state
 ├── tests/                    # pytest test suite (parity, regression, edge cases)
 ├── static/                   # Navbar logo and PWA assets
-├── assets/                   # Logo, favicon, Home example results
+├── assets/                   # Logo, favicon, Home example result
 └── .github/workflows/        # CI (pytest on Python 3.12 & 3.14)
 ```
 
@@ -102,7 +103,7 @@ pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest tests\ -v
 ```
 
-The suite (130 tests) runs fully offline against synthetic fixtures and covers:
+The suite (136 tests) runs fully offline against synthetic fixtures and covers:
 mathematical parity with raw PyPortfolioOpt, frozen numeric regression
 snapshots, numerical edge cases, data-layer failure modes, input validation,
 PDF/visualization outputs, and backtest conventions. It also runs automatically

@@ -1,6 +1,6 @@
 """
 About Page - PortfolioLab Platform
-Modern design with top navbar, no sidebar
+What the app is, which model to use, a glossary and an FAQ.
 """
 
 import os
@@ -24,63 +24,56 @@ render_navbar(active_page="about")
 def main():
     # ── Page Header ──
     st.markdown("""
-    <div class="bl-band">
-        <div class="bl-band-inner bl-dark bl-animate">
-            <p class="bl-eyebrow">About PortfolioLab</p>
-            <h1>Portfolio optimization <span class="accent">you can verify.</span></h1>
-            <p class="bl-lead">PortfolioLab is free, open-source software for learning portfolio optimization. It implements the Black-Litterman and Markowitz models of the PyPortfolioOpt cookbook on market data from Yahoo Finance, and an automated test suite checks its results against the library on every change.</p>
-        </div>
+    <div style="margin-bottom: 2rem;">
+        <h1 class="page-title">About PortfolioLab</h1>
+        <p class="page-subtitle">Free, open-source software for learning portfolio optimization. It follows the Black-Litterman and Markowitz examples of the PyPortfolioOpt cookbook, on market data from Yahoo Finance.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # How it works and Verification live on the Home page (streamlit_app.py),
-    # which is the public front door; About keeps the reference material.
-
-    # ── Educational Resources ──
-    st.markdown("""
-    <div class="bl-block-head">
-        <p class="bl-eyebrow">Learn</p>
-        <h2>Financial Glossary &amp; Methodology</h2>
-        <p class="bl-block-lead">The ideas behind the two models and the numbers the tools show</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    tab1, tab2, tab3 = st.tabs(["Model Comparison", "Financial Glossary", "FAQ"])
+    tab1, tab2, tab3 = st.tabs(["Which model?", "Glossary", "FAQ"])
 
     with tab1:
-        st.markdown("### Which Optimization Model Should I Use?")
-        col_m1, col_m2 = st.columns(2)
+        col_m1, col_m2 = st.columns(2, gap="large")
         with col_m1:
-            st.info("**Markowitz (Mean-Variance Optimization)**\n\n"
-                    "The Nobel Prize-winning classic model that builds an *Efficient Frontier*.\n\n"
-                    "**Use when:**\n"
-                    "- You want a purely data-driven approach based solely on historical prices.\n"
-                    "- You have specific risk or return targets (e.g., the highest expected return with volatility of at most 15%).\n"
-                    "- You don't have strong subjective opinions about future asset performance.\n\n"
-                    "*Warning: Traditional MVO can over-allocate to assets that performed well in the past.*")
+            with st.container(border=True):
+                st.markdown(
+                    "#### Markowitz\n"
+                    "Mean-variance optimization: the classic model behind the *efficient frontier*, "
+                    "which earned Harry Markowitz a Nobel Prize.\n\n"
+                    "**Use it when:**\n"
+                    "- You want expected returns that come from price history alone.\n"
+                    "- You have a risk or return target (e.g. the highest expected return with "
+                    "volatility of at most 15%).\n"
+                    "- You have no strong opinions about how particular assets will do.\n\n"
+                    "*It can put too much into assets that did well in the past.*"
+                )
         with col_m2:
-            st.success("**Black-Litterman Model**\n\n"
-                       "A Bayesian approach that addresses Markowitz's tendency to concentrate the weights.\n\n"
-                       "**Use when:**\n"
-                       "- You want expected returns anchored to market capitalizations rather than to past returns.\n"
-                       "- You have specific *views* or expectations about certain assets (e.g., 'I think MSFT will return 15%').\n"
-                       "- You want a starting point based on market equilibrium (the market portfolio).\n\n"
-                       "*Note: without views the expected returns are the market-implied ones, but the optimizer then "
-                       "maximizes the Sharpe ratio against a 3% risk-free rate, with L2 regularization. The weights can "
-                       "therefore differ a lot from market-cap weights, and an asset whose implied return is below 3% can get none.*")
+            with st.container(border=True):
+                st.markdown(
+                    "#### Black-Litterman\n"
+                    "A Bayesian model that starts from the market's own expectations, which "
+                    "tempers Markowitz's tendency to concentrate the weights.\n\n"
+                    "**Use it when:**\n"
+                    "- You want expected returns anchored to market capitalizations rather than to "
+                    "past returns.\n"
+                    "- You have *views* about some assets (e.g. 'I think MSFT will return 15%').\n"
+                    "- You want to start from market equilibrium (the market portfolio).\n\n"
+                    "*Without views the expected returns are the market-implied ones, but the "
+                    "optimizer then maximizes the Sharpe ratio against a 3% risk-free rate, with L2 "
+                    "regularization. The weights can therefore differ a lot from market-cap weights, "
+                    "and an asset whose implied return is below 3% can get none.*"
+                )
 
     with tab2:
-        st.markdown("### Key Financial Terms")
         st.markdown("""
-        - **Volatility (Risk)**: The annualized standard deviation of returns. Higher volatility means wilder price swings and higher risk.
-        - **Sharpe Ratio**: A measure of risk-adjusted return: the return above the risk-free rate for each unit of volatility. The tools show an expected one (from the model's estimates) and a realized one (from the backtest). Above 1.0 is often considered good.
-        - **L2 Gamma (Regularization)**: A penalty added during optimization that discourages putting most of the money into just 1 or 2 assets. Higher Gamma = weights spread more evenly.
-        - **Market Implied Returns**: The expected returns that would make today's market-cap weights the optimal portfolio, given the assets' risk (the starting point of Black-Litterman).
-        - **Efficient Frontier**: A curve showing the set of optimal portfolios that offer the highest expected return for a defined level of risk.
+        - **Volatility (risk)**: the annualized standard deviation of returns. Higher volatility means wilder price swings and higher risk.
+        - **Sharpe ratio**: return above the risk-free rate for each unit of volatility, a measure of risk-adjusted return. The tools show an expected one (from the model's estimates) and a realized one (from the backtest). Above 1.0 is often considered good.
+        - **L2 regularization (gamma)**: a penalty added during optimization that discourages putting most of the money into just 1 or 2 assets. Higher gamma spreads the weights more evenly.
+        - **Market-implied returns**: the expected returns that would make today's market-cap weights the optimal portfolio, given the assets' risk (the starting point of Black-Litterman).
+        - **Efficient frontier**: the portfolios with the highest expected return for each level of risk.
         """)
 
     with tab3:
-        st.markdown("### Frequently Asked Questions")
         with st.expander("Where does the data come from?"):
             st.write("Prices come from Yahoo Finance through the open-source yfinance library. The Portfolio tool uses "
                      "daily closing prices adjusted for splits and dividends, on the dates when every asset has a price: "
@@ -96,6 +89,10 @@ def main():
             st.write("Market data changes every day, so each run estimates from a slightly different history. Small "
                      "differences in the data window and in solver precision can also move the weights a little, "
                      "especially for highly correlated assets.")
+        with st.expander("How do I know the numbers are right?"):
+            st.write("The optimization follows the PyPortfolioOpt cookbook, and an automated test suite on GitHub "
+                     "compares its results with the library's own on every change. The code is open source, so "
+                     "anyone can check it.")
 
     # ── Render Footer ──
     from utils.styles import render_footer

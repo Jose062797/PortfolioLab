@@ -406,6 +406,14 @@ vía correlaciones; los otros 9 se movieron hacia su view, antes eran 10/10), y
 en el escenario 6 los pesos no son los de capitalización (ver el punto 1 de
 abajo). La guía trae ahora una tabla con los resultados de ese día.
 
+**Después (`f8a6f41`, publicado en `71e354c`).** Un portafolio que incluía SPY
+rompía ambos backtests (web y PDF): `prepare_backtest_prices`, añadido en
+`1147c0e`, sumaba la columna del benchmark aunque SPY ya fuera un activo, y la
+tabla llevaba SPY dos veces ("Unable to coerce to Series"). Ahora la toma una
+vez; un test corre SPY, AGG, GLD por los dos backtests (sin el arreglo, falla).
+Verificado en producción el 2026-09-27 tras el reinicio: SPY, AGG, GLD con
+Markowitz muestra el backtest completo.
+
 **Pendiente de decisión del usuario:**
 - Black-Litterman calcula el prior y la aversión al riesgo con tasa libre 0 %
   (defaults de PyPortfolioOpt, como el cookbook) pero optimiza con 3 %: sin
@@ -413,6 +421,75 @@ abajo). La guía trae ahora una tabla con los resultados de ese día.
   lo contrario; cambiar el modelo exige actualizar la paridad.
 - Un portafolio solo de cripto anualiza con 252 días aunque cotiza 365.
 - Portafolios en otras monedas: solo se avisa; no hay conversión.
+
+### Fase 7 (2026-09-27) — rediseño: más simple y más claro
+
+**Motivo.** Con el inicio nuevo publicado, el usuario encontró el aspecto
+"inusual y no tan amigable", con demasiada complejidad, y la sección
+Verification (la tabla de paridad con PyPortfolioOpt) "claramente de más,
+nunca vi una página poner algo así". Tras revisar herramientas parecidas eligió:
+inicio simple con ejemplos, objetivos en lenguaje simple, menos avisos y notas,
+y un estilo más claro en todas las páginas. Pidió instalar y usar la skill
+ui-ux-pro-max (github.com/nextlevelbuilder/ui-ux-pro-max-skill, licencia MIT)
+para guiar el diseño. Se instaló para todos sus proyectos en
+`C:\Users\jose_\.claude\skills\ui-ux-pro-max` (solo este equipo), copiando la
+carpeta de la skill en el commit `823b0a1` tras revisar sus scripts: solo
+biblioteca estándar, sin red, escriben archivos solo con `--persist`.
+
+**Qué se tomó de la skill.** Sus búsquedas de sistema de diseño para una
+herramienta financiera coincidieron en el estilo "Minimalism & Swiss Style"; de
+tres consultas se descartó lo que no calzaba (fondos oscuros, tipografía
+manuscrita, patrón de ventas corporativas) y se tomó el patrón "Product Demo +
+Features" (portada y luego el producto mostrado con ejemplos). Reglas aplicadas:
+sin emojis como íconos, foco visible con teclado, objetivos táctiles de 44 px,
+`prefers-reduced-motion`, contraste 4,5:1, etiquetas en tipo oración, una sola
+acción principal, texto de ayuda bajo campos complejos, divulgación progresiva
+(caja de notas), cifras tabulares, dona solo hasta 6 porciones (barras después).
+
+**Cambios.**
+1. **Inicio**: portada clara (titular, dos botones, una línea de datos), tres
+   portafolios de ejemplo que abren Portfolio con el formulario lleno
+   (`?example=<clave>`; se aplica una vez y no ejecuta solo), las dos
+   herramientas con sus gráficos de ejemplo y "How it works" en tres pasos. Se
+   quitaron la Fig. 1, las cifras del proyecto, la banda de verificación y
+   `TEST_COUNT`. About conserva una pregunta frecuente sobre cómo se verifican
+   los números.
+2. **Ejemplos elegidos con datos reales** (todos Markowitz, porque
+   Black-Litterman necesita capitalizaciones y Yahoo las limita en la nube):
+   Big Tech con mejor retorno por riesgo, acciones de dividendos con menor
+   riesgo, y acciones/bonos/oro con límite de riesgo de 10 %. En este último,
+   con CAPM el oro quedaba en 0,9 % (beta casi nula); con media histórica,
+   consejo que la propia página da para bonos y materias primas, el reparto
+   es 36/35/29.
+3. **Objetivos en lenguaje simple** ("Lowest risk", "Best return for the
+   risk", ...) con `format_func`: los valores internos no cambian. El detalle y
+   el PDF muestran también el nombre técnico. Límites y views se escriben en
+   porcentaje.
+4. **Menos avisos**: sin cajas para el formulario vacío, el conteo de tickers,
+   cada view agregada, el éxito de la corrida ni la explicación de Markowitz;
+   las notas de resultados (solapamiento, historia común más corta, fines de
+   semana) van en una sola caja plegada que solo aparece si hay algo que decir.
+   Las pestañas perdieron su encabezado repetido y los textos largos se
+   acortaron.
+5. **Estilo**: tokens claros, azul como único acento, Inter también para las
+   cifras (DM Mono eliminada), pestañas como control segmentado, métricas sin
+   mayúsculas ni animación, emojis retirados de Stocks y de los avisos.
+
+**Errores encontrados al verificar en la app real.** (a) Los títulos salían
+gris pizarra: Streamlit pone `color: inherit` a los encabezados de markdown;
+arreglado con `!important`. (b) En Detalles, dos `$` en el mismo markdown se
+leían como fórmula LaTeX y mostraban "**Assets:**" crudo; ahora se escapan.
+(c) A unos 820 px la etiqueta "Expected return" se cortaba ("Expected re…",
+el detalle cosmético 9 de ESTADO): ahora las etiquetas pasan a dos líneas y,
+entre 641 y 1100 px, todas reservan ese espacio para que las cifras queden a
+la misma altura. Ninguno de los tres lo veían los tests.
+
+**Verificación.** Suite 130 → 136 tests (enlaces de ejemplo, porcentajes que
+llegan como fracciones al motor, objetivo en palabras con su meta, caja de
+notas, dona/barras). Paridad y regresión congelada intactas: el motor no se
+tocó. Mutaciones del rediseño: 8/8 detectadas. En la app local, escritorio
+(1440 px) y celular (375 px) sin scroll horizontal; los tres ejemplos corren
+con datos reales (cifras en la guía, escenario 7).
 
 ## Estado final
 
@@ -441,3 +518,6 @@ Actualización 2026-09-26 (Fase 6): coherencia de lo que se muestra (inicio,
 herramientas, PDF, README) y estimación sobre la ventana común. Suite:
 110 → 129 tests; publicado y verificado en producción en `fa06a10`. Quedan
 tres decisiones de modelo para el usuario (ver Fase 6).
+
+Actualización 2026-09-27 (Fase 7): rediseño más simple y claro, guiado por la
+skill ui-ux-pro-max. Suite: 130 → 136 tests.

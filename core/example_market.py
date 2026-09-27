@@ -1,28 +1,26 @@
 """
-Example data for the Home page: five made-up assets and one made-up stock.
+Examples for the Home page.
 
-Nothing here is market data, and the Home page says so ("Example data").
-What IS real is the code that turns it into pictures: the Home page draws
-the same charts the tools draw, with the same functions.
-
-- The Portfolio example is a Markowitz run with the objective "Maximise
-  Return for a Given Risk" at a 14% target volatility (L2 gamma 0, the
-  Markowitz default), solved by the engine itself:
-  core.opt_engine.calculate_efficient_frontier and optimize_portfolio. The
-  expected returns and covariances are set by hand below, where a real run
-  estimates them from prices. That objective puts the chosen portfolio at its
-  own point on the frontier, apart from the Max Sharpe and Min Variance
-  markers. Fig. 1 is create_efficient_frontier_chart on that result, the
-  Portfolio card shows create_allocation_pie of its weights, and the parity
-  table compares them with PyPortfolioOpt called directly.
-- The Stocks example is one year of daily prices and volumes (a seeded
+- EXAMPLE_PORTFOLIOS: real tickers and a goal. Each Home card links to
+  ./Portfolio?example=<key>, which fills in the Portfolio form
+  (pages/2_Portfolio.py); the user presses Run and the result is computed
+  on live data like any other run. Checked on live data on 2026-09-26: all
+  three run, and each goal gives a mix of assets, not a single one.
+- The Portfolio card's picture: five made-up assets, A to E. Nothing here is
+  market data, and the Home page labels it "Example". What IS real is the
+  code that turns it into a picture: a Markowitz run with the objective
+  "Maximise Return for a Given Risk" at a 14% target volatility (L2 gamma 0,
+  the Markowitz default), solved by the engine itself
+  (core.opt_engine.optimize_portfolio), and drawn by create_allocation_pie,
+  the Portfolio page's own chart. The expected returns and covariances are
+  set by hand below, where a real run estimates them from prices.
+- The Stocks card's picture: one year of daily prices and volumes (a seeded
   random walk) for create_price_chart, the Stocks page's own chart, in the
   page's default view (1Y, Line).
 
-Solving the frontier takes seconds, so the Home page does not solve it on
-load: the results live in assets/example_frontier.json, and
-tests/test_example_market.py solves everything again and fails if the file no
-longer matches. To regenerate the file:
+The solved example lives in assets/example_portfolio.json, so the Home page
+does not load the optimizer; tests/test_example_market.py solves it again and
+fails if the file no longer matches. To regenerate the file:
 
     python -m core.example_market
 """
@@ -36,7 +34,34 @@ import pandas as pd
 
 from core.constants import RISK_FREE_RATE
 
-DATA_FILE = Path(__file__).resolve().parents[1] / "assets" / "example_frontier.json"
+# Keys are the ?example= values; "objective" is the engine's name
+# (core.constants.OBJECTIVE_LABELS has the one users see). All three use
+# Markowitz: Black-Litterman also needs market capitalizations, which Yahoo
+# rate-limits on shared cloud servers, and an example should just work.
+EXAMPLE_PORTFOLIOS = {
+    "big-tech": {
+        "title": "Big Tech",
+        "tickers": ["AAPL", "MSFT", "GOOGL", "AMZN", "META"],
+        "objective": "Max Sharpe",
+    },
+    "dividends": {
+        "title": "Dividend stocks",
+        "tickers": ["KO", "PEP", "JNJ", "PG", "XOM"],
+        "objective": "Min Variance",
+    },
+    "stocks-bonds-gold": {
+        "title": "Stocks, bonds and gold",
+        "tickers": ["VTI", "AGG", "GLD"],
+        "objective": "Maximise Return for a Given Risk",
+        "target_volatility": 0.10,
+        # CAPM measures each asset against SPY, which leaves gold (beta near
+        # zero) with almost no expected return and no weight; the historical
+        # mean is the page's own advice for bonds and commodities.
+        "returns_estimator": "historical",
+    },
+}
+
+DATA_FILE = Path(__file__).resolve().parents[1] / "assets" / "example_portfolio.json"
 
 NAMES = ["A", "B", "C", "D", "E"]
 MU = np.array([0.050, 0.070, 0.095, 0.125, 0.085])
@@ -72,39 +97,24 @@ def _plain(value):
 
 def solve_example() -> dict:
     """
-    Run the engine on the example assets, plus PyPortfolioOpt directly.
+    Run the engine on the made-up assets.
 
     Returns:
-        Dict with "ef_data" (calculate_efficient_frontier), "portfolio"
-        (optimize_portfolio: weights and its expected return, volatility and
-        Sharpe ratio), "reference" (the same from PyPortfolioOpt's own
-        EfficientFrontier.efficient_risk) and the PyPortfolioOpt version used.
+        Dict with the objective, its target volatility, the risk-free rate and
+        "portfolio" (optimize_portfolio: weights and their expected return,
+        volatility and Sharpe ratio).
     """
-    import pypfopt
-    from pypfopt import EfficientFrontier
-
-    from core.opt_engine import calculate_efficient_frontier, optimize_portfolio
+    from core.opt_engine import optimize_portfolio
 
     mu, cov = example_inputs()
-    ef_data = calculate_efficient_frontier(mu, cov)
     weights, perf = optimize_portfolio(mu, cov, obj_function=OBJECTIVE,
                                        target_volatility=TARGET_VOLATILITY, l2_gamma=0.0)
-
-    ef = EfficientFrontier(mu, cov)
-    ef.efficient_risk(target_volatility=TARGET_VOLATILITY)
-    ref_weights = ef.clean_weights()
-    ref_ret, ref_vol, ref_sharpe = ef.portfolio_performance(risk_free_rate=RISK_FREE_RATE)
-
     return _plain({
         "objective": OBJECTIVE,
         "target_volatility": TARGET_VOLATILITY,
         "rf": RISK_FREE_RATE,
-        "pypfopt_version": pypfopt.__version__,
-        "ef_data": ef_data,
         "portfolio": {"weights": dict(weights), "return": perf["expected_return"],
                       "volatility": perf["volatility"], "sharpe": perf["sharpe_ratio"]},
-        "reference": {"weights": dict(ref_weights), "return": ref_ret,
-                      "volatility": ref_vol, "sharpe": ref_sharpe},
     })
 
 

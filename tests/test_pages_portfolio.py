@@ -39,8 +39,16 @@ def joined(elements):
 
 
 def run_button(at):
-    """The 'Run Optimization' button (the only button on the page pre-results)."""
-    return next(b for b in at.button if b.label == "Run Optimization")
+    """The 'Run optimization' button (the only button on the page pre-results)."""
+    return next(b for b in at.button if b.label == "Run optimization")
+
+
+def notes_text(at):
+    """The 'Notes about these results' box: its label and its text. It is an
+    st.expander with an icon, which AppTest lists under at.status."""
+    boxes = [e for e in list(at.expander) + list(at.status)
+             if e.label.startswith("Notes about these results")]
+    return "\n".join([e.label for e in boxes] + [joined(e.markdown) for e in boxes])
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -54,7 +62,8 @@ class TestEmptyStateAndValidation:
         at = fresh_page()
 
         assert not at.exception
-        assert "Enter 2 to 20 tickers" in joined(at.info)
+        assert "2 to 20 symbols" in joined(at.caption)
+        assert not at.warning, "an empty form is not a mistake"
         assert run_button(at).disabled is True
 
     def test_single_ticker_warns_and_keeps_run_disabled(self):
@@ -70,14 +79,14 @@ class TestEmptyStateAndValidation:
             ", ".join(f"TICK{i}" for i in range(21))
         ).run()
 
-        assert "Maximum 20 tickers allowed" in joined(at.warning)
+        assert "20 tickers at most" in joined(at.warning)
         assert run_button(at).disabled is True
 
     def test_valid_ticker_count_enables_run(self):
         at = fresh_page()
         at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
 
-        assert "3 tickers selected" in joined(at.success)
+        assert not at.warning
         assert run_button(at).disabled is False
 
     def test_malformed_ticker_rejected_by_validator(self, mock_yfinance_extended):
@@ -149,8 +158,7 @@ class TestNonEquityWarning:
         at.text_input("tickers_input").set_value("AAPL, BTC-USD").run()
 
         warnings = joined(at.warning)
-        assert "Model limitation" in warnings
-        assert "BTC-USD" in warnings
+        assert "BTC-USD is not a stock" in warnings
         assert run_button(at).disabled is False, "crypto is warned about, not blocked"
 
     def test_hint_recommends_historical_mean_only_under_markowitz(self):
@@ -167,7 +175,7 @@ class TestNonEquityWarning:
         at.selectbox("model_type_select").set_value("Markowitz").run()
 
         warnings = joined(at.warning)
-        assert "Advanced Optimization Settings" in warnings
+        assert "Advanced settings" in warnings
         assert "Historical mean" in warnings
 
     def test_forex_under_markowitz_also_gets_the_hint(self):
@@ -288,9 +296,9 @@ class TestOverlapNotice:
         assert not at.exception
         assert at.session_state["optimization_result"]["success"]
 
-        infos = joined(at.info)
-        assert "Possible overlapping holdings" in infos
-        assert "VOO" in infos and "IVV" in infos
+        notes = notes_text(at)
+        assert "Overlapping holdings" in notes
+        assert "VOO" in notes and "IVV" in notes
 
     def test_distinct_assets_do_not_trigger_overlap_notice(self, mock_yfinance_extended):
         at = fresh_page()
@@ -299,7 +307,7 @@ class TestOverlapNotice:
         run_button(at).click().run()
 
         assert not at.exception
-        assert "Possible overlapping holdings" not in joined(at.info)
+        assert "Overlapping holdings" not in notes_text(at)
 
 
 class TestAllocationMethodCaption:
@@ -350,10 +358,9 @@ class TestResultsPanel:
         run_button(at).click().run()
 
         assert not at.exception
-        assert "Optimization completed successfully" in joined(at.success)
 
         labels = [m.label for m in at.metric]
-        for expected in ["Expected Return", "Volatility", "Sharpe Ratio", "Assets"]:
+        for expected in ["Expected return", "Volatility", "Sharpe ratio", "Budget", "Assets"]:
             assert expected in labels
 
     def test_markowitz_swaps_returns_analysis_for_efficient_frontier(
@@ -365,9 +372,25 @@ class TestResultsPanel:
         at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
         run_button(at).click().run()
 
-        headings = joined(at.markdown)
-        assert "Efficient Frontier" in headings
-        assert "### Returns Analysis" not in headings
+        tabs = [t.label for t in at.tabs]
+        assert tabs == ["Allocation", "Efficient frontier", "Historical performance",
+                        "Correlation", "Details"]
+
+    def test_details_name_the_goal_in_plain_words_and_its_target(self, mock_yfinance_extended):
+        at = fresh_page()
+        at.selectbox("model_type_select").set_value("Markowitz").run()
+        at.selectbox("obj_function_select").set_value("Maximise Return for a Given Risk").run()
+        at.number_input("target_volatility_pct").set_value(25.0).run()
+        at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
+        run_button(at).click().run()
+
+        assert not at.exception
+        result = at.session_state["optimization_result"]
+        assert result["success"], result.get("error")
+        # The form takes a percentage; the engine a fraction
+        assert result["target_volatility"] == 0.25
+        assert ("Highest return within a risk limit of 25% (Maximise Return for a Given Risk)"
+                in joined(at.markdown))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -426,7 +449,7 @@ class TestCurrencyWarning:
         at.text_input("tickers_input").set_value(tickers).run()
 
         warnings = joined(at.warning)
-        assert "Currency" in warnings and flagged in warnings
+        assert f"{flagged} is priced in another currency" in warnings
         assert run_button(at).disabled is False
 
     @pytest.mark.parametrize("tickers", ["BRK-B, AAPL", "BTC-USD, AAPL", "AAPL, MSFT"])
@@ -434,7 +457,7 @@ class TestCurrencyWarning:
         at = fresh_page()
         at.text_input("tickers_input").set_value(tickers).run()
 
-        assert "Currency" not in joined(at.warning)
+        assert "another currency" not in joined(at.warning)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -454,9 +477,8 @@ class TestDataNotes:
         run_button(at).click().run()
         assert at.session_state["optimization_result"]["success"]
 
-        infos = joined(at.info)
-        assert "Shorter common history" not in infos
-        assert "Weekend prices" not in infos
+        # Nothing to note: no notes box at all
+        assert notes_text(at) == ""
 
         at.session_state["optimization_result"]["data_notes"] = {
             "data_start": "2020-01-02",
@@ -465,7 +487,73 @@ class TestDataNotes:
         }
         at.run()
 
-        infos = joined(at.info)
-        assert "Shorter common history" in infos
-        assert "GOOGL" in infos and "2022-06-01" in infos
-        assert "Weekend prices" in infos
+        notes = notes_text(at)
+        assert "Notes about these results (2)" in notes
+        assert "Shorter common history" in notes
+        assert "GOOGL" in notes and "2022-06-01" in notes
+        assert "Weekend prices" in notes
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Home page example links: ./Portfolio?example=<key> fills the form
+# ═══════════════════════════════════════════════════════════════════
+
+class TestExampleLinks:
+    """Each Home card links here with ?example=<key>. The form must be filled
+    in exactly as the example says, once, and never run by itself."""
+
+    def open_example(self, key):
+        at = AppTest.from_file(PORTFOLIO_PAGE, default_timeout=PAGE_TIMEOUT)
+        at.query_params["example"] = key
+        at.run()
+        return at
+
+    def test_example_fills_the_form(self):
+        at = self.open_example("stocks-bonds-gold")
+
+        assert not at.exception
+        assert at.text_input("tickers_input").value == "VTI, AGG, GLD"
+        assert at.selectbox("model_type_select").value == "Markowitz"
+        assert at.selectbox("obj_function_select").value == "Maximise Return for a Given Risk"
+        assert at.number_input("target_volatility_pct").value == 10.0
+        assert at.selectbox("returns_estimator_select").value == "Historical mean"
+        assert run_button(at).disabled is False
+        assert at.session_state["optimization_result"] is None, "the user presses Run"
+
+    def test_example_applies_once(self):
+        """The parameter leaves the URL, so the next rerun keeps the user's edits."""
+        at = self.open_example("big-tech")
+        assert "example" not in at.query_params
+
+        at.text_input("tickers_input").set_value("AAPL, MSFT").run()
+        assert at.text_input("tickers_input").value == "AAPL, MSFT"
+
+    def test_unknown_example_leaves_the_form_empty(self):
+        at = self.open_example("no-such-example")
+
+        assert not at.exception
+        assert at.text_input("tickers_input").value == ""
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Black-Litterman views: typed in percent, passed on as fractions
+# ═══════════════════════════════════════════════════════════════════
+
+class TestViewsInPercent:
+
+    def test_views_reach_the_engine_as_fractions(self, mock_yfinance_extended, monkeypatch):
+        monkeypatch.setattr("time.sleep", lambda seconds: None)  # market-cap request pacing
+        at = fresh_page()
+        at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
+        at.checkbox("add_views_checkbox").check().run()
+        at.multiselect("selected_views_ms").select("AAPL").run()
+        at.number_input("exp_AAPL").set_value(12.0).run()
+        at.number_input("low_AAPL").set_value(8.0).run()
+        at.number_input("upp_AAPL").set_value(16.0).run()
+        run_button(at).click().run()
+
+        assert not at.exception
+        result = at.session_state["optimization_result"]
+        assert result["success"], result.get("error")
+        assert result["viewdict"] == {"AAPL": 0.12}
+        assert result["views_detail"]["AAPL"] == {"expected": 0.12, "lower": 0.08, "upper": 0.16}

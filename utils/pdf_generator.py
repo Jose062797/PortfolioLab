@@ -33,7 +33,7 @@ from core.pdf_shared import (
     add_historical_header,
     add_historical_metrics,
 )
-from core.constants import MIN_WEIGHT_THRESHOLD
+from core.constants import MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, goal_text
 
 logger = logging.getLogger(__name__)
 
@@ -200,10 +200,10 @@ def _add_cover_page(pdf, portfolio_value, full_start, full_end, backtest_range,
     pdf.set_y(40)
     pdf.cell(0, 12, model_type, align='C',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    # Show objective for Markowitz
+    # Show the goal for Markowitz, in the words the app uses
     if model_type == 'Markowitz':
         pdf.set_font('helvetica', '', 16)
-        pdf.cell(0, 10, f'Objective: {obj_function}', align='C',
+        pdf.cell(0, 10, f'Goal: {OBJECTIVE_LABELS.get(obj_function, obj_function)}', align='C',
                  new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_font('helvetica', 'B', 24)
     pdf.cell(0, 12, 'Portfolio Report', align='C',
@@ -296,11 +296,12 @@ def _add_executive_summary(pdf, portfolio_value, n_assets, result_data):
     if model_type == "Markowitz":
         obj_desc = describe_objective(obj_function, result_data.get('target_volatility'),
                                       result_data.get('target_return'))
+        goal = OBJECTIVE_LABELS.get(obj_function, obj_function)
         summary_text = (
             f"This report presents an optimized portfolio allocation for "
             f"${portfolio_value:,.0f} across {n_assets} assets using "
-            f"Mean-Variance Optimization (Markowitz) with the "
-            f"{obj_function} objective, which {obj_desc}."
+            f"Mean-Variance Optimization (Markowitz) with the goal "
+            f"\"{goal}\" ({obj_function}), which {obj_desc}."
         )
     else:
         views_part = ("your views" if result_data.get('viewdict')
@@ -503,10 +504,8 @@ def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
 
     model_type = result_data.get('model_type', 'Black-Litterman')
     objective = result_data.get('obj_function', 'Max Sharpe')
-    if objective == 'Maximise Return for a Given Risk' and result_data.get('target_volatility') is not None:
-        objective += f" (target volatility {result_data['target_volatility']*100:.0f}%)"
-    elif objective == 'Minimise Risk for a Given Return' and result_data.get('target_return') is not None:
-        objective += f" (target return {result_data['target_return']*100:.0f}%)"
+    goal = (f"{goal_text(objective, result_data.get('target_volatility'), result_data.get('target_return'))}"
+            f" ({objective})")
     if model_type == 'Markowitz':
         estimator = ('Historical mean' if result_data.get('returns_estimator') == 'historical'
                      else 'CAPM against SPY')
@@ -514,7 +513,7 @@ def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
         estimator = 'market-implied prior' + (' blended with your views' if result_data.get('viewdict') else '')
     rows = [
         ('Model:', model_type),
-        ('Objective:', objective),
+        ('Goal:', goal),
         ('Expected Returns:', estimator),
         ('Covariance:', 'Ledoit-Wolf shrinkage'),
     ]
@@ -525,6 +524,7 @@ def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
     rows.append(('Optimization Date:', timestamp[:10] if timestamp != 'N/A' else 'N/A'))
     for label, value in rows:
         pdf.cell(58, 6, label, new_x=XPos.RIGHT)
-        pdf.cell(0, 6, value, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        # multi_cell: a goal with its target and textbook name can be long
+        pdf.multi_cell(0, 6, value, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(5)

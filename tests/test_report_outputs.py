@@ -14,6 +14,7 @@ from utils.optimizer_wrapper import run_optimization
 from utils.pdf_generator import generate_portfolio_pdf
 from utils.visualizations import (
     create_correlation_heatmap,
+    create_allocation_chart,
     create_allocation_pie,
     create_efficient_frontier_chart,
     create_historical_performance_chart,
@@ -109,6 +110,23 @@ class TestVisualizations:
             w for w in markowitz_result["weights"].values() if w > 0.001
         )
         assert shown.sum() == pytest.approx(expected_pct, abs=2.0)
+
+    def test_allocation_chart_is_a_donut_up_to_six_assets_then_bars(self):
+        """A donut shows up to six slices clearly; beyond that, bars (largest on top)."""
+        six = {f"T{i}": w for i, w in enumerate([0.3, 0.2, 0.15, 0.15, 0.1, 0.1])}
+        fig = create_allocation_chart(six)
+        assert isinstance(fig.data[0], go.Pie)
+
+        seven = dict(six, T0=0.25, T6=0.05)
+        fig = create_allocation_chart(seven)
+        bars = fig.data[0]
+        assert isinstance(bars, go.Bar) and bars.orientation == "h"
+        assert list(bars.y)[-1] == "T0", "largest weight drawn on top"
+        np.testing.assert_allclose(sorted(bars.x), sorted(100 * w for w in seven.values()))
+
+        # Weights below the display threshold are not counted as slices
+        tiny = dict(six, T6=0.0005, T7=0.0002)
+        assert isinstance(create_allocation_chart(tiny).data[0], go.Pie)
 
     def test_efficient_frontier_chart(self, markowitz_result):
         m = markowitz_result["metrics"]

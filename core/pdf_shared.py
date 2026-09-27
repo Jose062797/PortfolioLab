@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 # Import constants — supports both `python core/pdf_shared.py` and `from core.pdf_shared import ...`
 try:
     from constants import (
-        ASSET_COLORS, MIN_WEIGHT_THRESHOLD, RETURN_COMPARISON_TOLERANCE,
+        ASSET_COLORS, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, RETURN_COMPARISON_TOLERANCE,
         SHARPE_COMPARISON_TOLERANCE
     )
 except ImportError:
     from core.constants import (
-        ASSET_COLORS, MIN_WEIGHT_THRESHOLD, RETURN_COMPARISON_TOLERANCE,
+        ASSET_COLORS, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, RETURN_COMPARISON_TOLERANCE,
         SHARPE_COMPARISON_TOLERANCE
     )
 
@@ -281,7 +281,7 @@ def add_methodology(pdf, result: dict) -> None:
             "Mean-variance optimization (Markowitz), following the PyPortfolioOpt cookbook:\n\n"
             f"- Expected returns: {estimator}, estimated from daily prices\n"
             "- Risk model: Ledoit-Wolf shrunk covariance matrix of daily returns\n"
-            f"- Objective: {objective}, which "
+            f"- Goal: {OBJECTIVE_LABELS.get(objective, objective)} ({objective}), which "
             f"{describe_objective(objective, result.get('target_volatility'), result.get('target_return'))}\n"
             f"- L2 regularization: {gamma_text}"
             + (" (none)" if not gamma else " (spreads the weights across assets)") + "\n"
@@ -396,8 +396,9 @@ def add_chart_description(pdf, chart_type: str, result: dict = None) -> None:
             "together; red cells: assets that tend to move in opposite directions."
         ),
         'allocation': (
-            f"The weights are the optimizer's solution for the chosen objective "
-            f"({objective}). They follow from the model's estimates of return and risk, "
+            f"The weights are the optimizer's solution for the chosen goal "
+            f"({OBJECTIVE_LABELS.get(objective, objective).lower()}). They follow from the "
+            "model's estimates of return and risk, "
             "which are uncertain, and they are not a forecast. Shares are whole units "
             "bought at the last close with a price for every asset: Target Value is "
             "weight x budget, Actual Value is shares x price."
