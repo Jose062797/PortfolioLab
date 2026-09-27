@@ -224,7 +224,14 @@ mucho; con datos de otro día las cifras se mueven un poco.
   6. BL sin views      20,67% / 24,30% / 0,727   ventana desde 2006-05-25
                        (por MA); AMZN 30,0%, MSFT 22,7%, JPM 18,2%
 
-Escenario 7, con los datos del 2026-09-27 (rediseño):
+Re-ejecución del 2026-09-27 con el código del rediseño (b6d88e9): los
+6 escenarios dieron cifras IDÉNTICAS a las de arriba, con las mismas
+ventanas y los mismos pesos principales (el último cierre seguía
+siendo el viernes 2026-09-25). El motor no cambió en el rediseño; solo
+la presentación.
+
+Escenario 7, con los datos del 2026-09-27 (rediseño; en producción dio
+exactamente lo mismo que en local):
 
   Big Tech             17,35% / 23,09% / 0,621   ventana desde 2012-05-18
                        (por META); MSFT 33,0%, AAPL 29,5%, GOOGL 21,9%

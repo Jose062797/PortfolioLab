@@ -77,14 +77,19 @@ def _goal(example: dict) -> str:
 
 
 def _hero() -> None:
-    """Headline, what the app does and the two ways in."""
+    """Headline, what the app does and the two ways in.
+
+    Stocks comes first, as in the tool cards below: look an asset up, then
+    build the portfolio (the user's reading order, 2026-09-27). Portfolio
+    keeps the primary style.
+    """
     st.markdown("""
     <div class="bl-hero">
         <h1>Build and test a portfolio in minutes</h1>
         <p class="bl-lead">Enter a few tickers and choose a goal. PortfolioLab finds the optimal weights with Markowitz or Black-Litterman, shows how they would have done, and turns them into whole shares for your budget.</p>
         <div class="bl-ctas">
-            <a class="bl-btn bl-btn-primary" href="./Portfolio" target="_self">Build a portfolio</a>
             <a class="bl-btn bl-btn-secondary" href="./Stocks" target="_self">Explore a stock</a>
+            <a class="bl-btn bl-btn-primary" href="./Portfolio" target="_self">Build a portfolio</a>
         </div>
         <p class="bl-hero-meta">Free and open source · Market data from Yahoo Finance · For learning, not investment advice</p>
     </div>

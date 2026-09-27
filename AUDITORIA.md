@@ -491,6 +491,55 @@ tocó. Mutaciones del rediseño: 8/8 detectadas. En la app local, escritorio
 (1440 px) y celular (375 px) sin scroll horizontal; los tres ejemplos corren
 con datos reales (cifras en la guía, escenario 7).
 
+**En producción (`b6d88e9`, 2026-09-27, tras el reinicio del usuario).**
+Entre el push y el reinicio el inicio mostró `ImportError` (la página nueva
+importa `goal_text`, que el proceso viejo no tenía cargado): se esperaba y lo
+resolvió el reinicio. Después se revisó:
+- Inicio en 1440 y 375 px: portada, tres ejemplos, dos herramientas con sus
+  gráficos, pasos, pie con el aviso; títulos azul marino, logo servido como PNG
+  real (bytes, no solo el 200), nada del diseño anterior, sin scroll horizontal.
+- Los tres enlaces de ejemplo desde la dirección real (la app dentro del
+  iframe): cada uno llena el formulario (tickers, modelo, objetivo, límite y
+  estimador), la barra de direcciones queda en `/Portfolio` sin el parámetro y
+  nada corre solo. Al presionar Run, Big Tech 17,35 % / 23,09 % / 0,621,
+  dividendos 7,70 % / 16,78 % / 0,280 y acciones/bonos/oro 8,47 % / 10,00 % /
+  0,547: lo mismo que en local, con asignación exacta (ecos) en la nube.
+- Todas las pestañas: dona con etiquetas, frontera con "Your portfolio",
+  backtest con su tabla, correlaciones, Detalles con los montos en dólares
+  (sin fórmulas LaTeX) y el objetivo en palabras; botón del PDF presente (el
+  informe se generó sin error) y caja de notas con la historia común.
+- Black-Litterman con views escritas en %: AAPL 12/8/16, MSFT y GOOGL 15/10/20
+  llegaron al motor como 0,12 y 0,15 (barras de "Your Views"), el posterior se
+  movió hacia cada view y Yahoo entregó las capitalizaciones esta vez.
+- Stocks: estado vacío, símbolo inválido, VOO (ETF), AAPL (tres pestañas) y
+  BTC-USD (cripto), sin emojis. About: pestañas y las cuatro preguntas.
+- Menú desde la dirección real: About abre en `/About` sin anidarse; Atrás
+  vuelve al inicio.
+- La guía manual se repitió con el código nuevo: escenarios 1 a 6 idénticos a
+  la referencia del día anterior. Los PDF de los escenarios 3 y 5 se leyeron
+  página por página: portada, resumen, metodología y detalle nombran el
+  objetivo en palabras con su nombre técnico.
+
+**Ajuste pedido por el usuario al verificar.** Los botones de la portada
+estaban al revés del orden de las herramientas ("investigar primero y calcular
+el portafolio después"): ahora "Explore a stock" va a la izquierda y "Build a
+portfolio", el principal, a la derecha; un test lo fija y detecta el orden
+viejo.
+
+**Diferencia conocida.** Con más de seis activos la web dibuja barras y el PDF
+sigue dibujando torta (sus gráficos tienen estilo propio); unificarlo queda a
+decisión del usuario.
+
+**Test inestable hallado en la última corrida.** `TestViewsInPercent`, nuevo en
+el rediseño, anulaba `time.sleep` en todo el proceso para saltarse las pausas
+entre consultas de capitalización. AppTest espera la página con
+`time.sleep(0.001)` en un bucle: con la anulación, ese bucle giraba sin pausa y
+dejaba sin tiempo al hilo de la página. El test pasó por suerte en las
+corridas del rediseño y en CI, y después se agotó a los 180 s (310 s en total;
+la misma lógica tarda 2 s fuera de AppTest). Ahora solo se saltan las pausas
+largas del motor: el test tarda 3,8 s, sigue detectando las views sin dividir
+por 100, y la suite completa bajó de 150-270 s a 88 s.
+
 ## Estado final
 
 Las 4 fases completadas el 2026-07-16. Suite: 35 → 69 tests.
@@ -520,4 +569,6 @@ herramientas, PDF, README) y estimación sobre la ventana común. Suite:
 tres decisiones de modelo para el usuario (ver Fase 6).
 
 Actualización 2026-09-27 (Fase 7): rediseño más simple y claro, guiado por la
-skill ui-ux-pro-max. Suite: 130 → 136 tests.
+skill ui-ux-pro-max. Suite: 130 → 137 tests (136 del rediseño y 1 del orden de
+los botones de la portada). Publicado en `b6d88e9` y verificado en producción,
+incluida la guía manual repetida con cifras idénticas.

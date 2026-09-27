@@ -14,6 +14,7 @@ managed for Streamlit widgets. That is what makes the "Expected Returns
 Estimator" selector verifiable at all (audit item #7).
 """
 
+import time
 from pathlib import Path
 
 import pytest
@@ -542,7 +543,12 @@ class TestExampleLinks:
 class TestViewsInPercent:
 
     def test_views_reach_the_engine_as_fractions(self, mock_yfinance_extended, monkeypatch):
-        monkeypatch.setattr("time.sleep", lambda seconds: None)  # market-cap request pacing
+        # Skip the engine's pacing between market-cap requests (whole seconds),
+        # but keep short sleeps: AppTest waits for the page with
+        # time.sleep(0.001), and a blanket no-op turned that wait into a busy
+        # loop that starved the page's thread (5 minutes, then a timeout).
+        real_sleep = time.sleep
+        monkeypatch.setattr("time.sleep", lambda seconds: real_sleep(seconds) if seconds < 0.5 else None)
         at = fresh_page()
         at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
         at.checkbox("add_views_checkbox").check().run()

@@ -67,6 +67,17 @@ class TestHomePage:
 
         assert "not investment advice" in joined(at.markdown).lower()
 
+    def test_hero_buttons_follow_the_tools_order(self):
+        """Look an asset up first, then build the portfolio: the hero buttons go
+        in the same order as the tool cards below them (the user's call,
+        2026-09-27)."""
+        at = render(HOME_PAGE)
+        hero = next(m.value for m in at.markdown if 'class="bl-hero"' in m.value)
+        body = joined(at.markdown)
+
+        assert hero.index('href="./Stocks"') < hero.index('href="./Portfolio"')
+        assert body.index("<h3>Stocks</h3>") < body.index("<h3>Portfolio</h3>")
+
 
 class TestAboutPage:
 
