@@ -17,6 +17,9 @@ CLAUDE.md
 ESTADO.md
 .claude/
 
+# Temporary copies an editor writes while saving a file (e.g. ESTADO.md.tmp.30404.707859b62162)
+*.tmp.*
+
 # Test cache
 .pytest_cache/
 
