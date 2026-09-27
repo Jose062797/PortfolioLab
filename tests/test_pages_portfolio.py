@@ -44,6 +44,12 @@ def run_button(at):
     return next(b for b in at.button if b.label == "Run optimization")
 
 
+def black_litterman(at):
+    """Switch the model to Black-Litterman (the page opens on Markowitz)."""
+    at.selectbox("model_type_select").set_value("Black-Litterman").run()
+    return at
+
+
 def notes_text(at):
     """The 'Notes about these results' box: its label and its text. It is an
     st.expander with an icon, which AppTest lists under at.status."""
@@ -63,6 +69,8 @@ class TestEmptyStateAndValidation:
         at = fresh_page()
 
         assert not at.exception
+        # Markowitz first: it needs no market capitalizations (rate-limited on the cloud)
+        assert at.selectbox("model_type_select").value == "Markowitz"
         assert "2 to 20 symbols" in joined(at.caption)
         assert not at.warning, "an empty form is not a mistake"
         assert run_button(at).disabled is True
@@ -118,9 +126,7 @@ class TestBlackLittermanForexBlock:
     """
 
     def test_forex_with_black_litterman_shows_error_and_disables_run(self):
-        at = fresh_page()
-        assert at.selectbox("model_type_select").value == "Black-Litterman"
-
+        at = black_litterman(fresh_page())
         at.text_input("tickers_input").set_value("AAPL, EURUSD=X").run()
 
         errors = joined(at.error)
@@ -130,7 +136,7 @@ class TestBlackLittermanForexBlock:
         assert run_button(at).disabled is True
 
     def test_switching_to_markowitz_unblocks_forex(self):
-        at = fresh_page()
+        at = black_litterman(fresh_page())
         at.text_input("tickers_input").set_value("AAPL, EURUSD=X").run()
         assert run_button(at).disabled is True
 
@@ -140,7 +146,7 @@ class TestBlackLittermanForexBlock:
         assert run_button(at).disabled is False
 
     def test_equities_with_black_litterman_are_not_blocked(self):
-        at = fresh_page()
+        at = black_litterman(fresh_page())
         at.text_input("tickers_input").set_value("AAPL, MSFT").run()
 
         assert "forex" not in joined(at.error)
@@ -167,7 +173,7 @@ class TestNonEquityWarning:
         The hint tells the user to switch estimator — advice that only makes
         sense when the estimator selector exists (Markowitz).
         """
-        at = fresh_page()
+        at = black_litterman(fresh_page())
         at.text_input("tickers_input").set_value("AAPL, BTC-USD").run()
 
         # Black-Litterman: warning present, but no estimator to switch to.
@@ -198,7 +204,7 @@ class TestReturnsEstimatorSelector:
     """
 
     def test_selector_exists_only_for_markowitz(self):
-        at = fresh_page()
+        at = black_litterman(fresh_page())
         keys = [s.key for s in at.selectbox]
         assert "returns_estimator_select" not in keys, "BL has no CAPM estimator choice"
 
@@ -421,7 +427,7 @@ class TestMarketSizeErrors:
             "utils.optimizer_wrapper.run_optimization",
             lambda **kwargs: {"success": False, "error": error},
         )
-        at = fresh_page()
+        at = black_litterman(fresh_page())
         at.text_input("tickers_input").set_value("AAPL, MSFT").run()
         run_button(at).click().run()
 
@@ -549,7 +555,7 @@ class TestViewsInPercent:
         # loop that starved the page's thread (5 minutes, then a timeout).
         real_sleep = time.sleep
         monkeypatch.setattr("time.sleep", lambda seconds: real_sleep(seconds) if seconds < 0.5 else None)
-        at = fresh_page()
+        at = black_litterman(fresh_page())
         at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
         at.checkbox("add_views_checkbox").check().run()
         at.multiselect("selected_views_ms").select("AAPL").run()

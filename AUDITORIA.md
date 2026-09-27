@@ -526,9 +526,10 @@ el portafolio después"): ahora "Explore a stock" va a la izquierda y "Build a
 portfolio", el principal, a la derecha; un test lo fija y detecta el orden
 viejo.
 
-**Diferencia conocida.** Con más de seis activos la web dibuja barras y el PDF
-sigue dibujando torta (sus gráficos tienen estilo propio); unificarlo queda a
-decisión del usuario.
+**Decisiones finales del usuario (2026-09-27).** Portfolio abre con Markowitz
+(no necesita capitalizaciones, que Yahoo limita en la nube); la pregunta
+frecuente sobre la verificación se queda; y el PDF, como la web, dibuja barras
+con más de seis activos (una torta de 13 porciones no se leía). Tests: 138.
 
 **Test inestable hallado en la última corrida.** `TestViewsInPercent`, nuevo en
 el rediseño, anulaba `time.sleep` en todo el proceso para saltarse las pausas

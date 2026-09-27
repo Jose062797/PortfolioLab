@@ -179,9 +179,11 @@ def main():
     with col2:
         _step(2, "Model and goal")
 
+        # Markowitz first (2026-09-27): it needs no market capitalizations,
+        # which Yahoo rate-limits on the cloud, so a first run just works
         model_type = st.selectbox(
             "Model",
-            options=["Black-Litterman", "Markowitz"],
+            options=["Markowitz", "Black-Litterman"],
             index=0,
             format_func=MODEL_LABELS.get,
             key="model_type_select",

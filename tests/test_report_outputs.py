@@ -64,6 +64,20 @@ class TestPdfGenerator:
         assert bytes(pdf_bytes[:5]) == b"%PDF-", "output must be a real PDF"
         assert len(pdf_bytes) > 10_000, "a full report should not be near-empty"
 
+    def test_pdf_allocation_is_a_pie_up_to_six_assets_then_bars(self, monkeypatch):
+        """Like the web: above six assets the PDF draws bars, not an unreadable pie."""
+        from matplotlib.patches import Rectangle, Wedge
+        from core import pdf_shared
+
+        figures = []
+        monkeypatch.setattr(pdf_shared, "_fig_to_bytes", lambda fig: figures.append(fig) or b"")
+        pdf_shared.create_allocation_chart({f"T{i}": 1 / 6 for i in range(6)})
+        pdf_shared.create_allocation_chart({f"T{i}": 1 / 7 for i in range(7)})
+
+        pie_ax, bars_ax = (fig.axes[0] for fig in figures)
+        assert sum(isinstance(p, Wedge) for p in pie_ax.patches) == 6
+        assert sum(isinstance(p, Rectangle) for p in bars_ax.patches) == 7
+
     def test_pdf_reflects_objective_in_metadata(self, markowitz_result):
         """Sanity: changing the objective must not break generation."""
         markowitz_result = dict(markowitz_result, obj_function="Max Sharpe")

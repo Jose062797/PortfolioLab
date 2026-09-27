@@ -118,15 +118,33 @@ def create_comparison_chart(
     return _fig_to_bytes(fig)
 
 
-def create_allocation_chart(weights: dict) -> bytes:
-    """Create portfolio allocation pie chart."""
-    fig, ax = plt.subplots(figsize=(6, 6))
-    fig.patch.set_facecolor('white')
+MAX_PIE_SLICES = 6  # as the web (utils/visualizations.MAX_DONUT_SLICES)
 
+
+def create_allocation_chart(weights: dict) -> bytes:
+    """Portfolio allocation: a pie up to MAX_PIE_SLICES assets, horizontal
+    bars (largest on top) beyond, like the web page's Allocation tab."""
     weights_series = pd.Series({
         k: v for k, v in weights.items()
         if v > MIN_WEIGHT_THRESHOLD
     })
+
+    if len(weights_series) > MAX_PIE_SLICES:
+        shown = weights_series.sort_values()
+        fig, ax = plt.subplots(figsize=(7, max(3.5, 0.4 * len(shown) + 1)))
+        fig.patch.set_facecolor('white')
+        ax.barh(shown.index, shown.values * 100, color=ASSET_COLORS[0])
+        for i, value in enumerate(shown.values * 100):
+            ax.text(value, i, f' {value:.1f}%', va='center', fontsize=9)
+        ax.set_xlim(0, shown.max() * 100 * 1.15)
+        ax.set_xlabel('Weight (%)')
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.set_title('Portfolio Allocation', fontweight='bold', fontsize=12)
+        plt.tight_layout()
+        return _fig_to_bytes(fig)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    fig.patch.set_facecolor('white')
     # Colors handed out in the same order as the web pie (create_allocation_pie)
     colors = ASSET_COLORS[:len(weights_series)]
     # Percentages only on slices big enough to hold one; the table below lists every weight
