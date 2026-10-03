@@ -64,6 +64,16 @@ class TestPdfGenerator:
         assert bytes(pdf_bytes[:5]) == b"%PDF-", "output must be a real PDF"
         assert len(pdf_bytes) > 10_000, "a full report should not be near-empty"
 
+    def test_build_report_pdf_adds_the_backtest_and_returns_a_pdf(self, markowitz_result):
+        """What the page's download button calls on click."""
+        from utils.pdf_generator import build_report_pdf
+
+        result = dict(markowitz_result)
+        result.pop("historical_data", None)
+        pdf = build_report_pdf(result)
+        assert pdf[:5] == b"%PDF-" and len(pdf) > 10_000
+        assert result["historical_data"]["period"], "the backtest must be in the report"
+
     def test_pdf_allocation_is_a_pie_up_to_six_assets_then_bars(self, monkeypatch):
         """Like the web: above six assets the PDF draws bars, not an unreadable pie."""
         from matplotlib.patches import Rectangle, Wedge

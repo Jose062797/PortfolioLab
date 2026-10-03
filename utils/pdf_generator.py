@@ -65,6 +65,25 @@ class PortfolioPDFReport(FPDF):
         self.set_text_color(0, 0, 0)
 
 
+def build_report_pdf(result_data, logo_path=None) -> bytes:
+    """
+    The Portfolio page's whole report: the backtest (if the result does not
+    carry one yet), then the PDF. The page hands this to st.download_button
+    as a callable, so it runs only when someone clicks Download, not on
+    every rerun of the results page (it was the page's heaviest work).
+    """
+    from utils.optimizer_wrapper import run_backtest
+
+    if result_data.get('historical_data') is None:
+        try:
+            result_data['historical_data'] = run_backtest(
+                result_data, date_range=result_data.get('date_range')) or None
+        except Exception as e:
+            logger.warning("Backtest for the PDF failed: %s", e)
+            result_data['historical_data'] = None
+    return bytes(generate_portfolio_pdf(result_data, logo_path=logo_path))
+
+
 def generate_portfolio_pdf(result_data, logo_path=None):
     """
     Generate comprehensive PDF report from optimization results.

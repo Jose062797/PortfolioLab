@@ -370,6 +370,20 @@ class TestResultsPanel:
         for expected in ["Expected return", "Volatility", "Sharpe ratio", "Budget", "Assets"]:
             assert expected in labels
 
+    def test_results_page_does_not_build_the_pdf(self, mock_yfinance_extended, monkeypatch):
+        """The PDF is built on click (deferred download), never on a rerun."""
+        calls = []
+        monkeypatch.setattr("utils.pdf_generator.generate_portfolio_pdf",
+                            lambda *a, **k: calls.append(1) or b"%PDF-")
+        at = fresh_page()
+        at.text_input("tickers_input").set_value("AAPL, MSFT, GOOGL").run()
+        run_button(at).click().run()
+        at.run()
+
+        assert not at.exception
+        assert at.session_state["optimization_result"]["success"]
+        assert calls == []
+
     def test_markowitz_swaps_returns_analysis_for_efficient_frontier(
         self, mock_yfinance_extended
     ):

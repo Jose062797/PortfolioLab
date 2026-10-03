@@ -816,40 +816,30 @@ def main():
         st.markdown("<br><hr>", unsafe_allow_html=True)
         st.markdown("#### Report")
 
-        from utils.pdf_generator import generate_portfolio_pdf
-        from utils.optimizer_wrapper import run_backtest
+        from utils.pdf_generator import build_report_pdf
 
-        try:
-            # Check if logo exists
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "PortfolioLab.png")
+        if not os.path.exists(logo_path):
             logo_path = None
-            for possible_logo in ['assets/PortfolioLab.png', 'assets/Finance for all.png', 'assets/logo.png']:
-                if os.path.exists(possible_logo):
-                    logo_path = possible_logo
-                    break
 
-            # Add historical validation data to result if not already present
-            if 'historical_data' not in result or result['historical_data'] is None:
-                with st.spinner("Preparing the report..."):
-                    try:
-                        analysis_date_range = result.get('date_range', None)
-                        historical_data = run_backtest(result, date_range=analysis_date_range)
-                        result['historical_data'] = historical_data or None
-                    except Exception:
-                        result['historical_data'] = None
+        def _report() -> bytes:
+            # Deferred: Streamlit calls this only when the button is clicked
+            # (on its own thread), so reruns of this page never build the PDF
+            try:
+                return build_report_pdf(result, logo_path=logo_path)
+            except Exception as e:
+                logger.error("PDF generation failed: %s", e, exc_info=True)
+                raise
 
-            # Generate PDF
-            pdf_bytes = generate_portfolio_pdf(result, logo_path=logo_path)
-
-            st.download_button(
-                label="Download PDF report",
-                data=pdf_bytes,
-                file_name=f"portfolio_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf",
-                type="primary"
-            )
-        except Exception as e:
-            logger.error("PDF generation failed: %s", e, exc_info=True)
-            st.error("Could not generate the PDF report. Please try again.")
+        st.download_button(
+            label="Download PDF report",
+            data=_report,
+            file_name=f"portfolio_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            on_click="ignore",
+        )
+        st.caption("The report is built when you click, which takes a few seconds.")
 
     # ── Render Footer ──
     from utils.styles import render_footer
