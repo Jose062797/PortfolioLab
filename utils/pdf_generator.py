@@ -80,8 +80,7 @@ def build_report_pdf(result_data, logo_path=None) -> bytes:
 
     if result_data.get('historical_data') is None:
         try:
-            result_data['historical_data'] = run_backtest(
-                result_data, date_range=result_data.get('date_range')) or None
+            result_data['historical_data'] = run_backtest(result_data) or None
         except Exception:
             logger.exception("Backtest for the PDF failed")
             result_data['historical_data'] = None

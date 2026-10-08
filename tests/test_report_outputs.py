@@ -108,13 +108,17 @@ class TestSessionManager:
         sm.clear_results()
         assert sm.get_result() is None
 
-    def test_running_flag(self):
+    def test_keeps_one_result_per_session(self):
+        """No history of copies: it held up to ten results per visitor that
+        nothing read (removed 2026-10-08, audit B8-01)."""
+        import streamlit as st
         from utils import session_manager as sm
         sm.init_session_state()
-        sm.set_optimization_running(True)
-        assert sm.is_optimization_running() is True
-        sm.set_optimization_running(False)
-        assert sm.is_optimization_running() is False
+        sm.save_result({"success": True, "weights": {"AAPL": 1.0}})
+        sm.save_result({"success": True, "weights": {"MSFT": 1.0}})
+
+        assert sm.get_result()["weights"] == {"MSFT": 1.0}
+        assert "optimization_history" not in st.session_state
 
 
 class TestVisualizations:

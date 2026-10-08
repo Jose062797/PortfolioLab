@@ -1,12 +1,10 @@
 """
-Core package for Black-Litterman Portfolio Optimizer.
+Core package of PortfolioLab: framework-independent logic.
 
-This __init__.py enables clean imports from the core package:
     from core.constants import RISK_FREE_RATE
-    from core.opt_engine import download_data, calculate_prior
-    from core.opt import download_data  # backward compat (re-exports opt_engine)
+    from core.opt_engine import download_data, optimize_portfolio
     from core.backtest import run_backtest
-    from core.pdf_shared import create_prior_chart
+    from core.pdf_shared import create_allocation_chart
 """
 
 import logging

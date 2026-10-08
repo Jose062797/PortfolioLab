@@ -1,5 +1,5 @@
 """
-Black-Litterman Portfolio Optimization Engine
+Portfolio optimization engine: Black-Litterman and Markowitz
 
 Pure computation module — no CLI I/O, no matplotlib plots.
 All functions accept data and return results.

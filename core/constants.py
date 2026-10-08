@@ -1,5 +1,5 @@
 """
-Constants for Black-Litterman Portfolio Optimizer
+Constants for PortfolioLab (both models, both pages, the PDF)
 
 This module contains all configuration constants used across the application.
 Centralizing constants ensures consistency and makes maintenance easier.
@@ -82,9 +82,6 @@ ASSET_COLORS = [
     "#A7F3D0", "#FDE68A", "#94A3B8", "#C7DBF7", "#059669",
     "#D97706", "#334155", "#3B82F6", "#6EE7B7", "#CBD5E1",
 ]
-
-# Historical Analysis Constants
-HISTORICAL_PERIOD_YEARS = 5  # Years for historical validation
 
 # Reporting Constants
 # Comparison Tolerance Constants

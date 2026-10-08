@@ -23,7 +23,7 @@ def markowitz_result(mock_yfinance):
                               obj_function="Min Variance")
     assert result["success"], result.get("error")
     from utils.optimizer_wrapper import run_backtest
-    result["historical_data"] = run_backtest(result, date_range=result.get("date_range"))
+    result["historical_data"] = run_backtest(result)
     return result
 
 

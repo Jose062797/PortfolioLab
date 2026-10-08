@@ -15,7 +15,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-from utils.session_manager import init_session_state, save_config, save_result, get_result, clear_results
+from utils.session_manager import init_session_state, save_result, get_result, clear_results
 from utils.optimizer_wrapper import run_optimization, find_highly_correlated_pairs
 from core.constants import (
     CALENDAR_DAYS_PER_YEAR, MIN_DATA_POINTS, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS,
@@ -127,7 +127,7 @@ def main():
     # next to an enabled Run used to run anyway, silently without that input
     # (whole history for inverted dates, the view dropped; audit B3-10).
     form_errors = []
-    col1, spacer, col2 = st.columns([1, 0.08, 1])
+    col1, _, col2 = st.columns([1, 0.08, 1])
 
     with col1:
         _step(1, "Assets and budget")
@@ -460,9 +460,6 @@ def main():
             elif "complete" in msg_lower:
                 progress_bar.progress(100, text=message)
 
-        # Save configuration
-        save_config(tickers, portfolio_value, date_range, views if add_views else None)
-
         # Run optimization
         result = run_optimization(
             tickers=tickers,
@@ -727,7 +724,7 @@ def main():
                     }
                     fig_ef = create_efficient_frontier_chart(ef_data, selected_portfolio=selected_portfolio)
                     # Use columns to center the fixed-width plot
-                    col_left, col_center, col_right = st.columns([1, 6, 1])
+                    _, col_center, _ = st.columns([1, 6, 1])
                     with col_center:
                         st.plotly_chart(fig_ef, width='content', config={'scrollZoom': False})
                 else:

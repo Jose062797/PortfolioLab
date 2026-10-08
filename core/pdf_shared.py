@@ -1,5 +1,5 @@
 """
-Shared PDF utilities for Black-Litterman Portfolio Reports.
+Shared PDF utilities for the portfolio reports (both models).
 
 This module contains reusable chart generation and PDF section builders
 used by the web PDF generator (utils/pdf_generator.py).
@@ -198,11 +198,11 @@ def create_historical_chart(historical_data: dict,
                 color=_BENCHMARK_COLOR, linewidth=2, linestyle='--')
 
         # Add final value annotations with offset to avoid overlap
-        final_bl = portfolio_pct[-1] if not isinstance(portfolio_pct[-1], (list,)) else portfolio_pct[-1]
-        final_spy = spy_pct[-1] if not isinstance(spy_pct[-1], (list,)) else spy_pct[-1]
+        final_portfolio = portfolio_pct[-1]
+        final_spy = spy_pct[-1]
 
-        if final_bl > final_spy:
-            ax.annotate(f'{final_bl:.1f}%', xy=(dates_dt[-1], final_bl),
+        if final_portfolio > final_spy:
+            ax.annotate(f'{final_portfolio:.1f}%', xy=(dates_dt[-1], final_portfolio),
                         xytext=(5, 8), textcoords='offset points',
                         fontsize=8, va='bottom', ha='left', color=_PORTFOLIO_COLOR, fontweight='bold')
             ax.annotate(f'{final_spy:.1f}%', xy=(dates_dt[-1], final_spy),
@@ -212,7 +212,7 @@ def create_historical_chart(historical_data: dict,
             ax.annotate(f'{final_spy:.1f}%', xy=(dates_dt[-1], final_spy),
                         xytext=(5, 8), textcoords='offset points',
                         fontsize=8, va='bottom', ha='left', color=_BENCHMARK_COLOR, fontweight='bold')
-            ax.annotate(f'{final_bl:.1f}%', xy=(dates_dt[-1], final_bl),
+            ax.annotate(f'{final_portfolio:.1f}%', xy=(dates_dt[-1], final_portfolio),
                         xytext=(5, -8), textcoords='offset points',
                         fontsize=8, va='top', ha='left', color=_PORTFOLIO_COLOR, fontweight='bold')
 

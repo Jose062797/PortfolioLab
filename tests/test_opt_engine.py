@@ -1,6 +1,5 @@
 """Tests for core.opt_engine — portfolio optimization engine."""
 
-import numpy as np
 import pandas as pd
 import pytest
 

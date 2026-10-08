@@ -1,124 +1,19 @@
 """
-Data provider for PortfolioLab platform.
+Market data for the Stocks page: price history (OHLCV), asset details and
+quarterly results from Yahoo Finance via yfinance, with st.cache_data.
 
-Centralizes yfinance data downloading and parsing logic that was
-previously duplicated in:
-  - core/backtest.py (download_and_run_backtest)
-  - utils/optimizer_wrapper.py (run_backtest fallback)
-  - utils/visualizations.py (_prepare_price_data)
-
-All consumers should use these functions instead of calling yfinance
-directly and handling the single/multi-ticker parsing themselves.
+The Portfolio optimizer downloads its own prices in core/opt_engine.
+download_data, fresh on every run (see CLAUDE.md, "Caching policy"). The
+generic download_prices/parse_yfinance_prices helpers lived here until
+2026-10-08: once the backtests stopped downloading other data in silence,
+nothing used them (audit B8-01, B3-13).
 """
 
 import logging
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
-
-
-def download_prices(
-    tickers: List[str],
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-    period: Optional[str] = None,
-) -> pd.DataFrame:
-    """
-    Download closing prices from yfinance and return a clean DataFrame.
-
-    Handles the single-ticker vs multi-ticker column structure differences
-    that yfinance produces, returning a consistent DataFrame with one column
-    per ticker.
-
-    Args:
-        tickers: List of ticker symbols (e.g., ['MSFT', 'AAPL', 'SPY']).
-        start: Start date as 'YYYY-MM-DD' string (mutually exclusive with period).
-        end: End date as 'YYYY-MM-DD' string (defaults to today if start is given).
-        period: yfinance period string like "max", "5y" (mutually exclusive with start).
-
-    Returns:
-        DataFrame with DatetimeIndex and one column per ticker (NaN rows dropped).
-
-    Raises:
-        ValueError: If no data could be downloaded.
-    """
-    import yfinance as yf
-
-    if start:
-        raw = yf.download(tickers, start=start, end=end, progress=False)
-    elif period:
-        raw = yf.download(tickers, period=period, progress=False)
-    else:
-        raw = yf.download(tickers, period="max", progress=False)
-
-    if raw.empty:
-        raise ValueError(f"No data downloaded for {tickers}")
-
-    return parse_yfinance_prices(raw, tickers)
-
-
-def parse_yfinance_prices(raw_data: pd.DataFrame, tickers: List[str]) -> pd.DataFrame:
-    """
-    Extract closing prices from raw yfinance OHLCV data.
-
-    Handles all the quirks of yfinance output:
-    - Single ticker: flat columns like ['Open', 'High', 'Low', 'Close', 'Volume']
-    - Multi ticker: MultiIndex columns like [('Close', 'AAPL'), ('Close', 'MSFT')]
-    - Various column level names ('Price', None, etc.)
-
-    Args:
-        raw_data: Raw DataFrame from yf.download().
-        tickers: List of ticker symbols that were requested.
-
-    Returns:
-        DataFrame with one column per ticker containing closing prices,
-        with NaN rows dropped.
-
-    Raises:
-        ValueError: If closing prices cannot be extracted.
-    """
-    if raw_data.empty:
-        raise ValueError("Empty DataFrame passed to parse_yfinance_prices")
-
-    price_data = None
-
-    if len(tickers) == 1:
-        # Single ticker — flat columns
-        if 'Close' in raw_data.columns:
-            price_data = raw_data[['Close']].rename(columns={'Close': tickers[0]})
-        elif 'Adj Close' in raw_data.columns:
-            price_data = raw_data[['Adj Close']].rename(columns={'Adj Close': tickers[0]})
-        else:
-            # Might still have MultiIndex with single ticker
-            try:
-                price_data = raw_data.xs('Close', level='Price', axis=1)
-            except (KeyError, TypeError):
-                raise ValueError(f"Cannot extract closing prices for {tickers[0]}")
-    else:
-        # Multi ticker — try MultiIndex extraction
-        for col_name in ('Close', 'Adj Close'):
-            for level_name in ('Price', None):
-                try:
-                    if level_name is not None:
-                        price_data = raw_data.xs(col_name, level=level_name, axis=1)
-                    else:
-                        price_data = raw_data[col_name]
-                    break
-                except (KeyError, TypeError):
-                    continue
-            if price_data is not None:
-                break
-
-        if price_data is None:
-            raise ValueError("Cannot extract closing prices from yfinance data")
-
-    if isinstance(price_data, pd.Series):
-        price_data = price_data.to_frame()
-
-    return price_data.dropna()
 
 
 # ─────────────────────────────────────────────────────────────

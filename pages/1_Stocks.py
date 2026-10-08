@@ -143,15 +143,6 @@ def _fmt_pct(value):
     return f"{value * 100:.2f}%"
 
 
-def _fmt_div_yield(value):
-    if value is None:
-        return "N/A"
-    pct = value * 100
-    if abs(pct) > 20:
-        return "N/A"
-    return f"{pct:.2f}%"
-
-
 def _fmt_range(low, high):
     low, high = _num(low), _num(high)
     if low is not None and high is not None:
@@ -287,17 +278,6 @@ def _build_stat_table(items):
             f'</div>'
         )
     return f'<div style="padding:4px 0;">{rows}</div>'
-
-
-def _render_metric_card(label, value, color="#0A1628"):
-    """Render a single metric card for Financials section."""
-    return (
-        f'<div style="background:white;border:1px solid #E2E8F0;border-radius:12px;'
-        f'padding:16px;text-align:center;">'
-        f'<div style="font-size:0.85rem;color:#64748B;margin-bottom:4px;">{label}</div>'
-        f'<div class="bl-num" style="font-size:1.3rem;font-weight:700;color:{color};">{value}</div>'
-        f'</div>'
-    )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -596,7 +576,7 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    col_pad_l, col_input, col_search, col_pad_r = st.columns([0.5, 3, 0.7, 0.5])
+    _, col_input, col_search, _ = st.columns([0.5, 3, 0.7, 0.5])
 
     with col_input:
         ticker_input = st.text_input(

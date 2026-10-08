@@ -1,5 +1,5 @@
 """
-Visualization utilities for Black-Litterman Portfolio Optimizer
+Visualization utilities for PortfolioLab (both tools)
 Creates interactive charts using Plotly
 """
 
@@ -9,10 +9,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
-from typing import Dict, Optional, List, Tuple
-import yfinance as yf
+from typing import Dict, Optional, List
 
-from core.constants import ASSET_COLORS, MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_YEAR
+from core.constants import ASSET_COLORS, MIN_WEIGHT_THRESHOLD
 from utils.text import fmt_price
 
 logger = logging.getLogger(__name__)
@@ -605,151 +604,6 @@ def create_efficient_frontier_chart(ef_data: dict, selected_portfolio: dict = No
     )
 
     return apply_brand_layout(fig)
-
-
-def create_risk_return_scatter(
-    weights: Dict[str, float],
-    returns: Dict[str, float],
-    volatilities: Dict[str, float]
-) -> go.Figure:
-    """
-    Create risk-return scatter plot for individual assets.
-
-    Args:
-        weights: Portfolio weights
-        returns: Expected returns for each asset
-        volatilities: Volatility for each asset
-
-    Returns:
-        Plotly figure object
-    """
-    tickers = list(weights.keys())
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=[volatilities[t] * 100 for t in tickers],
-        y=[returns[t] * 100 for t in tickers],
-        mode='markers+text',
-        marker=dict(
-            size=[weights[t] * 1000 for t in tickers],  # Size proportional to weight
-            color=[weights[t] * 100 for t in tickers],
-            colorscale='Blues',
-            showscale=True,
-            colorbar=dict(title="Weight (%)"),
-            line=dict(color='white', width=1)
-        ),
-        text=tickers,
-        textposition='top center',
-        textfont=dict(size=10, family="Inter, sans-serif", color="#0A1628"),
-        hovertemplate='<b>%{text}</b><br>' +
-                      'Expected Return: %{y:.1f}%<br>' +
-                      'Volatility: %{x:.1f}%<br>' +
-                      '<extra></extra>'
-    ))
-
-    fig.update_layout(
-        title='Risk-Return Profile by Asset',
-        xaxis_title='Volatility (Annual %)',
-        yaxis_title='Expected Return (Annual %)',
-        height=500,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        showlegend=False
-    )
-
-    return apply_brand_layout(fig)
-
-
-def create_allocation_table(
-    weights: Dict[str, float],
-    allocation: Dict[str, int],
-    prices: Dict[str, float],
-    portfolio_value: float
-) -> pd.DataFrame:
-    """
-    Create allocation summary table.
-
-    Args:
-        weights: Portfolio weights
-        allocation: Discrete share allocation
-        prices: Current prices
-        portfolio_value: Total portfolio value
-
-    Returns:
-        Pandas DataFrame with allocation details
-    """
-    data = []
-
-    for ticker in weights.keys():
-        if weights[ticker] > MIN_WEIGHT_THRESHOLD:
-            shares = allocation.get(ticker, 0)
-            price = prices.get(ticker, 0)
-            target_value = weights[ticker] * portfolio_value
-            actual_value = shares * price if shares > 0 else 0
-
-            data.append({
-                'Asset': ticker,
-                'Weight (%)': f"{weights[ticker] * 100:.2f}",
-                'Target Value ($)': f"{target_value:,.2f}",
-                'Shares': shares,
-                'Price ($)': f"{price:.2f}",
-                'Actual Value ($)': f"{actual_value:,.2f}"
-            })
-
-    df = pd.DataFrame(data)
-    return df
-
-
-def create_metrics_card_html(
-    expected_return: float,
-    volatility: float,
-    sharpe_ratio: float,
-    portfolio_value: float,
-    num_assets: int
-) -> str:
-    """
-    Create HTML for metrics summary cards.
-
-    Args:
-        expected_return: Expected annual return
-        volatility: Annual volatility
-        sharpe_ratio: Sharpe ratio
-        portfolio_value: Total portfolio value
-        num_assets: Number of assets in portfolio
-
-    Returns:
-        HTML string
-    """
-    html = f"""
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 2rem 0; font-family: Inter, sans-serif;">
-        <div style="background: rgba(255, 255, 255, 0.95); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-left: 3px solid #10B981;">
-            <div style="font-size: 0.85rem; color: #64748B; margin-bottom: 0.5rem; font-weight: 500;">Expected Return</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #10B981;">{expected_return*100:.2f}%</div>
-        </div>
-
-        <div style="background: rgba(255, 255, 255, 0.95); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-left: 3px solid #F59E0B;">
-            <div style="font-size: 0.85rem; color: #64748B; margin-bottom: 0.5rem; font-weight: 500;">Volatility</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #F59E0B;">{volatility*100:.2f}%</div>
-        </div>
-
-        <div style="background: rgba(255, 255, 255, 0.95); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-left: 3px solid #2E6FC7;">
-            <div style="font-size: 0.85rem; color: #64748B; margin-bottom: 0.5rem; font-weight: 500;">Sharpe Ratio</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #2E6FC7;">{sharpe_ratio:.3f}</div>
-        </div>
-
-        <div style="background: rgba(255, 255, 255, 0.95); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-left: 3px solid #0A1628;">
-            <div style="font-size: 0.85rem; color: #64748B; margin-bottom: 0.5rem; font-weight: 500;">Portfolio Value</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #0A1628;">${portfolio_value:,.0f}</div>
-        </div>
-
-        <div style="background: rgba(255, 255, 255, 0.95); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-left: 3px solid #334155;">
-            <div style="font-size: 0.85rem; color: #64748B; margin-bottom: 0.5rem; font-weight: 500;">Assets</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #0A1628;">{num_assets}</div>
-        </div>
-    </div>
-    """
-    return html
 
 
 def create_historical_performance_chart(

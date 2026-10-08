@@ -16,23 +16,17 @@ logging.basicConfig(
 
 from .session_manager import (  # noqa: E402
     init_session_state,
-    save_config,
-    get_config,
     save_result,
     get_result,
     clear_results,
-    should_show_results
 )
 
 from .optimizer_wrapper import run_optimization  # noqa: E402
 
 __all__ = [
     'init_session_state',
-    'save_config',
-    'get_config',
     'save_result',
     'get_result',
     'clear_results',
-    'should_show_results',
-    'run_optimization'
+    'run_optimization',
 ]

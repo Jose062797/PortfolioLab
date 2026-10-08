@@ -1,20 +1,18 @@
 """
-Unified backtest engine for Black-Litterman portfolios.
+Unified backtest engine for both models' portfolios.
 
-Consolidates the backtest logic that was previously duplicated in:
-  - utils/optimizer_wrapper.py (run_backtest)
-  - utils/visualizations.py (create_historical_performance_chart — data calc)
-
-All consumers call this module for calculations and handle
-presentation (dict, Plotly chart) themselves.
+The single source of the backtest's calculations, used by
+utils/optimizer_wrapper.run_backtest (the PDF) and by
+utils/visualizations.create_historical_performance_chart (the web chart);
+both handle presentation (dict, Plotly chart) themselves, on the rows
+prepare_backtest_prices picks.
 """
 
 import logging
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -57,24 +55,8 @@ class BacktestResult:
         return self.portfolio_metrics.annualized_return
 
     @property
-    def ann_volatility(self) -> float:
-        return self.portfolio_metrics.annualized_volatility
-
-    @property
     def sharpe(self) -> float:
         return self.portfolio_metrics.sharpe_ratio
-
-    @property
-    def benchmark_ann_return(self) -> float:
-        return self.benchmark_metrics.annualized_return
-
-    @property
-    def benchmark_ann_volatility(self) -> float:
-        return self.benchmark_metrics.annualized_volatility
-
-    @property
-    def benchmark_sharpe(self) -> float:
-        return self.benchmark_metrics.sharpe_ratio
 
     def to_dict(self) -> dict:
         """Convert to dictionary format compatible with existing consumers."""
@@ -266,54 +248,3 @@ def run_backtest(
         benchmark_metrics=benchmark_metrics,
         period_description=f"{start} to {end}",
     )
-
-
-def download_and_run_backtest(
-    tickers: List[str],
-    weights: Dict[str, float],
-    portfolio_value: float,
-    years: int = 5,
-    benchmark: str = BENCHMARK_TICKER,
-) -> Optional[BacktestResult]:
-    """
-    Convenience function: downloads data and runs backtest.
-
-    Use this when you don't already have price data available.
-    When price data is already loaded (e.g. from optimization), prefer
-    calling run_backtest() directly to avoid redundant downloads.
-
-    Args:
-        tickers: List of portfolio ticker symbols.
-        weights: {ticker: weight} dict from optimizer.
-        portfolio_value: Starting portfolio value in USD.
-        years: Number of years of historical data (default 5).
-        benchmark: Benchmark ticker symbol (default 'SPY').
-
-    Returns:
-        BacktestResult or None if download/calculation fails.
-    """
-    try:
-        from core.data_provider import download_prices
-
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=years * 365 + 30)
-
-        all_tickers = list(set(tickers + [benchmark]))
-
-        price_data = download_prices(
-            all_tickers,
-            start=start_date.strftime('%Y-%m-%d'),
-            end=end_date.strftime('%Y-%m-%d'),
-        )
-
-        return run_backtest(
-            prices=price_data,
-            weights=weights,
-            tickers=tickers,
-            portfolio_value=portfolio_value,
-            benchmark_col=benchmark,
-        )
-
-    except Exception as e:
-        logger.error("Backtest download/calculation error: %s", e, exc_info=True)
-        return None

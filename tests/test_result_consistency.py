@@ -123,7 +123,7 @@ def test_web_and_pdf_backtest_the_same_rows(synthetic_prices, mock_yfinance):
         portfolio_value=result["portfolio_value"], initial_date=result["date_range"][0],
         prices_data=prices, model_type="Markowitz",
     )
-    pdf = run_backtest(result, date_range=result["date_range"])
+    pdf = run_backtest(result)
 
     assert (web.dates[0], web.dates[-1]) == tuple(result["backtest_range"])
     assert pdf["period"] == f"{web.dates[0]} to {web.dates[-1]}"

@@ -1,7 +1,7 @@
 """
 Optimizer Wrapper for Streamlit Integration
 
-This module wraps the core Black-Litterman optimizer (core/opt.py)
+This module wraps the optimization engine (core/opt_engine.py, both models)
 to provide a clean, Streamlit-friendly interface with consistent
 error handling and result formatting.
 """
@@ -12,7 +12,6 @@ import logging
 import re
 
 import pandas as pd
-import streamlit as st
 
 from core.backtest import prepare_backtest_prices
 from core.opt_engine import (
@@ -33,11 +32,11 @@ from core.constants import (
     MAX_TICKERS,
     MIN_PORTFOLIO_VALUE,
     MAX_PORTFOLIO_VALUE,
-    MIN_WEIGHT_THRESHOLD,
     BENCHMARK_TICKER,
     TRADING_DAYS_PER_YEAR,
     TICKER_PATTERN,
     CALENDAR_DAYS_PER_YEAR,
+    MAX_VIEW_THRESHOLD,
     OptimizationError,
     DataDownloadError,
     InsufficientDataError,
@@ -195,7 +194,7 @@ def validate_inputs(
 
             # Basic sanity checks
             expected = view_data['expected']
-            if abs(expected) > 2.0:  # 200% sanity check
+            if abs(expected) > MAX_VIEW_THRESHOLD:
                 return False, f"View for {ticker} seems unrealistic: {expected*100:.0f}%"
 
     return True, None
@@ -461,96 +460,55 @@ def run_optimization(
         }
 
 
-def run_backtest(
-    result: Dict[str, Any],
-    date_range: Tuple[str, str] = None
-) -> Optional[Dict[str, Any]]:
+def run_backtest(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
-    Run historical backtest on optimized portfolio.
+    Backtest an optimization result on its own prices (the PDF's backtest).
 
-    Delegates all calculations to core.backtest (single source of truth).
-    This function handles data preparation (reuse from optimization or download).
+    Delegates all calculations to core.backtest (single source of truth),
+    on the rows prepare_backtest_prices picks, like the web chart. Only the
+    run's own prices are used: until 2026-10-08 a result without
+    `prices_clean` or without SPY in it made this download fresh data over
+    another window, so the PDF could describe other data than the run (the
+    web chart had the same fallback; audit B3-13). The result always carries
+    both, and without them the report says the backtest is not available.
 
     Args:
         result: Optimization result dictionary
-        date_range: Tuple of (start_date, end_date) as strings in 'YYYY-MM-DD' format
 
     Returns:
-        Dictionary with backtest results, or None if failed.
+        Dictionary with backtest results, or None if they cannot be computed.
     """
     from core.backtest import run_backtest as _core_backtest
 
     try:
-        import yfinance as yf
-        import numpy as np
-        from datetime import datetime, timedelta
-
         tickers = result.get('tickers', [])
         weights = result.get('weights', {})
-        portfolio_value = result.get('portfolio_value', 20000)
-
-        if not tickers or not weights:
+        prices_clean_dict = result.get('prices_clean')
+        if not tickers or not weights or not prices_clean_dict:
             return None
 
-        # Option A: Reuse cleaned price data from optimization if available
-        prices_clean_dict = result.get('prices_clean', None)
+        price_data = pd.DataFrame.from_dict(prices_clean_dict, orient='index')
+        price_data.index = pd.to_datetime(price_data.index)
+        if BENCHMARK_TICKER not in price_data.columns:
+            logger.warning("Backtest skipped: %s missing from the run's prices", BENCHMARK_TICKER)
+            return None
 
-        if prices_clean_dict:
-            price_data = pd.DataFrame.from_dict(prices_clean_dict, orient='index')
-            price_data.index = pd.to_datetime(price_data.index)
+        # The same rows the web chart backtests (see prepare_backtest_prices)
+        price_data = prepare_backtest_prices(price_data, tickers, BENCHMARK_TICKER)
+        logger.info("Backtest: reusing cleaned data from optimization (%d days)", len(price_data))
 
-            if BENCHMARK_TICKER not in price_data.columns:
-                logger.warning("%s not found in prices_clean, downloading separately...", BENCHMARK_TICKER)
-                spy_data = yf.download(
-                    BENCHMARK_TICKER,
-                    start=price_data.index[0].strftime('%Y-%m-%d'),
-                    end=price_data.index[-1].strftime('%Y-%m-%d'),
-                    progress=False
-                )
-                if 'Close' in spy_data.columns:
-                    price_data[BENCHMARK_TICKER] = spy_data['Close']
-                else:
-                    price_data[BENCHMARK_TICKER] = spy_data['Adj Close']
-
-            # The same rows the web chart backtests (see prepare_backtest_prices)
-            price_data = prepare_backtest_prices(price_data, tickers, BENCHMARK_TICKER)
-            logger.info("Backtest: reusing cleaned data from optimization (%d days)", len(price_data))
-        else:
-            # Fallback: Download data if not available
-            from core.data_provider import download_prices
-
-            logger.info("Backtest: prices_clean not in result, downloading fresh data")
-
-            if date_range:
-                start_date_str, end_date_str = date_range
-            else:
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=10 * 365 + 30)
-                start_date_str = start_date.strftime('%Y-%m-%d')
-                end_date_str = end_date.strftime('%Y-%m-%d')
-
-            all_tickers = tickers + [BENCHMARK_TICKER]
-            price_data = download_prices(
-                all_tickers,
-                start=start_date_str,
-                end=end_date_str,
-            )
-
-        # Delegate to unified backtest engine
         bt_result = _core_backtest(
             prices=price_data,
             weights=weights,
             tickers=tickers,
-            portfolio_value=portfolio_value,
+            portfolio_value=result.get('portfolio_value', 10000),
             benchmark_col=BENCHMARK_TICKER,
         )
-
         return bt_result.to_dict() if bt_result else None
 
-    except Exception as e:
-        logger.error("Backtest error: %s", e, exc_info=True)
+    except Exception:
+        logger.exception("Backtest error")
         return None
-
 
 
 def find_highly_correlated_pairs(cov_matrix, tickers, threshold: float = 0.95):
