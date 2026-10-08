@@ -87,7 +87,7 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 | 5 | D4.4 — capa `pages/` con AppTest | ✅ 2026-07-20 |
 | 6 | Coherencia de lo que se muestra | ✅ 2026-09-26 |
 | 7 | Rediseño simple | ✅ 2026-09-27 |
-| 8 | Auditoría de frontend y backend (dimensiones propias, ver Fase 8) | 🔄 pasos 1 a 4 hechos el 2026-10-08; falta el paso 5 (publicar) |
+| 8 | Auditoría de frontend y backend (dimensiones propias, ver Fase 8) | ✅ 2026-10-08, publicada en `649e1a0` y verificada en producción |
 
 ## Registro de hallazgos
 
@@ -1017,6 +1017,26 @@ con el mercado abierto; esta corrida fue con el mercado cerrado). Descartados
 (➖) con su motivo en el paso 3: B5-08, B6-02, B6-03, B8-03, F1-15, F3-05, el
 landmark de F3-04, F6-01 (decisión), F7-01. Aparte: la actualización de
 Streamlit (B6-01), por decisión del usuario.
+
+#### Paso 5 — publicación (2026-10-08)
+
+Push de los 9 commits (`e06d8e1..649e1a0`) con permiso del usuario; CI
+verde en 3.12 y 3.14. Tras el reinicio del usuario, el procedimiento "After
+every push" de CLAUDE.md: salud `ok` al instante, Streamlit 1.59.2; desde la
+dirección real, el inicio sin iframes internos, con el logo como imagen real
+y el CSS nuevo (foco de `stMain`, leyendas); Stocks con AAPL ("All
++265,132%", la franja en grilla); Portfolio con el ejemplo de acciones,
+bonos y oro (12 s, 8,38 % / 10,00 % / 0,538, asignación exacta), PDF de
+219 KB en 2,1 s (interceptado, sin guardar) y un límite de 1 % que muestra
+"The risk limit of 1% is below the lowest risk these assets allow (5.2%)"
+sin las métricas anteriores. La pestaña del navegador mostró el título
+("Portfolio · PortfolioLab · Streamlit"): F7-01 no se repitió esta vez.
+
+Pregunta del usuario al cerrar: ¿por qué seguimos con Python 3.12? Respuesta
+documentada en CLAUDE.md ("CI"): la app en la nube corre 3.12 (el valor por
+defecto de Community Cloud) y `ecos`, que da la asignación exacta, solo
+publica paquetes hasta 3.12; cambiar de versión exige borrar y volver a
+desplegar la app.
 
 **Verificación al cerrar el paso 4:** suite completa (paridad y congelados sin
 tocar; el fixture sintético no debe activar la regla de 365 días); los casos
