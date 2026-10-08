@@ -8,6 +8,9 @@ font = "sans serif"
 [client]
 toolbarMode = "minimal"
 showSidebarNavigation = false
+# Visitors see an exception's type, not its message or traceback (those go to
+# the server log). The default, "full", showed tracebacks to anyone (audit B5-03).
+showErrorDetails = "type"
 
 [browser]
 # No usage statistics to Streamlit (README, "Privacy")
@@ -16,6 +19,8 @@ gatherUsageStats = false
 [server]
 headless = true
 port = 8501
-enableCORS = false
+# enableCORS keeps its default (true). It was false until 2026-10-08: Streamlit
+# 1.59 only warns that XSRF overrides it, so in fact every origin was allowed
+# (audit B5-02).
 enableXsrfProtection = true
 enableStaticServing = true

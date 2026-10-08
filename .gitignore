@@ -33,3 +33,15 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Secrets, as a precaution (none exist today; audit B5-09)
+.env
+.env.*
+secrets.toml
+*.pem
+*.key
+
+# Analysis tool output, if a tool runs without its out-of-project settings
+.ruff_cache/
+.coverage
+htmlcov/

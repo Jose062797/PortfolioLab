@@ -5,6 +5,8 @@ Stocks – Yahoo Finance-inspired adaptive asset explorer.
 import sys
 import os
 import re
+import html
+import math
 import logging
 import datetime as _dt
 
@@ -30,6 +32,8 @@ from core.data_provider import (  # noqa: E402
     download_ohlcv, get_asset_info, get_quarterly_financials,
 )
 from utils.visualizations import apply_brand_layout, create_price_chart  # noqa: E402
+from utils.text import escape_markdown  # noqa: E402
+from core.constants import TICKER_PATTERN  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -39,25 +43,27 @@ logger = logging.getLogger(__name__)
 # loses no real freshness while removing repeat downloads (and rate-limit
 # exposure) when switching periods or revisiting a ticker. Applies ONLY to
 # this exploration page — the Portfolio optimizer always downloads fresh
-# by design (notebook fidelity).
+# by design (notebook fidelity). The caches are shared by every visitor, so
+# each also has a size cap (audit B5-06): a full daily history is about
+# 0.5 MB, and only the TTL used to bound them.
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=100, show_spinner=False)
 def _cached_ohlcv(ticker: str, **kwargs):
     return download_ohlcv(ticker, **kwargs)
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=60, max_entries=100, show_spinner=False)
 def _cached_ohlcv_intraday(ticker: str, **kwargs):
     """Shorter TTL so 1D/5D minute charts stay lively."""
     return download_ohlcv(ticker, **kwargs)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=200, show_spinner=False)
 def _cached_asset_info(ticker: str):
     return get_asset_info(ticker)
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=600, max_entries=200, show_spinner=False)
 def _cached_quarterly_financials(ticker: str):
     return get_quarterly_financials(ticker)
 
@@ -75,8 +81,36 @@ PERIOD_MAP = {
 # ═══════════════════════════════════════════════════════════
 # Formatting helpers
 # ═══════════════════════════════════════════════════════════
+# Yahoo's fields are third-party data: a number can arrive as a string
+# ("Infinity") and a name can hold any text. Figures go through _num, so an
+# odd value shows as N/A instead of crashing the page, and text that reaches
+# the page's HTML is escaped (audit B5-01, B5-03).
+
+def _num(value):
+    """A Yahoo field as a finite float, or None."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _text(value) -> str:
+    """A Yahoo text field, safe to put in the page's HTML."""
+    return html.escape(str(value))
+
+
+def _currency_code(value):
+    """A three-letter currency code (USD, EUR, GBp), or None."""
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z]{3}", value):
+        return value
+    return None
+
 
 def _fmt_number(value, prefix="", suffix="", decimals=2):
+    value = _num(value)
     if value is None:
         return "N/A"
     if abs(value) >= 1e12:
@@ -89,6 +123,7 @@ def _fmt_number(value, prefix="", suffix="", decimals=2):
 
 
 def _fmt_pct(value):
+    value = _num(value)
     if value is None:
         return "N/A"
     return f"{value * 100:.2f}%"
@@ -104,6 +139,7 @@ def _fmt_div_yield(value):
 
 
 def _fmt_range(low, high):
+    low, high = _num(low), _num(high)
     if low is not None and high is not None:
         return f"{low:,.2f} – {high:,.2f}"
     return "N/A"
@@ -111,6 +147,7 @@ def _fmt_range(low, high):
 
 def _fmt_supply(value):
     """Format supply numbers (crypto) in M/B."""
+    value = _num(value)
     if value is None:
         return "N/A"
     if value >= 1e9:
@@ -121,13 +158,11 @@ def _fmt_supply(value):
 
 
 def _fmt_safe(value, fmt="{:.2f}", fallback="N/A"):
-    """Generic safe formatter."""
+    """A figure in `fmt`, or the fallback when the field is missing or not a number."""
+    value = _num(value)
     if value is None:
         return fallback
-    try:
-        return fmt.format(value)
-    except (ValueError, TypeError):
-        return str(value)
+    return fmt.format(value)
 
 
 def _fmt_date(value):
@@ -219,20 +254,20 @@ def _calculate_returns(close_prices: pd.Series, current_price: float = None) -> 
 def _build_stat_table(items):
     """Build a clean 2-column stat table from a list of (label, value) pairs.
     Filters out rows where value is 'N/A' to keep layout clean."""
-    html = ""
+    rows = ""
     for label, val in items:
         if val == "N/A":
             continue
         # Figures get same-width digits; text values (fund family) stay as is
         num = ' class="bl-num"' if str(val)[:1] in "$+-0123456789" else ""
-        html += (
+        rows += (
             f'<div style="display:flex;justify-content:space-between;gap:1rem;padding:9px 0;'
             f'border-bottom:1px solid #F1F5F9;">'
             f'<span style="color:#64748B;font-size:0.9rem;">{label}</span>'
-            f'<span{num} style="font-weight:600;color:#0A1628;font-size:0.9rem;text-align:right;">{val}</span>'
+            f'<span{num} style="font-weight:600;color:#0A1628;font-size:0.9rem;text-align:right;">{_text(val)}</span>'
             f'</div>'
         )
-    return f'<div style="padding:4px 0;">{html}</div>'
+    return f'<div style="padding:4px 0;">{rows}</div>'
 
 
 def _render_metric_card(label, value, color="#0A1628"):
@@ -280,10 +315,10 @@ def _render_key_stats(info, asset_type):
         ]
 
     else:  # EQUITY (default)
-        bid = info.get('bid')
-        bid_size = info.get('bid_size')
-        ask = info.get('ask')
-        ask_size = info.get('ask_size')
+        bid = _num(info.get('bid'))
+        bid_size = _num(info.get('bid_size'))
+        ask = _num(info.get('ask'))
+        ask_size = _num(info.get('ask_size'))
 
         if bid and bid_size:
             bid_str = f"{bid:,.2f} x {int(bid_size):,}"
@@ -299,8 +334,8 @@ def _render_key_stats(info, asset_type):
         else:
             ask_str = "N/A"
 
-        div_rate = info.get('dividend_rate')
-        div_yield = info.get('dividend_yield')
+        div_rate = _num(info.get('dividend_rate'))
+        div_yield = _num(info.get('dividend_yield'))
         if div_rate is not None and div_yield is not None:
             fwd_div_str = f"{div_rate:.2f} ({div_yield * 100:.2f}%)"
         elif div_rate is not None:
@@ -558,7 +593,7 @@ def main():
     # Yahoo Finance symbol allowlist (BRK-B, BF.B, ^GSPC, BTC-USD, EURUSD=X).
     # Rejecting anything else avoids a pointless network round-trip and keeps
     # arbitrary text out of the page.
-    _is_valid_symbol = bool(re.fullmatch(r"[A-Z0-9.\-^=]{1,15}", ticker_input))
+    _is_valid_symbol = bool(re.fullmatch(TICKER_PATTERN, ticker_input))
 
     # Track searched ticker in session state
     if search_clicked and ticker_input:
@@ -566,7 +601,7 @@ def main():
             st.warning("Enter **one symbol at a time** (e.g. `AAPL`): this page looks up a single asset.")
             st.session_state['stocks_ticker'] = None
         elif not _is_valid_symbol:
-            st.warning(f"**{ticker_input}** is not a valid ticker symbol. Use letters, digits and `.` `-` `^` `=` only (e.g. `AAPL`, `BRK-B`, `^GSPC`, `BTC-USD`).")
+            st.warning(f"**{escape_markdown(ticker_input)}** is not a valid ticker symbol. Use letters, digits and `.` `-` `^` `=` only (e.g. `AAPL`, `BRK-B`, `^GSPC`, `BTC-USD`).")
             st.session_state['stocks_ticker'] = None
         else:
             st.session_state['stocks_ticker'] = ticker_input
@@ -618,11 +653,12 @@ def main():
     # ═══════════════════════════════════════════════════════
     # Price Header
     # ═══════════════════════════════════════════════════════
-    price = info.get('price')
-    prev_close = info.get('previous_close')
-    name = info.get('name', active_ticker)
-    sector = info.get('sector')
-    industry = info.get('industry')
+    price = _num(info.get('price'))
+    prev_close = _num(info.get('previous_close'))
+    # Yahoo's text goes into the page's HTML below: escaped (audit B5-01)
+    name = _text(info.get('name') or active_ticker)
+    sector = _text(info['sector']) if info.get('sector') else None
+    industry = _text(info['industry']) if info.get('industry') else None
 
     if price and prev_close:
         change = price - prev_close
@@ -636,7 +672,7 @@ def main():
         tag_text = sector + (f' · {industry}' if industry else '')
     elif asset_type == "ETF":
         fund_family = info.get('fund_family')
-        tag_text = 'ETF' + (f' · {fund_family}' if fund_family else '')
+        tag_text = 'ETF' + (f' · {_text(fund_family)}' if fund_family else '')
     elif asset_type == "CRYPTOCURRENCY":
         tag_text = 'Crypto'
     elif asset_type == "INDEX":
@@ -648,7 +684,7 @@ def main():
     )
 
     # Index levels are points; everything else is quoted in a currency
-    currency = info.get('currency') if asset_type != "INDEX" else None
+    currency = _currency_code(info.get('currency')) if asset_type != "INDEX" else None
     currency_html = (
         f'<span style="color:#64748B;font-size:1rem;margin-left:8px;">{currency}</span>'
         if currency else ""
@@ -739,7 +775,7 @@ def main():
 
     st.plotly_chart(
         create_price_chart(ohlcv, active_ticker, chart_type,
-                            prev_close=info.get('previous_close'), is_intraday=is_intraday),
+                            prev_close=prev_close, is_intraday=is_intraday),
         width='stretch', config={'scrollZoom': False}
     )
 
@@ -815,7 +851,8 @@ def main():
             _render_performance(active_ticker, hist_close, price, spy_close)
         with tab_rev:
             _render_revenue(quarterly_fin_df,
-                            info.get('financial_currency') or info.get('currency'))
+                            _currency_code(info.get('financial_currency'))
+                            or _currency_code(info.get('currency')))
 
     elif asset_type == "ETF":
         tab_stats, tab_fund = st.tabs(["Market data", "Fund details"])

@@ -125,7 +125,7 @@ def parse_yfinance_prices(raw_data: pd.DataFrame, tickers: List[str]) -> pd.Data
 # Stocks page — data functions (separate from Portfolio page)
 # ─────────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=100, show_spinner=False)
 def download_ohlcv(ticker: str, period: str = "1y", interval: str = "1d",
                   auto_adjust: bool = True, prepost: bool = False,
                   start: str = None) -> pd.DataFrame:
@@ -194,7 +194,7 @@ def download_ohlcv(ticker: str, period: str = "1y", interval: str = "1d",
     return raw[required].dropna()
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=200, show_spinner=False)
 def get_asset_info(ticker: str) -> dict:
     """
     Fetch key fundamentals/info for a single ticker.
@@ -354,7 +354,7 @@ def get_asset_info(ticker: str) -> dict:
         # Next earnings date (Unix timestamp)
         'next_earnings_date': _get('earningsTimestamp'),
     }
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, max_entries=200, show_spinner=False)
 def get_quarterly_financials(ticker: str) -> pd.DataFrame:
     """
     Fetch quarterly revenue and net income for a ticker.

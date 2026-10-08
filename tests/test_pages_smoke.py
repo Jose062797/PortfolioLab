@@ -121,7 +121,8 @@ class TestStocksPage:
 
         assert not at.exception
         warnings = joined(at.warning)
-        assert "BAD!TICKER" in warnings
+        # Named in the warning, escaped so markdown shows it literally (B5-07)
+        assert "BAD\\!TICKER" in warnings
         assert "not a valid ticker symbol" in warnings
 
     def test_multiple_symbols_rejected(self):

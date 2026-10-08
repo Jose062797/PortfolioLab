@@ -34,7 +34,8 @@ from core.constants import (
     MAX_PORTFOLIO_VALUE,
     MIN_WEIGHT_THRESHOLD,
     BENCHMARK_TICKER,
-    TRADING_DAYS_PER_YEAR
+    TRADING_DAYS_PER_YEAR,
+    TICKER_PATTERN,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,7 +121,7 @@ def validate_inputs(
     # Yahoo Finance symbols: letters/digits plus . - ^ = (BRK-B, BF.B,
     # ^GSPC, BTC-USD, EURUSD=X). Anything else is a typo — reject early,
     # and never let arbitrary text flow further down the pipeline.
-    invalid = [t for t in tickers if not re.fullmatch(r"[A-Z0-9.\-^=]{1,15}", t)]
+    invalid = [t for t in tickers if not re.fullmatch(TICKER_PATTERN, t)]
     if invalid:
         return False, f"Invalid ticker symbol(s): {', '.join(invalid)}"
 

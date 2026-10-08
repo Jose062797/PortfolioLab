@@ -17,8 +17,9 @@ import numpy as np
 
 from utils.session_manager import init_session_state, save_config, save_result, get_result
 from utils.optimizer_wrapper import run_optimization, find_highly_correlated_pairs
-from core.constants import MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, goal_text
+from core.constants import MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, TICKER_PATTERN, goal_text
 from core.example_market import EXAMPLE_PORTFOLIOS
+from utils.text import escape_markdown
 from utils.visualizations import (
     create_correlation_heatmap,
     create_returns_comparison,
@@ -135,6 +136,11 @@ def main():
 
         # Parse tickers
         tickers = [t.strip().upper() for t in tickers_input.split(',') if t.strip()]
+        # Text that cannot be a Yahoo symbol is listed under the field (escaped)
+        # and kept out of every note and label below, so typed text never
+        # becomes markdown (audit B5-07); Run stays disabled until it is fixed.
+        invalid_tickers = [t for t in tickers if not re.fullmatch(TICKER_PATTERN, t)]
+        tickers = [t for t in tickers if t not in invalid_tickers]
 
         # Notes on the tickers go right under them, but depend on the model
         # chosen in the right column: filled in further down.
@@ -346,6 +352,11 @@ def main():
     _bl_forex_blocked = bool(_forex_tickers) and model_type == "Black-Litterman"
 
     with ticker_notes:
+        if invalid_tickers:
+            st.warning(
+                f"**Not a valid ticker symbol:** {', '.join(escape_markdown(t) for t in invalid_tickers)}. "
+                "Use letters, digits and `.` `-` `^` `=` only (e.g. `AAPL`, `BRK-B`, `BTC-USD`)."
+            )
         if len(tickers) == 1:
             st.warning("Enter at least 2 tickers.")
         elif len(tickers) > 20:
@@ -399,7 +410,7 @@ def main():
             "Run optimization",
             type="primary",
             width='stretch',
-            disabled=(len(tickers) < 2 or len(tickers) > 20 or _bl_forex_blocked)
+            disabled=(len(tickers) < 2 or len(tickers) > 20 or _bl_forex_blocked or bool(invalid_tickers))
         )
 
     # Run optimization

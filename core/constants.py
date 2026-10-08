@@ -21,6 +21,11 @@ TRADING_DAYS_PER_YEAR = 252  # Trading days for annualization
 # Application Constants
 BENCHMARK_TICKER = "SPY"  # S&P 500 ETF for market data
 
+# Yahoo Finance symbols: letters, digits and . - ^ = (BRK-B, BF.B, ^GSPC,
+# BTC-USD, EURUSD=X). Both pages and validate_inputs check it, so arbitrary
+# text never reaches a download or the page HTML (audit D5.3, B5-07).
+TICKER_PATTERN = r"[A-Z0-9.\-^=]{1,15}"
+
 # Plain-language names of the four optimization objectives, shown in the app
 # and the PDF. The keys are the engine's names (core/opt_engine.
 # optimize_portfolio), which stay the values everywhere else. Black-Litterman

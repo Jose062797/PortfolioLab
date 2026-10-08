@@ -98,19 +98,18 @@ class TestEmptyStateAndValidation:
         assert not at.warning
         assert run_button(at).disabled is False
 
-    def test_malformed_ticker_rejected_by_validator(self, mock_yfinance_extended):
-        """The allowlist must stop bad symbols before any download happens."""
+    def test_malformed_ticker_named_under_the_field_and_blocks_run(self, mock_yfinance_extended):
+        """The allowlist must stop bad symbols before any download happens.
+        Since 2026-10-08 the page does it under the field and keeps Run
+        disabled (it used to let Run through to validate_inputs, which still
+        rejects them: tests/test_optimizer_wrapper.py)."""
         at = fresh_page()
         at.text_input("tickers_input").set_value("AAPL, BAD!TICKER").run()
 
-        # The count check passes, so the UI lets the user press Run...
-        assert run_button(at).disabled is False
-        run_button(at).click().run()
-
-        # ...and validate_inputs rejects it, naming the offending symbol.
-        errors = joined(at.error)
-        assert "BAD!TICKER" in errors
-        assert "Invalid ticker symbol" in errors
+        warnings = joined(at.warning)
+        assert "Not a valid ticker symbol" in warnings
+        assert "BAD\\!TICKER" in warnings  # escaped: shown literally
+        assert run_button(at).disabled is True
         # Rejected before the network layer: no download was attempted.
         assert mock_yfinance_extended.call_count == 0
 
