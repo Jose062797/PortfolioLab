@@ -31,7 +31,9 @@ them first after any `streamlit` version bump):
       global `p, li, div, label` color rule unless overridden);
       [data-testid="stHeaderActionElements"] (heading link icons, hidden in
       designed blocks); section[data-testid="stMain"] (a Tab stop in 1.59:
-      the first one on every page, given a visible focus ring); .stPlotlyChart
+      the first one on every page, given a visible focus ring);
+      [data-testid="stCaptionContainer"] (captions, darkened for contrast);
+      .stPlotlyChart
       (touch-action); [data-testid="stExpander"] details; plus the same
       .block-container overrides for pages (the mobile one must match the
       specificity of inject_critical_css()).
@@ -253,6 +255,17 @@ def get_shared_css() -> str:
         outline-offset: -3px;
     }
 
+    /* st.caption: Streamlit draws it at opacity 0.6, which measured 3.3:1 on
+       the page background (axe, 2026-10-08). Full opacity and the secondary
+       text token give 4.56:1 there and 4.76:1 on white. */
+    [data-testid="stCaptionContainer"] {
+        opacity: 1 !important;
+    }
+    [data-testid="stCaptionContainer"],
+    [data-testid="stCaptionContainer"] p {
+        color: var(--color-text-secondary) !important;
+    }
+
     /* Section headings drawn as divs with role="heading" (subheading_html):
        the look of the old #### headings, with a correct outline level. */
     .bl-subhead {
@@ -312,7 +325,9 @@ def get_shared_css() -> str:
     }
 
     .bl-navbar-links a.active {
-        color: var(--color-accent);
+        /* The darker accent: the plain one measured 4.3:1 on this tint,
+           below the 4.5:1 text needs (axe, 2026-10-08) */
+        color: var(--color-accent-hover);
         background: var(--color-accent-light);
         font-weight: 600;
     }

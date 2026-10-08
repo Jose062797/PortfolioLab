@@ -143,6 +143,25 @@ class TestAccessibility:
         assert not any(line.lstrip().startswith("#### ")
                        for line in (about_md + "\n" + portfolio_md).splitlines())
 
+    def test_active_navbar_link_text_has_contrast(self):
+        """The plain accent on the active tint measured 4.3:1 (text needs 4.5)."""
+        import re
+        from utils.styles import get_shared_css
+
+        rule = re.search(r"\.bl-navbar-links a\.active \{([^}]*)\}", get_shared_css()).group(1)
+        assert "color: var(--color-accent-hover)" in rule
+
+    def test_captions_use_the_secondary_text_color(self):
+        """Streamlit's caption grey measured 3.3:1 on the page background."""
+        import re
+        from utils.styles import get_shared_css
+
+        css = get_shared_css()
+        rule = re.search(r'\[data-testid="stCaptionContainer"\] p \{([^}]*)\}', css).group(1)
+        assert "color: var(--color-text-secondary) !important" in rule
+        container = re.search(r'\[data-testid="stCaptionContainer"\] \{([^}]*)\}', css).group(1)
+        assert "opacity: 1 !important" in container, "Streamlit draws captions at 0.6"
+
     def test_footer_link_is_a_44px_target(self):
         import re
         from utils.styles import get_shared_css

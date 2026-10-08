@@ -173,6 +173,18 @@ class TestFiveDayChart:
         assert len(days) == 5
 
 
+class TestContrast:
+
+    def test_gains_use_a_green_dark_enough_for_text(self, monkeypatch):
+        """#16A34A measured 3.1:1 on the page background (axe); #15803D is 4.8."""
+        at = _stocks(monkeypatch, EQUITY)
+        header = next(m.value for m in at.markdown if "font-size:2.2rem" in m.value)
+        strip = next(m.value for m in at.markdown if m.value.startswith('<div class="bl-returns">'))
+
+        assert "color:#15803D" in header and "color:#15803D" in strip
+        assert "#16A34A" not in header + strip
+
+
 class TestFormats:
 
     def test_a_price_under_a_cent_keeps_its_digits(self, monkeypatch):

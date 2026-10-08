@@ -67,6 +67,10 @@ def _cached_asset_info(ticker: str):
 def _cached_quarterly_financials(ticker: str):
     return get_quarterly_financials(ticker)
 
+# Text colors for gains and losses, at 4.5:1 or more on white and on the page
+# background: the old green #16A34A measured 3.1:1 (axe, 2026-10-08)
+_GAIN, _LOSS = "#15803D", "#DC2626"
+
 PERIOD_MAP = {
     "1D": ("1d", "1m"),
     "5D": ("5d", "5m"),
@@ -397,7 +401,7 @@ def _render_performance(ticker: str, hist_close: pd.Series, price, spy_close: pd
     def _fmt_ret(r):
         if r is None:
             return "N/A", "#94A3B8"
-        color = "#16A34A" if r >= 0 else "#DC2626"
+        color = _GAIN if r >= 0 else _LOSS
         sign = "+" if r >= 0 else ""
         return f"{sign}{r * 100:.2f}%", color
 
@@ -708,7 +712,7 @@ def main():
     if price:
         chg_str = ""
         if change is not None and change_pct is not None:
-            chg_color = "#16A34A" if change >= 0 else "#DC2626"
+            chg_color = _GAIN if change >= 0 else _LOSS
             chg_sign = "+" if change >= 0 else ""
             chg_str = (
                 f'<span class="bl-num" style="color:{chg_color};font-size:1.1rem;font-weight:600;margin-left:12px;">'
@@ -834,7 +838,7 @@ def main():
     cells = ""
     for label, val in ret_items:
         if val is not None:
-            color = "#16A34A" if val >= 0 else "#DC2626"
+            color = _GAIN if val >= 0 else _LOSS
             # Whole percents from 1,000% up (AAPL's All: +265,132%), so the
             # figure fits a phone's four-column grid without breaking
             pct_str = f"{val:+,.0%}" if abs(val) >= 10 else f"{val:+.2%}"
