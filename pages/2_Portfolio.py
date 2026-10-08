@@ -39,7 +39,7 @@ st.set_page_config(
 )
 
 # Critical CSS: hide sidebar/chrome IMMEDIATELY to prevent flash on navigation
-from utils.styles import inject_critical_css, inject_styles, render_navbar
+from utils.styles import inject_critical_css, inject_styles, render_navbar, subheading_html
 inject_critical_css()
 inject_styles()
 render_navbar(active_page="portfolio")
@@ -91,10 +91,11 @@ def _apply_example_link():
 
 
 def _step(number: int, title: str) -> None:
+    # The step titles are the page's h2 level for assistive technology (F3-04)
     st.markdown(f"""
     <div class="step-header">
-        <div class="step-circle">{number}</div>
-        <span class="step-title">{title}</span>
+        <div class="step-circle" aria-hidden="true">{number}</div>
+        <span class="step-title" role="heading" aria-level="2">{title}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -744,7 +745,7 @@ def main():
                 # Historical Performance page (core.backtest.prepare_backtest_prices)
                 if bt_result is not None:
                     _bt_start, _bt_end = bt_result.dates[0], bt_result.dates[-1]
-                    st.markdown("#### Backtest figures")
+                    st.markdown(subheading_html("Backtest figures", 3), unsafe_allow_html=True)
                     st.caption(f"Over the full period, {_bt_start} to {_bt_end}, whichever window the chart shows.")
                     pm, bm = bt_result.portfolio_metrics, bt_result.benchmark_metrics
                     rows = [
@@ -784,7 +785,7 @@ def main():
             col_a, col_b = st.columns(2, gap="large")
 
             with col_a:
-                st.markdown("#### Portfolio")
+                st.markdown(subheading_html("Portfolio", 3), unsafe_allow_html=True)
                 # Dollar signs escaped: two in one markdown string open a math formula
                 lines = [
                     f"**Budget:** \\${result['portfolio_value']:,.2f}",
@@ -804,7 +805,7 @@ def main():
                 st.markdown("  \n".join(lines))
 
             with col_b:
-                st.markdown("#### Model settings")
+                st.markdown(subheading_html("Model settings", 3), unsafe_allow_html=True)
                 lines = [
                     f"**Model:** {model_type}",
                     f"**Goal:** {_objective_text(result)}",
@@ -825,7 +826,7 @@ def main():
 
         # ── Report (outside tabs, always visible) ──
         st.markdown("<br><hr>", unsafe_allow_html=True)
-        st.markdown("#### Report")
+        st.markdown(subheading_html("Report", 3), unsafe_allow_html=True)
 
         from utils.pdf_generator import build_report_pdf
 

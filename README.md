@@ -89,7 +89,7 @@ The app will open at `http://localhost:8501`.
 │   ├── pdf_generator.py      # Web PDF export
 │   └── session_manager.py    # Streamlit session state
 ├── tests/                    # pytest test suite (parity, regression, edge cases)
-├── static/                   # Navbar logo and PWA assets
+├── static/                   # Navbar logo
 ├── assets/                   # Logo, favicon, Home example result
 └── .github/workflows/        # CI (pytest on Python 3.12 & 3.14)
 ```
@@ -103,7 +103,7 @@ pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest tests\ -v
 ```
 
-The suite (149 tests) runs fully offline against synthetic fixtures and covers:
+The suite (153 tests) runs fully offline against synthetic fixtures and covers:
 mathematical parity with raw PyPortfolioOpt, frozen numeric regression
 snapshots, numerical edge cases, data-layer failure modes, input validation,
 PDF/visualization outputs, and backtest conventions. It also runs automatically

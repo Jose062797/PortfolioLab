@@ -95,6 +95,63 @@ class TestAboutPage:
         assert "Markowitz" in body
 
 
+class TestAccessibility:
+    """Audit 2026-10-08, package D. axe-core and a keyboard walk found these in
+    the real app; the tests keep them from coming back."""
+
+    def test_no_pwa_iframe_on_the_pages(self, monkeypatch):
+        """The PWA helper was a 1x1 iframe: the first Tab stop on every page,
+        announced as "st.iframe", for a worker that never controlled the app."""
+        from utils import styles
+
+        def _no_iframes(*args, **kwargs):
+            raise AssertionError("inject_styles must not add an iframe")
+
+        monkeypatch.setattr(styles.st, "iframe", _no_iframes)
+        styles.inject_styles()
+
+        assert not (ROOT / "static" / "sw.js").exists()
+        assert not (ROOT / "static" / "manifest.json").exists()
+
+    def test_focus_ring_is_solid_accent(self):
+        """The 35%-alpha ring measured about 2:1 on white; a focus indicator
+        needs 3:1, and the solid accent gives 4.99:1."""
+        import re
+        from utils.styles import get_shared_css
+
+        css = get_shared_css()
+        rule = re.search(r"a:focus-visible,[^{]*\{([^}]*)\}", css).group(1)
+
+        assert "outline: 3px solid var(--color-accent) !important" in rule
+        assert "accent-ring" not in css
+        # Tab panels and Streamlit's main scroll area (the first Tab stop)
+        # take focus too, and showed none before 2026-10-08
+        assert '[role="tabpanel"]:focus-visible' in css
+        main = re.search(r'section\[data-testid="stMain"\]:focus-visible \{([^}]*)\}', css).group(1)
+        assert "solid var(--color-accent)" in main
+
+    def test_headings_follow_the_outline(self):
+        """h1 page title, h2 form steps and model cards, h3 sections inside
+        them: no jump from h1 to h4 (axe "heading-order")."""
+        about = render(ABOUT_PAGE)
+        portfolio = render(str(ROOT / "pages" / "2_Portfolio.py"))
+        about_md, portfolio_md = joined(about.markdown), joined(portfolio.markdown)
+
+        assert 'role="heading" aria-level="2">Markowitz' in about_md
+        assert 'role="heading" aria-level="2">Black-Litterman' in about_md
+        assert 'role="heading" aria-level="2">Assets and budget' in portfolio_md
+        assert not any(line.lstrip().startswith("#### ")
+                       for line in (about_md + "\n" + portfolio_md).splitlines())
+
+    def test_footer_link_is_a_44px_target(self):
+        import re
+        from utils.styles import get_shared_css
+
+        rule = re.search(r"\.bl-footer a \{([^}]*)\}", get_shared_css()).group(1)
+
+        assert "min-height: 44px" in rule
+
+
 class TestStocksPage:
 
     def test_empty_state_renders_without_network(self):

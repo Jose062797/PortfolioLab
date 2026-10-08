@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # Critical CSS: hide sidebar/chrome IMMEDIATELY to prevent flash on navigation
-from utils.styles import inject_critical_css, inject_styles, render_navbar
+from utils.styles import inject_critical_css, inject_styles, render_navbar, subheading_html
 inject_critical_css()
 inject_styles()
 render_navbar(active_page="about")
@@ -36,8 +36,8 @@ def main():
         col_m1, col_m2 = st.columns(2, gap="large")
         with col_m1:
             with st.container(border=True):
+                st.markdown(subheading_html("Markowitz", 2), unsafe_allow_html=True)
                 st.markdown(
-                    "#### Markowitz\n"
                     "Mean-variance optimization: the classic model behind the *efficient frontier*, "
                     "which earned Harry Markowitz a Nobel Prize.\n\n"
                     "**Use it when:**\n"
@@ -49,8 +49,8 @@ def main():
                 )
         with col_m2:
             with st.container(border=True):
+                st.markdown(subheading_html("Black-Litterman", 2), unsafe_allow_html=True)
                 st.markdown(
-                    "#### Black-Litterman\n"
                     "A Bayesian model that starts from the market's own expectations, which "
                     "tempers Markowitz's tendency to concentrate the weights.\n\n"
                     "**Use it when:**\n"

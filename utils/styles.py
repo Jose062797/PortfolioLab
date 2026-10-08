@@ -16,6 +16,10 @@ them first after any `streamlit` version bump):
       header[data-testid="stHeader"], [data-testid="stSidebar"],
       [data-testid="collapsedControl"], [data-testid="stToolbar"],
       section[data-testid="stSidebarNav"] — hide Streamlit chrome/sidebar.
+      In 1.59 (checked 2026-10-08) only stHeader exists: with
+      showSidebarNavigation = false the sidebar, its controls, the toolbar
+      and the sidebar nav are not rendered at all. The other selectors are
+      kept on purpose, as a guard if a Streamlit update brings them back.
       [data-testid="stAppViewContainer"] / [data-testid="stMain"] /
       .block-container — full-width breakout (max-width: none, negative
       margins, 3rem side padding, 30px top gap).
@@ -26,8 +30,8 @@ them first after any `streamlit` version bump):
       button labels (a <p> nested in divs inside the button, reached by the
       global `p, li, div, label` color rule unless overridden);
       [data-testid="stHeaderActionElements"] (heading link icons, hidden in
-      designed blocks); the PWA helper iframe
-      ([data-testid="stElementContainer"][height="1px"]); .stPlotlyChart
+      designed blocks); section[data-testid="stMain"] (a Tab stop in 1.59:
+      the first one on every page, given a visible focus ring); .stPlotlyChart
       (touch-action); [data-testid="stExpander"] details; plus the same
       .block-container overrides for pages (the mobile one must match the
       specificity of inject_critical_css()).
@@ -69,7 +73,6 @@ def get_shared_css() -> str:
         --color-accent: #2E6FC7;           /* the only accent (4.99:1 on white) */
         --color-accent-hover: #1E5AB3;
         --color-accent-light: rgba(46, 111, 199, 0.08);
-        --color-accent-ring: rgba(46, 111, 199, 0.35);
         --color-success: #10B981;
         --color-warning: #F59E0B;
         --color-error: #EF4444;
@@ -114,13 +117,6 @@ def get_shared_css() -> str:
     button[kind="header"] {display: none !important;}
     .css-1544g2n {display: none !important;}
     [data-testid="collapsedControl"] {display: none !important;}
-
-    /* The PWA helper (inject_pwa_support) is a script-only 1x1 iframe. Keep
-       it running but invisible: it drew a faint dash under the navbar. */
-    [data-testid="stElementContainer"][height="1px"] > iframe[data-testid="stIFrame"] {
-        opacity: 0 !important;
-        pointer-events: none;
-    }
 
     /* ===== Global Typography ===== */
     html, body, [class*="css"] {
@@ -238,12 +234,34 @@ def get_shared_css() -> str:
     }
 
     /* ===== Focus: visible for keyboard users on everything clickable ===== */
+    /* Solid accent (4.99:1 on white). Until 2026-10-08 it was the 35% ring
+       token, about 2:1, below the 3:1 a focus indicator needs (audit F3-02). */
     a:focus-visible,
     button:focus-visible,
     [role="tab"]:focus-visible,
+    [role="tabpanel"]:focus-visible,
     summary:focus-visible {
-        outline: 3px solid var(--color-accent-ring) !important;
+        outline: 3px solid var(--color-accent) !important;
         outline-offset: 2px;
+    }
+
+    /* Streamlit makes its main scroll area a Tab stop (tabindex=0) so the
+       keyboard can scroll it; it is the first stop on every page, so it gets
+       the same ring, drawn inside the edge. */
+    section[data-testid="stMain"]:focus-visible {
+        outline: 3px solid var(--color-accent) !important;
+        outline-offset: -3px;
+    }
+
+    /* Section headings drawn as divs with role="heading" (subheading_html):
+       the look of the old #### headings, with a correct outline level. */
+    .bl-subhead {
+        font-size: 1.5rem !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+        color: var(--color-primary) !important;
+        padding: 0.5rem 0 1rem 0;
+        margin: 0;
     }
 
     /* ===== Top Navigation Bar ===== */
@@ -881,6 +899,10 @@ def get_shared_css() -> str:
         color: var(--color-accent) !important;
         text-decoration: none;
         font-weight: 500;
+        /* A 44 px touch target, like the rest of the page (audit F4-02) */
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
     }
 
     .bl-footer a:hover {
@@ -939,7 +961,7 @@ def get_shared_css() -> str:
         }
     }
 
-    /* ===== Mobile Responsiveness (PWA) ===== */
+    /* ===== Mobile Responsiveness ===== */
     @media (max-width: 768px) {
         /* Reduce lateral padding so charts and content have room. The div-
            qualified selectors match the specificity of the 3rem rule in
@@ -1114,49 +1136,27 @@ def inject_critical_css() -> None:
     """, unsafe_allow_html=True)
 
 
-def inject_pwa_support() -> None:
-    """Inject PWA manifest and service worker registration."""
-    pwa_script = """
-    <script>
-    if (!parent.document.getElementById('pwa-manifest')) {
-        // Resolve against the app's real base URL: on Streamlit Cloud the
-        // app is mounted under /~/+/, so absolute /app/static/... paths
-        // escape the prefix and return HTML instead of the asset.
-        const staticBase = new URL('./app/static/', parent.document.baseURI).href;
-
-        const manifest = parent.document.createElement('link');
-        manifest.id = 'pwa-manifest';
-        manifest.rel = 'manifest';
-        manifest.href = staticBase + 'manifest.json';
-        parent.document.head.appendChild(manifest);
-
-        const theme = parent.document.createElement('meta');
-        theme.name = 'theme-color';
-        theme.content = '#0A1628';
-        parent.document.head.appendChild(theme);
-
-        const appleIcon = parent.document.createElement('link');
-        appleIcon.rel = 'apple-touch-icon';
-        appleIcon.href = staticBase + 'PortfolioLab.png';
-        parent.document.head.appendChild(appleIcon);
-
-        if ('serviceWorker' in parent.navigator) {
-            parent.navigator.serviceWorker.register(staticBase + 'sw.js')
-            .then(() => console.log('PortfolioLab PWA Service Worker registered'))
-            .catch((err) => console.log('Service Worker registration failed:', err));
-        }
-    }
-    </script>
-    """
-    # st.iframe requires positive dimensions (0 was valid in components.html);
-    # 1x1 px keeps the script-only iframe effectively invisible.
-    st.iframe(pwa_script, height=1, width=1)
+# No PWA since 2026-10-08 (audit B5-04, F3-01). inject_pwa_support() added a
+# manifest and a service worker through a 1x1 st.iframe, but inside Streamlit
+# Cloud's frame the worker's scope (./app/static/) never controlled the app,
+# the manifest's start_url answered 404, and the invisible iframe was the
+# first Tab stop on every page. Workers already registered in visitors'
+# browsers only cover the static folder and go to the network first.
 
 
 def inject_styles() -> None:
     """Inject the shared CSS into the current Streamlit page."""
     st.markdown(get_shared_css(), unsafe_allow_html=True)
-    inject_pwa_support()
+
+
+def subheading_html(text: str, level: int) -> str:
+    """
+    A section heading that looks like the old `####` markdown ones while
+    giving assistive technology the right outline level (h1 page title, h2
+    form steps, h3 sections within them; audit F3-04). `text` must be a
+    constant: it goes into raw HTML.
+    """
+    return f'<div class="bl-subhead" role="heading" aria-level="{level}">{text}</div>'
 
 
 def render_footer() -> None:
