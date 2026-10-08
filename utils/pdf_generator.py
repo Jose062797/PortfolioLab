@@ -79,8 +79,8 @@ def build_report_pdf(result_data, logo_path=None) -> bytes:
         try:
             result_data['historical_data'] = run_backtest(
                 result_data, date_range=result_data.get('date_range')) or None
-        except Exception as e:
-            logger.warning("Backtest for the PDF failed: %s", e)
+        except Exception:
+            logger.exception("Backtest for the PDF failed")
             result_data['historical_data'] = None
     return bytes(generate_portfolio_pdf(result_data, logo_path=logo_path))
 
@@ -138,40 +138,63 @@ def generate_portfolio_pdf(result_data, logo_path=None):
     backtest_range = result_data.get('backtest_range')
 
     num_assets = sum(1 for w in weights.values() if w > MIN_WEIGHT_THRESHOLD)
+    # The backtest period is shown only when the report has the backtest: it
+    # used to print on the cover even when the Historical page was missing
+    # (audit B3-06)
+    shown_backtest_range = backtest_range if historical_data else None
 
     # ── PAGE 1: Cover + Executive Summary + Metric Cards + Methodology ──
-    _add_cover_page(pdf, portfolio_value, full_start, full_end, backtest_range,
+    _add_cover_page(pdf, portfolio_value, full_start, full_end, shown_backtest_range,
                     logo_path, model_type, obj_function)
     _add_executive_summary(pdf, portfolio_value, num_assets, result_data)
     _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
                       portfolio_value, num_assets)
     add_methodology(pdf, result_data)
 
+    # Optional sections never sink the whole report: a failure is logged and
+    # leaves a line in the PDF, where it used to vanish or, uncaught, stop the
+    # download with Streamlit's generic error (audit B3-07, B3-12).
+
     # ── PAGE 2: Allocation (Tab 1) — chart first, then table ──
     pdf.add_page()
     _add_allocation_title(pdf)
-    add_chart_to_pdf(pdf, create_allocation_chart(weights), width_scale=0.75)
-    add_chart_description(pdf, 'allocation', result_data)
+    try:
+        add_chart_to_pdf(pdf, create_allocation_chart(weights), width_scale=0.75)
+        add_chart_description(pdf, 'allocation', result_data)
+    except Exception:
+        logger.exception("PDF allocation chart failed")
+        _add_note(pdf, "The allocation chart could not be drawn for this run; the table below has every weight.")
     _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_prices)
 
     # ── PAGE 3: Returns Analysis (Tab 2) — only for Black-Litterman ──
     if model_type != "Markowitz" and len(market_prior) > 0:
         views_detail = result_data.get('views_detail', {})
         pdf.add_page()
-        _add_returns_analysis(pdf, market_prior, posterior, views, views_detail)
+        try:
+            _add_returns_analysis(pdf, market_prior, posterior, views, views_detail)
+        except Exception:
+            logger.exception("PDF returns analysis failed")
+            _add_note(pdf, "The returns analysis could not be drawn for this run.")
 
     # ── PAGE 4: Historical Performance (Tab 3) ──
     if historical_data:
         pdf.add_page()
         logger.info("Historical data available, adding performance section")
-        add_historical_header(pdf, historical_data)
-        hist_chart = create_historical_chart(historical_data, model_type)
-        if hist_chart:
-            add_chart_to_pdf(pdf, hist_chart)
-            add_chart_description(pdf, 'historical')
-        else:
-            logger.warning("Historical chart generation returned None")
-        add_historical_metrics(pdf, historical_data, model_type)
+        try:
+            add_historical_header(pdf, historical_data)
+            hist_chart = create_historical_chart(historical_data, model_type)
+            if hist_chart:
+                add_chart_to_pdf(pdf, hist_chart)
+                add_chart_description(pdf, 'historical')
+            else:
+                _add_note(pdf, "The historical chart could not be drawn for this run.")
+            add_historical_metrics(pdf, historical_data, model_type)
+        except Exception:
+            logger.exception("PDF historical performance failed")
+            _add_note(pdf, "The historical performance could not be completed for this run.")
+    else:
+        _add_note(pdf, "Historical performance: not available for this run. The backtest needs at "
+                       "least 20 days on which every asset and SPY have a price.")
 
     # ── PAGE 5: Correlation (Tab 4) ──
     if covariance is not None:
@@ -186,11 +209,13 @@ def generate_portfolio_pdf(result_data, logo_path=None):
             pdf.ln(2)
             add_chart_to_pdf(pdf, corr_chart)
             add_chart_description(pdf, 'correlation')
+        else:
+            _add_note(pdf, "The correlation matrix could not be drawn for this run.")
 
     # ── PAGE 6: Detailed Breakdown (Tab 5) ──
     pdf.add_page()
     _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
-                            full_start, full_end, backtest_range, result_data)
+                            full_start, full_end, shown_backtest_range, result_data)
 
     # ── PAGE 7: Disclaimers ──
     pdf.add_page()
@@ -206,6 +231,16 @@ def generate_portfolio_pdf(result_data, logo_path=None):
 # ═══════════════════════════════════════════════════════════════════
 #  PDF Sections
 # ═══════════════════════════════════════════════════════════════════
+
+def _add_note(pdf, text):
+    """A short grey line where a section is missing or could not be drawn."""
+    pdf.set_font('helvetica', 'I', 9)
+    pdf.set_text_color(100, 100, 100)
+    pdf.multi_cell(pdf.w - pdf.l_margin - pdf.r_margin, 5, text,
+                   new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(3)
+
 
 def _add_cover_page(pdf, portfolio_value, full_start, full_end, backtest_range,
                     logo_path, model_type='Black-Litterman', obj_function='Max Sharpe'):
@@ -231,16 +266,17 @@ def _add_cover_page(pdf, portfolio_value, full_start, full_end, backtest_range,
     pdf.ln(15)
 
     pdf.set_font('helvetica', '', 11)
-    pdf.cell(0, 6, f'Portfolio Value: ${portfolio_value:,.0f}',
+    # The web's words throughout the report (audit F1-16)
+    pdf.cell(0, 6, f'Budget: ${portfolio_value:,.0f}',
              align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.cell(0, 6, f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}',
              align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     if full_start != 'N/A':
-        pdf.cell(0, 6, f'Price Data: {full_start} to {full_end}',
+        pdf.cell(0, 6, f'Price data: {full_start} to {full_end}',
                  align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     if backtest_range:
-        pdf.cell(0, 6, f'Backtest Period: {backtest_range[0]} to {backtest_range[1]}',
+        pdf.cell(0, 6, f'Backtest period: {backtest_range[0]} to {backtest_range[1]}',
                  align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(10)
@@ -258,8 +294,7 @@ def _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
     start_x = pdf.l_margin
     start_y = pdf.get_y()
 
-    labels = ['Expected Return', 'Volatility', 'Sharpe (Ex-Ante)',
-              'Portfolio Value', 'Assets']
+    labels = ['Expected Return', 'Volatility', 'Sharpe Ratio', 'Budget', 'Assets']
     values = [
         f'{expected_return * 100:.2f}%',
         f'{volatility * 100:.2f}%',
@@ -289,12 +324,13 @@ def _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
     pdf.set_text_color(0, 0, 0)
     pdf.set_y(start_y + card_height + 5)
 
-    # Footnote: clarify ex-ante vs ex-post Sharpe for readers
+    # Footnote, in the web caption's terms: these are the model's estimates;
+    # the Historical Performance page has the backtest's own figures
     pdf.set_font('helvetica', 'I', 7)
     pdf.set_text_color(130, 130, 130)
     pdf.cell(0, 4,
-             'Sharpe (Ex-Ante): model estimate from expected returns. '
-             'Sharpe (Ex-Post): realised ratio from historical backtest (see Historical Performance).',
+             "The model's annual estimates for these weights (3% risk-free rate), not forecasts. "
+             'Historical Performance shows what they would have earned.',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_text_color(0, 0, 0)
 
@@ -326,14 +362,15 @@ def _add_executive_summary(pdf, portfolio_value, n_assets, result_data):
     else:
         views_part = ("your views" if result_data.get('viewdict')
                       else "no views, so the market equilibrium alone")
-        gamma_part = f" (gamma = {gamma:.1f})" if gamma is not None else ""
+        # With gamma 0 the engine skips L2 (audit F1-07)
+        penalty_part = (f"with an L2 penalty (gamma = {gamma:.1f}) that spreads the weights"
+                        if gamma else "with no L2 penalty (gamma = 0)")
         summary_text = (
             f"This report presents an optimized portfolio allocation for "
             f"${portfolio_value:,.0f} across {n_assets} assets using the "
             f"Black-Litterman model. It blends the returns implied by market "
             f"capitalizations with {views_part}, then looks for the highest "
-            f"expected Sharpe ratio (3% risk-free rate) with an L2 penalty{gamma_part} "
-            f"that spreads the weights."
+            f"expected Sharpe ratio (3% risk-free rate) {penalty_part}."
         )
 
     pdf.multi_cell(available_width, 5, summary_text)
@@ -423,8 +460,8 @@ def _add_returns_analysis(pdf, market_prior, posterior, views, views_detail=None
         pdf.cell(col_widths[0], 5, 'Asset', border=1, align='C', new_x=XPos.RIGHT)
         pdf.cell(col_widths[1], 5, 'Prior', border=1, align='C', new_x=XPos.RIGHT)
         pdf.cell(col_widths[2], 5, 'View', border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[3], 5, 'Lower', border=1, align='C', new_x=XPos.RIGHT)
-        pdf.cell(col_widths[4], 5, 'Upper', border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[3], 5, 'Low', border=1, align='C', new_x=XPos.RIGHT)
+        pdf.cell(col_widths[4], 5, 'High', border=1, align='C', new_x=XPos.RIGHT)
         pdf.cell(col_widths[5], 5, 'Posterior', border=1, align='C',
                  new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     else:
@@ -493,26 +530,31 @@ def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(2)
 
+    # The web Details tab's rows and words (audit F1-16)
     pdf.set_font('helvetica', '', 10)
-    pdf.cell(50, 6, 'Total Value:', new_x=XPos.RIGHT)
+    pdf.cell(50, 6, 'Budget:', new_x=XPos.RIGHT)
     pdf.cell(0, 6, f'${portfolio_value:,.2f}',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    pdf.cell(50, 6, 'Number of Assets:', new_x=XPos.RIGHT)
+    pdf.cell(50, 6, 'Assets:', new_x=XPos.RIGHT)
     pdf.cell(0, 6, str(num_assets),
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    pdf.cell(50, 6, 'Cash Remaining:', new_x=XPos.RIGHT)
+    pdf.cell(50, 6, 'Cash left over:', new_x=XPos.RIGHT)
     pdf.cell(0, 6, f'${leftover:,.2f}',
              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     if full_start != 'N/A':
-        pdf.cell(50, 6, 'Price Data:', new_x=XPos.RIGHT)
-        pdf.cell(0, 6, f'{full_start} to {full_end} (every asset priced: estimates, share prices)',
-                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(50, 6, 'Price data:', new_x=XPos.RIGHT)
+        pdf.multi_cell(0, 6, f'{full_start} to {full_end} (dates with a price for every asset: '
+                             'expected returns, covariance and share prices)',
+                       new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(50, 6, 'Backtest period:', new_x=XPos.RIGHT)
     if backtest_range:
-        pdf.cell(50, 6, 'Backtest Period:', new_x=XPos.RIGHT)
-        pdf.cell(0, 6, f'{backtest_range[0]} to {backtest_range[1]} (days with a price for every asset and SPY)',
+        pdf.multi_cell(0, 6, f'{backtest_range[0]} to {backtest_range[1]} (days with a price for every asset and SPY)',
+                       new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    else:
+        pdf.cell(0, 6, 'not available for this run',
                  new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     # ── Model Settings (the web page's rows) ──
@@ -534,14 +576,14 @@ def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
     rows = [
         ('Model:', model_type),
         ('Goal:', goal),
-        ('Expected Returns:', estimator),
+        ('Expected returns:', estimator),
         ('Covariance:', 'Ledoit-Wolf shrinkage'),
     ]
     if result_data.get('l2_gamma') is not None:
-        rows.append(('L2 Regularization (Gamma):', f"{result_data['l2_gamma']:.1f}"))
-    rows.append(('Risk-Free Rate:', f"{result_data.get('risk_free_rate', 0.03)*100:.0f}%"))
+        rows.append(('L2 regularization (gamma):', f"{result_data['l2_gamma']:.1f}"))
+    rows.append(('Risk-free rate:', f"{result_data.get('risk_free_rate', 0.03)*100:.0f}%"))
     timestamp = result_data.get('timestamp', 'N/A')
-    rows.append(('Optimization Date:', timestamp[:10] if timestamp != 'N/A' else 'N/A'))
+    rows.append(('Run on:', timestamp[:10] if timestamp != 'N/A' else 'N/A'))
     for label, value in rows:
         pdf.cell(58, 6, label, new_x=XPos.RIGHT)
         # multi_cell: a goal with its target and textbook name can be long

@@ -103,7 +103,7 @@ pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest tests\ -v
 ```
 
-The suite (191 tests) runs fully offline against synthetic fixtures and covers:
+The suite (202 tests) runs fully offline against synthetic fixtures and covers:
 mathematical parity with raw PyPortfolioOpt, frozen numeric regression
 snapshots, numerical edge cases, data-layer failure modes, input validation,
 PDF/visualization outputs, and backtest conventions. It also runs automatically

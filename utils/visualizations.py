@@ -800,11 +800,10 @@ def create_historical_performance_chart(
             tickers=tickers,
             portfolio_value=portfolio_value,
             benchmark_col=benchmark,
-            min_data_points=20,
         )
 
         if bt_result is None:
-            raise ValueError("Insufficient data for backtest (need at least 20 common dates)")
+            raise ValueError("Insufficient data for backtest")
 
         # ── Step 3: Build Plotly chart from backtest result ──
         #

@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 from core.constants import (
-    BENCHMARK_TICKER, RISK_FREE_RATE, TRADING_DAYS_PER_YEAR
+    BENCHMARK_TICKER, MIN_DATA_POINTS, RISK_FREE_RATE, TRADING_DAYS_PER_YEAR
 )
 
 
@@ -180,7 +180,7 @@ def run_backtest(
     tickers: List[str],
     portfolio_value: float,
     benchmark_col: str = BENCHMARK_TICKER,
-    min_data_points: int = 100,
+    min_data_points: int = MIN_DATA_POINTS,
 ) -> Optional[BacktestResult]:
     """
     Run a historical backtest on a weighted portfolio vs a benchmark.
@@ -197,7 +197,11 @@ def run_backtest(
         tickers: List of portfolio ticker symbols (NOT including benchmark).
         portfolio_value: Starting portfolio value in USD.
         benchmark_col: Column name for benchmark in prices DataFrame.
-        min_data_points: Minimum number of rows required (default 100).
+        min_data_points: Minimum number of rows required. Defaults to
+            MIN_DATA_POINTS (20), the minimum of an optimization, for the web
+            chart and the PDF alike: the PDF used 100 and the web 20, so runs
+            of 20-99 common days had a web backtest and none in the PDF
+            (audit B3-06).
 
     Returns:
         BacktestResult dataclass, or None if insufficient data.

@@ -12,7 +12,8 @@ import io
 import logging
 from datetime import datetime
 
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 import numpy as np
 import pandas as pd
 from fpdf.enums import XPos, YPos
@@ -40,47 +41,14 @@ _PORTFOLIO_COLOR, _BENCHMARK_COLOR = "#2E6FC7", "#64748B"
 #  Chart Generation Functions  (all return bytes)
 # ═══════════════════════════════════════════════════════════════════
 
-def create_prior_chart(market_prior: pd.Series) -> bytes:
-    """Create market prior returns horizontal bar chart."""
-    fig, ax = plt.subplots(figsize=(7, 4))
-    fig.patch.set_facecolor('white')
-
-    sorted_prior = market_prior.sort_values(ascending=True)
-    colors = ['green' if x > 0 else 'red' for x in sorted_prior.values]
-    sorted_prior.plot.barh(ax=ax, color=colors, alpha=0.7)
-    ax.set_title('Market-Implied Prior Returns', fontweight='bold', fontsize=12)
-    ax.set_xlabel('Expected Annual Return', fontsize=10)
-    ax.grid(axis='x', alpha=0.3)
-    ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
-
-    plt.tight_layout()
-    return _fig_to_bytes(fig)
-
-
-def create_posterior_chart(posterior: pd.Series) -> bytes:
-    """Create posterior returns horizontal bar chart."""
-    fig, ax = plt.subplots(figsize=(7, 4))
-    fig.patch.set_facecolor('white')
-
-    sorted_post = posterior.sort_values(ascending=True)
-    colors = ['green' if x > 0 else 'red' for x in sorted_post.values]
-    sorted_post.plot.barh(ax=ax, color=colors, alpha=0.7)
-    ax.set_title('Black-Litterman Posterior Returns', fontweight='bold', fontsize=12)
-    ax.set_xlabel('Expected Annual Return', fontsize=10)
-    ax.grid(axis='x', alpha=0.3)
-    ax.axvline(x=0, color='black', linestyle='-', linewidth=0.8)
-
-    plt.tight_layout()
-    return _fig_to_bytes(fig)
-
-
 def create_comparison_chart(
     market_prior: pd.Series,
     posterior: pd.Series,
     views: dict
 ) -> bytes:
     """Create comparison bar chart (Prior vs Posterior vs Views)."""
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig = Figure(figsize=(7, 4))
+    ax = fig.subplots()
     fig.patch.set_facecolor('white')
 
     # Same series, order and colors as the web chart (create_returns_comparison).
@@ -114,7 +82,7 @@ def create_comparison_chart(
     ax.grid(axis='y', alpha=0.3)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
 
-    plt.tight_layout()
+    fig.tight_layout()
     return _fig_to_bytes(fig)
 
 
@@ -131,7 +99,8 @@ def create_allocation_chart(weights: dict) -> bytes:
 
     if len(weights_series) > MAX_PIE_SLICES:
         shown = weights_series.sort_values()
-        fig, ax = plt.subplots(figsize=(7, max(3.5, 0.4 * len(shown) + 1)))
+        fig = Figure(figsize=(7, max(3.5, 0.4 * len(shown) + 1)))
+        ax = fig.subplots()
         fig.patch.set_facecolor('white')
         ax.barh(shown.index, shown.values * 100, color=ASSET_COLORS[0])
         for i, value in enumerate(shown.values * 100):
@@ -140,10 +109,11 @@ def create_allocation_chart(weights: dict) -> bytes:
         ax.set_xlabel('Weight (%)')
         ax.spines[['top', 'right']].set_visible(False)
         ax.set_title('Portfolio Allocation', fontweight='bold', fontsize=12)
-        plt.tight_layout()
+        fig.tight_layout()
         return _fig_to_bytes(fig)
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig = Figure(figsize=(6, 6))
+    ax = fig.subplots()
     fig.patch.set_facecolor('white')
     # Colors handed out in the same order as the web pie (create_allocation_pie)
     colors = ASSET_COLORS[:len(weights_series)]
@@ -154,7 +124,7 @@ def create_allocation_chart(weights: dict) -> bytes:
     ax.set_title('Portfolio Allocation', fontweight='bold', fontsize=12)
     ax.set_ylabel('')
 
-    plt.tight_layout()
+    fig.tight_layout()
     return _fig_to_bytes(fig)
 
 
@@ -173,7 +143,8 @@ def create_correlation_heatmap(covariance, tickers: list) -> bytes | None:
         std_devs = np.sqrt(np.diag(cov_df.values))
         correlation = cov_df / np.outer(std_devs, std_devs)
 
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig = Figure(figsize=(8, 6))
+        ax = fig.subplots()
         fig.patch.set_facecolor('white')
 
         sns.heatmap(
@@ -183,10 +154,10 @@ def create_correlation_heatmap(covariance, tickers: list) -> bytes | None:
         )
         ax.set_title('Asset Correlation Matrix', fontweight='bold', fontsize=12, pad=15)
 
-        plt.tight_layout()
+        fig.tight_layout()
         return _fig_to_bytes(fig)
-    except Exception as e:
-        logger.error("Error creating correlation heatmap: %s", e)
+    except Exception:
+        logger.exception("Error creating correlation heatmap")
         return None
 
 
@@ -194,7 +165,8 @@ def create_historical_chart(historical_data: dict,
                             model_type: str = 'Black-Litterman') -> bytes | None:
     """Create historical performance chart from backtest data (web colors and labels)."""
     try:
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig = Figure(figsize=(10, 5))
+        ax = fig.subplots()
         fig.patch.set_facecolor('white')
 
         # Use percentage returns (consistent with web)
@@ -249,12 +221,12 @@ def create_historical_chart(historical_data: dict,
         ax.set_ylabel('Cumulative Return (%)', fontsize=10)
         ax.legend(fontsize=9, loc='upper left')
         ax.grid(alpha=0.3)
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{y:.0f}%'))
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f'{y:.0f}%'))
 
-        plt.tight_layout()
+        fig.tight_layout()
         return _fig_to_bytes(fig)
-    except Exception as e:
-        logger.error("Error creating historical chart: %s", e)
+    except Exception:
+        logger.exception("Error creating historical chart")
         return None
 
 
@@ -265,15 +237,21 @@ def create_historical_chart(historical_data: dict,
 OBJECTIVE_DESCRIPTIONS = {
     'Min Variance': 'minimizes expected volatility',
     'Max Sharpe': 'maximizes the expected Sharpe ratio (3% risk-free rate)',
-    'Maximise Return for a Given Risk': 'maximizes expected return with volatility of at most {target_volatility:.0%}',
-    'Minimise Risk for a Given Return': 'minimizes volatility for an expected return of at least {target_return:.0%}',
+    'Maximise Return for a Given Risk': 'maximizes expected return with volatility of at most {target_volatility}%',
+    'Minimise Risk for a Given Return': 'minimizes volatility for an expected return of at least {target_return}%',
 }
 
 
 def describe_objective(obj_function: str, target_volatility=None, target_return=None) -> str:
-    """What the Markowitz objective does, with its target when it has one."""
+    """What the Markowitz objective does, with its target when it has one.
+
+    Targets print as typed (12.5%), like goal_text: `:.0%` rounded them to
+    whole percents, so the same PDF said 12% here and 12.5% in its breakdown
+    (audit F1-01).
+    """
     template = OBJECTIVE_DESCRIPTIONS.get(obj_function, 'optimizes the portfolio')
-    return template.format(target_volatility=target_volatility or 0.0, target_return=target_return or 0.0)
+    return template.format(target_volatility=f"{(target_volatility or 0.0) * 100:g}",
+                           target_return=f"{(target_return or 0.0) * 100:g}")
 
 
 def add_methodology(pdf, result: dict) -> None:
@@ -322,7 +300,10 @@ def add_methodology(pdf, result: dict) -> None:
             "- Posterior: the Bayesian blend of prior and views, with a Ledoit-Wolf shrunk "
             "covariance matrix of daily returns\n"
             "- Optimization: highest expected Sharpe ratio on the posterior returns (3% "
-            f"risk-free rate), with an L2 penalty ({gamma_text}) that spreads the weights"
+            "risk-free rate), "
+            # With gamma 0 the engine skips L2 entirely (audit F1-07)
+            + (f"with an L2 penalty ({gamma_text}) that spreads the weights" if gamma
+               else "with no L2 penalty (gamma = 0)")
         )
     pdf.multi_cell(available_width, 5, methodology_text)
     pdf.ln(5)
@@ -546,11 +527,11 @@ def add_historical_metrics(pdf, historical_data: dict,
     _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
                       'Max Drawdown', f'{spy_md:.2f}%')
     start_y += card_height + 2
-    # Row 4: Sharpe Ratio (ex-post — realised from backtest returns)
+    # Row 4: Sharpe Ratio (realised from backtest returns; the web's word)
     _draw_metric_card(pdf, start_x, start_y, col_width, card_height,
-                      'Sharpe (Ex-Post)', f'{portfolio_sharpe:.2f}')
+                      'Sharpe Ratio', f'{portfolio_sharpe:.2f}')
     _draw_metric_card(pdf, start_x + col_width + gap, start_y, col_width, card_height,
-                      'Sharpe (Ex-Post)', f'{spy_sharpe:.2f}')
+                      'Sharpe Ratio', f'{spy_sharpe:.2f}')
     start_y += card_height + 2
     # Row 5: Sortino Ratio
     _draw_metric_card(pdf, start_x, start_y, col_width, card_height,
@@ -579,21 +560,22 @@ def add_historical_metrics(pdf, historical_data: dict,
 
     analysis_parts = []
 
-    # Return comparison
+    # Return comparison. These are annualized returns: "a year", or the text
+    # read as total returns over the period (audit F1-17).
     if abs(return_diff) < RETURN_COMPARISON_TOLERANCE:
         analysis_parts.append(
-            f"The portfolio returned {portfolio_return:.2f}%, roughly matching "
-            f"the SPY benchmark ({spy_return:.2f}%)."
+            f"The portfolio returned {portfolio_return:.2f}% a year, roughly matching "
+            f"the SPY benchmark ({spy_return:.2f}% a year)."
         )
     elif return_diff > 0:
         analysis_parts.append(
             f"The portfolio outperformed SPY by {return_diff:.2f} percentage "
-            f"points ({portfolio_return:.2f}% vs {spy_return:.2f}%)."
+            f"points a year ({portfolio_return:.2f}% vs {spy_return:.2f}%)."
         )
     else:
         analysis_parts.append(
             f"The portfolio underperformed SPY by {abs(return_diff):.2f} "
-            f"percentage points ({portfolio_return:.2f}% vs {spy_return:.2f}%)."
+            f"percentage points a year ({portfolio_return:.2f}% vs {spy_return:.2f}%)."
         )
 
     # Volatility comparison
@@ -665,5 +647,4 @@ def _fig_to_bytes(fig) -> bytes:
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
     buf.seek(0)
-    plt.close(fig)
     return buf.read()
