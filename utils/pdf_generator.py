@@ -34,6 +34,7 @@ from core.pdf_shared import (
     add_historical_metrics,
 )
 from core.constants import MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, goal_text
+from utils.text import fmt_price
 
 logger = logging.getLogger(__name__)
 
@@ -383,7 +384,7 @@ def _add_allocation_table(pdf, weights, allocation, portfolio_value, latest_pric
                 ticker,
                 f'{weight*100:.2f}%',
                 str(shares),
-                f'${price:,.2f}' if price else 'N/A',
+                f'${fmt_price(price)}' if price else 'N/A',
                 f'${weight * portfolio_value:,.2f}',
                 f'${shares * price:,.2f}' if price else 'N/A',
             ]

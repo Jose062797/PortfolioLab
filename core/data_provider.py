@@ -327,6 +327,10 @@ def get_asset_info(ticker: str) -> dict:
         # Normalize to a fraction, like expense_ratio and ytd_return below.
         'dividend_yield': (_get('dividendYield') / 100.0) if _get('dividendYield') is not None
                           else _get('trailingAnnualDividendYield'),
+        # The fallback is the past twelve months' yield, not the forward one:
+        # the page labels it so (audit F1-13)
+        'dividend_yield_trailing': _get('dividendYield') is None
+                                   and _get('trailingAnnualDividendYield') is not None,
         'dividend_rate': _get('dividendRate'),
         'ex_dividend_date': _get('exDividendDate'),
         # Analyst consensus

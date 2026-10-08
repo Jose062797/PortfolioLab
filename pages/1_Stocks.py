@@ -32,7 +32,7 @@ from core.data_provider import (  # noqa: E402
     download_ohlcv, get_asset_info, get_quarterly_financials,
 )
 from utils.visualizations import apply_brand_layout, create_price_chart  # noqa: E402
-from utils.text import escape_markdown  # noqa: E402
+from utils.text import escape_markdown, fmt_price  # noqa: E402
 from core.constants import TICKER_PATTERN  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -122,6 +122,20 @@ def _fmt_number(value, prefix="", suffix="", decimals=2):
     return f"{prefix}{value:,.{decimals}f}{suffix}"
 
 
+def _fmt_count(value):
+    """Volumes: whole numbers below a million (they used to show .00, F1-14)."""
+    number = _num(value)
+    if number is not None and abs(number) < 1e6:
+        return f"{number:,.0f}"
+    return _fmt_number(value)
+
+
+def _fmt_quote(value):
+    """A price field: fmt_price (enough decimals under 1), or N/A."""
+    value = _num(value)
+    return "N/A" if value is None else fmt_price(value)
+
+
 def _fmt_pct(value):
     value = _num(value)
     if value is None:
@@ -141,7 +155,7 @@ def _fmt_div_yield(value):
 def _fmt_range(low, high):
     low, high = _num(low), _num(high)
     if low is not None and high is not None:
-        return f"{low:,.2f} – {high:,.2f}"
+        return f"{fmt_price(low)} – {fmt_price(high)}"
     return "N/A"
 
 
@@ -193,6 +207,11 @@ def _calculate_returns(close_prices: pd.Series, current_price: float = None) -> 
         
     close_prices = close_prices.sort_index()
     close_prices.index = close_prices.index.tz_localize(None)
+    # Yahoo pads some histories with closes of 0 (SHIB-USD: its first 217
+    # days); a base of 0 printed "All +inf%" (found 2026-10-08)
+    close_prices = close_prices[close_prices > 0]
+    if close_prices.empty:
+        return {}
     latest = current_price if current_price is not None else close_prices.iloc[-1]
     last_date = close_prices.index[-1]
     first_date = close_prices.index[0]
@@ -290,20 +309,20 @@ def _render_key_stats(info, asset_type):
 
     if asset_type in ("ETF", "INDEX"):
         left = [
-            ("Previous Close", _fmt_safe(info.get('previous_close'), "{:,.2f}")),
-            ("Open", _fmt_safe(info.get('open_price'), "{:,.2f}")),
+            ("Previous Close", _fmt_quote(info.get('previous_close'))),
+            ("Open", _fmt_quote(info.get('open_price'))),
             ("Day's Range", _fmt_range(info.get('day_low'), info.get('day_high'))),
         ]
         right = [
             ("52-Week Range", _fmt_range(info.get('fifty_two_week_low'), info.get('fifty_two_week_high'))),
-            ("Volume", _fmt_number(info.get('volume'))),
-            ("Avg. Volume", _fmt_number(info.get('avg_volume'))),
+            ("Volume", _fmt_count(info.get('volume'))),
+            ("Avg. Volume", _fmt_count(info.get('avg_volume'))),
         ]
 
     elif asset_type == "CRYPTOCURRENCY":
         left = [
-            ("Previous Close", _fmt_safe(info.get('previous_close'), "{:,.2f}")),
-            ("Open", _fmt_safe(info.get('open_price'), "{:,.2f}")),
+            ("Previous Close", _fmt_quote(info.get('previous_close'))),
+            ("Open", _fmt_quote(info.get('open_price'))),
             ("Day's Range", _fmt_range(info.get('day_low'), info.get('day_high'))),
             ("52-Week Range", _fmt_range(info.get('fifty_two_week_low'), info.get('fifty_two_week_high'))),
         ]
@@ -311,7 +330,7 @@ def _render_key_stats(info, asset_type):
             ("Market Cap", _fmt_number(info.get('market_cap'))),
             ("Circulating Supply", _fmt_supply(info.get('circulating_supply'))),
             ("Max Supply", _fmt_supply(info.get('max_supply'))),
-            ("Volume (24h)", _fmt_number(info.get('volume_24h'))),
+            ("Volume (24h)", _fmt_count(info.get('volume_24h'))),
         ]
 
     else:  # EQUITY (default)
@@ -321,16 +340,16 @@ def _render_key_stats(info, asset_type):
         ask_size = _num(info.get('ask_size'))
 
         if bid and bid_size:
-            bid_str = f"{bid:,.2f} x {int(bid_size):,}"
+            bid_str = f"{fmt_price(bid)} x {int(bid_size):,}"
         elif bid:
-            bid_str = f"{bid:,.2f}"
+            bid_str = fmt_price(bid)
         else:
             bid_str = "N/A"
 
         if ask and ask_size:
-            ask_str = f"{ask:,.2f} x {int(ask_size):,}"
+            ask_str = f"{fmt_price(ask)} x {int(ask_size):,}"
         elif ask:
-            ask_str = f"{ask:,.2f}"
+            ask_str = fmt_price(ask)
         else:
             ask_str = "N/A"
 
@@ -346,14 +365,14 @@ def _render_key_stats(info, asset_type):
             fwd_div_str = "N/A"
 
         left = [
-            ("Previous Close", _fmt_safe(info.get('previous_close'), "{:,.2f}")),
-            ("Open", _fmt_safe(info.get('open_price'), "{:,.2f}")),
+            ("Previous Close", _fmt_quote(info.get('previous_close'))),
+            ("Open", _fmt_quote(info.get('open_price'))),
             ("Bid", bid_str),
             ("Ask", ask_str),
             ("Day's Range", _fmt_range(info.get('day_low'), info.get('day_high'))),
             ("52 Week Range", _fmt_range(info.get('fifty_two_week_low'), info.get('fifty_two_week_high'))),
-            ("Volume", _fmt_number(info.get('volume'))),
-            ("Avg. Volume", _fmt_number(info.get('avg_volume'))),
+            ("Volume", _fmt_count(info.get('volume'))),
+            ("Avg. Volume", _fmt_count(info.get('avg_volume'))),
         ]
         right = [
             ("Market Cap (intraday)", _fmt_number(info.get('market_cap'))),
@@ -361,9 +380,10 @@ def _render_key_stats(info, asset_type):
             ("PE Ratio (TTM)", _fmt_safe(info.get('pe_ratio'))),
             ("EPS (TTM)", _fmt_safe(info.get('eps'), "{:,.2f}")),
             ("Earnings Date (est.)", _fmt_date(info.get('next_earnings_date'))),
-            ("Forward Dividend & Yield", fwd_div_str),
+            ("Dividend & Trailing Yield" if info.get('dividend_yield_trailing')
+             else "Forward Dividend & Yield", fwd_div_str),
             ("Ex-Dividend Date", _fmt_date(info.get('ex_dividend_date'))),
-            ("1y Target Est", _fmt_safe(info.get('target_mean_price'), "{:,.2f}")),
+            ("1y Target Est", _fmt_quote(info.get('target_mean_price'))),
         ]
 
     # Check if any data is actually available (not all N/A)
@@ -524,7 +544,7 @@ def _render_fund_details(info):
     items = [
         ("Fund Family", info.get('fund_family') or "N/A"),
         ("Net Assets", _fmt_number(info.get('net_assets'))),
-        ("NAV", _fmt_safe(info.get('nav_price'), "{:,.2f}")),
+        ("NAV", _fmt_quote(info.get('nav_price'))),
         ("Expense Ratio", _fmt_pct(info.get('expense_ratio'))),
         ("Yield", _fmt_pct(info.get('yield_pct'))),
         ("YTD Return", _fmt_pct(info.get('ytd_return'))),
@@ -712,7 +732,7 @@ def main():
             chg_sign = "+" if change >= 0 else ""
             chg_str = (
                 f'<span class="bl-num" style="color:{chg_color};font-size:1.1rem;font-weight:600;margin-left:12px;">'
-                f'{chg_sign}{change:.2f} ({chg_sign}{change_pct:.2f}%)</span>'
+                f'{chg_sign}{fmt_price(change)} ({chg_sign}{change_pct:.2f}%)</span>'
             )
         st.markdown(
             f'<div style="margin-bottom:0.3rem;">'
@@ -721,7 +741,7 @@ def main():
             f'{tag_html}'
             f'</div>'
             f'<div style="margin-bottom:0.8rem;">'
-            f'<span class="bl-num" style="font-size:2.2rem;font-weight:700;color:#0A1628;">{price:,.2f}</span>'
+            f'<span class="bl-num" style="font-size:2.2rem;font-weight:700;color:#0A1628;">{fmt_price(price)}</span>'
             f'{currency_html}'
             f'{chg_str}'
             f'</div>', unsafe_allow_html=True)
@@ -752,11 +772,13 @@ def main():
             # Extended hours for 1D and 5D equity charts (not crypto).
             # Diagnostic confirmed 5D prepost data is clean: sorted, no zeros, no NaN, no >5% jumps.
             use_prepost = (period_label in ("1D", "5D")) and (asset_type != "CRYPTOCURRENCY")
-            # For 5D: use start=today-5days (Yahoo Finance counts 120h back from now,
-            # not 5 trading days from last close — avoids showing one extra day on weekends)
+            # 5D: the last five sessions, like the 5D figure of the returns
+            # strip (one calendar week). Nine days back always holds five, even
+            # across a long weekend; they are trimmed below. Starting five
+            # calendar days back showed four sessions most days (audit F1-04).
             _dl = _cached_ohlcv_intraday if is_intraday else _cached_ohlcv
             if period_label == "5D":
-                _start_5d = (_dt.datetime.now() - _dt.timedelta(days=5)).strftime("%Y-%m-%d")
+                _start_5d = (_dt.datetime.now() - _dt.timedelta(days=9)).strftime("%Y-%m-%d")
                 chart_ohlcv = _dl(active_ticker, start=_start_5d,
                             interval=yf_interval, prepost=use_prepost, auto_adjust=False)
             else:
@@ -767,7 +789,10 @@ def main():
                     chart_ohlcv.index = chart_ohlcv.index.tz_convert('America/New_York').tz_localize(None)
                 except Exception:
                     chart_ohlcv.index = chart_ohlcv.index.tz_localize(None)
-                
+            if period_label == "5D" and not chart_ohlcv.empty:
+                sessions = chart_ohlcv.index.normalize().unique()
+                chart_ohlcv = chart_ohlcv[chart_ohlcv.index.normalize() >= sessions[-5:].min()]
+
             # --- INTRADAY PADDING: fill empty bars up to market end ---
             if period_label == "1D" and not chart_ohlcv.empty:
                 last_ts = chart_ohlcv.index[-1]
@@ -830,21 +855,22 @@ def main():
     for label, val in ret_items:
         if val is not None:
             color = "#16A34A" if val >= 0 else "#DC2626"
-            pct_str = f"{val:+.2%}"
+            # Whole percents from 1,000% up (AAPL's All: +265,132%), so the
+            # figure fits a phone's four-column grid without breaking
+            pct_str = f"{val:+,.0%}" if abs(val) >= 10 else f"{val:+.2%}"
         else:
             color, pct_str = "#94A3B8", "—"
         cells += (
-            '<div style="text-align:center;flex:1 1 0;min-width:60px;padding:7px 4px;">'
-            f'<div style="font-size:0.78rem;color:#64748B;">{label}</div>'
-            f'<div class="bl-num" style="font-size:0.9rem;font-weight:600;color:{color};white-space:nowrap;">{pct_str}</div>'
+            '<div>'
+            f'<div class="bl-returns-label">{label}</div>'
+            f'<div class="bl-num bl-returns-value" style="color:{color};">{pct_str}</div>'
             '</div>'
         )
-    st.markdown(
-        '<div style="display:flex;justify-content:space-evenly;overflow-x:auto;'
-        '-webkit-overflow-scrolling:touch;border:1px solid #E2E8F0;border-radius:8px;'
-        f'background:white;margin:0.5rem 0 1rem 0;scrollbar-width:none;">{cells}</div>',
-        unsafe_allow_html=True
-    )
+    # A grid (utils/styles.py, .bl-returns): one row of eight, two rows of
+    # four on phones. It used to scroll sideways with a hidden scrollbar, so
+    # 5Y and All sat off screen, the figures collided and the keyboard could
+    # not reach them (audit F3-03, F4-01).
+    st.markdown(f'<div class="bl-returns">{cells}</div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════
     # Additional data for EQUITY tabs (cached — fast on re-render)

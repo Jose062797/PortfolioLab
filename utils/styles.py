@@ -868,6 +868,39 @@ def get_shared_css() -> str:
         color: var(--color-primary) !important;
     }
 
+    /* ===== Stocks: period returns strip (pages/1_Stocks.py) ===== */
+    .bl-returns {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: white;
+        margin: 0.5rem 0 1rem 0;
+    }
+
+    .bl-returns > div {
+        text-align: center;
+        padding: 7px 4px;
+        min-width: 0;
+    }
+
+    .bl-returns .bl-returns-label {
+        font-size: 0.78rem !important;
+        color: var(--color-text-secondary) !important;
+    }
+
+    .bl-returns .bl-returns-value {
+        font-size: 0.9rem !important;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 640px) {
+        .bl-returns {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+    }
+
     /* ===== Footer ===== */
     .bl-footer {
         display: flex;

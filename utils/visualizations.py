@@ -13,6 +13,7 @@ from typing import Dict, Optional, List, Tuple
 import yfinance as yf
 
 from core.constants import ASSET_COLORS, MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_YEAR
+from utils.text import fmt_price
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +340,7 @@ def create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=F
         h = ohlcv['High'].iloc[i] if not pd.isna(ohlcv['High'].iloc[i]) else 0
         l = ohlcv['Low'].iloc[i] if not pd.isna(ohlcv['Low'].iloc[i]) else 0
         v = ohlcv['Volume'].iloc[i] if 'Volume' in ohlcv.columns and not pd.isna(ohlcv['Volume'].iloc[i]) else 0
-        custom_data.append([date_str, f"{c:,.2f}", f"{o:,.2f}", f"{h:,.2f}", f"{l:,.2f}", f"{v:,.0f}"])
+        custom_data.append([date_str, fmt_price(c), fmt_price(o), fmt_price(h), fmt_price(l), f"{v:,.0f}"])
 
     hover_temp = (
         "<b>%{customdata[0]}</b><br>"
@@ -385,7 +386,7 @@ def create_price_chart(ohlcv, ticker, chart_type, prev_close=None, is_intraday=F
     if prev_close and is_intraday:
         fig.add_hline(
             y=prev_close, line_dash="dash", line_color="#94A3B8", line_width=1, row=1, col=1,
-            annotation_text=f"Prev Close {prev_close:,.2f}",
+            annotation_text=f"Prev Close {fmt_price(prev_close)}",
             annotation_position="right", annotation_font_color="#94A3B8", annotation_font_size=10,
         )
 

@@ -21,7 +21,7 @@ from core.constants import (
     MIN_DATA_POINTS, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, TICKER_PATTERN, goal_text,
 )
 from core.example_market import EXAMPLE_PORTFOLIOS
-from utils.text import escape_markdown
+from utils.text import escape_markdown, fmt_price
 from utils.visualizations import (
     create_correlation_heatmap,
     create_returns_comparison,
@@ -653,7 +653,7 @@ def main():
                             'Asset': ticker,
                             'Weight': f"{weight*100:.2f}%",
                             'Shares': shares,
-                            'Price': f"${price:,.2f}" if price else "N/A",
+                            'Price': f"${fmt_price(price)}" if price else "N/A",
                             'Target value': f"${weight * result['portfolio_value']:,.2f}",
                             'Actual value': f"${shares * price:,.2f}" if price else "N/A",
                         })
