@@ -206,6 +206,37 @@ Qué verificar:
   - Cambiar un ticker después de abrir el ejemplo NO se revierte
 
 
+------------------------------------------------------
+ESCENARIO 8: AVISOS DE LA AUDITORÍA DEL 2026-10-08
+------------------------------------------------------
+Cuatro corridas cortas en Portfolio (Markowitz, Lowest risk salvo que
+se diga otra cosa):
+
+  a) Tickers: AAPL MSFT KO (separados por espacios), rango propio
+     del 2026-07-01 al 2026-09-30
+     - Los tres símbolos se leen bien (sin "Enter at least 2 tickers")
+     - Los pesos salen 33,3 / 33,3 / 33,3 y la caja de notas trae
+       "Little data for the risk model" (contracción de 100 % con
+       unos 64 días); el PDF trae la misma nota y SÍ trae la página de
+       rendimiento histórico (antes no, con menos de 100 días)
+  b) Tickers: BTC-USD, ETH-USD; en "Advanced settings", Historical mean
+     - Caja de notas: "Every day a trading day" (365 días al año)
+  c) Tickers: AAPL, MSFT, NVDA; Goal: Highest return within a risk
+     limit de 2 %
+     - Error en porcentaje: "The risk limit of 2% is below the lowest
+       risk these assets allow (cerca de 29 %)..." y, si había una
+       corrida anterior, sus resultados desaparecen
+  d) Rango propio con la fecha de inicio después de la de término
+     - Error bajo las fechas y "Run optimization" deshabilitado
+
+En Stocks, con un celular o la ventana angosta: la franja de retornos
+(1D … All) se ve en dos filas de cuatro, sin cifras encimadas; SHIB-USD
+muestra su precio con todos sus dígitos y "All" sin "+inf%".
+
+Referencia del 2026-10-08 (datos de ese día): a) contracción 1,00 con
+64 días comunes; b) 365 días; c) mínimo 28,7 %.
+
+
 ====================================================
   REFERENCIA DEL 2026-09-26
 ====================================================

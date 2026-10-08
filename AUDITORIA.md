@@ -85,6 +85,9 @@ re-validarse bajo el stack actual (pandas 3, numpy 2.5, Python 3.14).
 | 3 | Dimensiones 5, 6 y 7 | ✅ 2026-07-16 |
 | 4 | Dimensión 8 + re-verificación final | ✅ 2026-07-16 |
 | 5 | D4.4 — capa `pages/` con AppTest | ✅ 2026-07-20 |
+| 6 | Coherencia de lo que se muestra | ✅ 2026-09-26 |
+| 7 | Rediseño simple | ✅ 2026-09-27 |
+| 8 | Auditoría de frontend y backend (dimensiones propias, ver Fase 8) | 🔄 pasos 1 a 4 hechos el 2026-10-08; falta el paso 5 (publicar) |
 
 ## Registro de hallazgos
 
@@ -540,6 +543,486 @@ corridas del rediseño y en CI, y después se agotó a los 180 s (310 s en total
 la misma lógica tarda 2 s fuera de AppTest). Ahora solo se saltan las pausas
 largas del motor: el test tarda 3,8 s, sigue detectando las views sin dividir
 por 100, y la suite completa bajó de 150-270 s a 88 s.
+
+### Fase 8 (2026-10-08) — auditoría de frontend y backend
+
+**Motivo.** El usuario pidió auditar la página periódicamente, en cinco pasos:
+(1) definir dimensiones, (2) planificar, (3) analizar hallazgos y planificar
+cómo abordarlos, (4) corregir, verificar y documentar, (5) publicar. Punto de
+partida: `main` = `e06d8e1`, 140 tests, producción verificada el 2026-10-03.
+Desde la auditoría anterior cambiaron el rediseño (Fase 7), el PDF que se arma
+al hacer clic (en otro hilo) y el objetivo de servir a muchos usuarios.
+
+#### Paso 1 — dimensiones (aprobadas por el usuario el 2026-10-08)
+
+Frontend (lo que se ve y se usa):
+
+| # | Dimensión | Está bien cuando |
+|---|---|---|
+| F1 | Exactitud de lo mostrado (4 páginas, PDF, README, About) | Todo coincide con lo que el código calcula; web y PDF dicen lo mismo |
+| F2 | Usabilidad y flujo (vacío, cargando, error, éxito; ejemplos) | Se entiende sin instrucciones; cada error dice cómo seguir |
+| F3 | Accesibilidad (contraste, teclado y foco, nombres, gráficos, zoom 200 %) | WCAG 2.2 AA en lo que Streamlit permite controlar |
+| F4 | Pantallas y navegadores (375-1440 px; descarga del PDF) | Sin scroll horizontal ni cortes; el PDF baja en todos |
+| F5 | Consistencia visual (tokens, tipografía, PDF, selectores de Streamlit) | Las 4 páginas son una sola app; ningún estilo se cayó en silencio |
+| F6 | Rendimiento percibido (despertar, primera carga, corrida, recarga) | Tiempos medidos, sin esperas evitables |
+| F7 | Comportamiento en producción (iframe `/~/+/`, enlaces, estáticos, service worker) | Producción se comporta igual que local |
+
+Backend (lo que calcula y sostiene la app):
+
+| # | Dimensión | Está bien cuando |
+|---|---|---|
+| B1 | Correctitud matemática (paridad, congelados, convenciones) | Idéntico a la referencia; decisiones abiertas documentadas |
+| B2 | Datos y resiliencia ante Yahoo | Ninguna falla de Yahoo da cifras erradas, solo mensajes claros |
+| B3 | Manejo de errores (incluido el hilo del PDF diferido) | Nunca un traceback al usuario; el registro permite diagnosticar |
+| B4 | Varios usuarios a la vez (memoria, cachés, matplotlib en hilos) | Sesiones simultáneas no se mezclan, no se caen ni agotan memoria |
+| B5 | Seguridad (entradas, `?example=`, HTML sin escapar, dependencias, secretos) | Sin vía de inyección; dependencias sin avisos abiertos |
+| B6 | Dependencias y plataforma (versiones, desusos, Python 3.12/3.14) | Nada vence pronto; actualizaciones por el ritual |
+| B7 | Calidad de los tests (cobertura, mutaciones, lentos o inestables) | Lo importante tiene un test que fallaría si se rompe |
+| B8 | Mantenibilidad del código (código muerto, duplicación, tamaño) | Un cambio típico toca pocos archivos; sin código huérfano |
+
+Transversales: **T1** documentación y orden (CLAUDE, ESTADO, AUDITORIA, guía,
+README coherentes con el código; carpeta sin sobrantes) y **T2** operación (CI,
+publicación y reinicio, salud, cómo se detecta una caída).
+
+Prioridad: más atención a F3 y B4 (nunca auditadas formalmente), F1, F2 y F5
+(cambiaron con el rediseño), F7 y B3 (PDF en otro hilo). B1 y B6 van livianas:
+las protegen la paridad y el ritual de dependencias.
+
+#### Paso 2 — plan
+
+**Reglas mientras dure la auditoría.**
+1. No se cambia código: solo se lee, se mide y se anota. Los arreglos son el
+   paso 4, después de priorizar con el usuario en el paso 3.
+2. Cada hallazgo lleva evidencia reproducible (archivo:línea, medición,
+   captura o salida) y se verifica antes de anotarlo. En la Fase 6 un agente
+   propuso 33 puntos y se revisaron uno por uno; se repite ese criterio.
+3. Scripts temporales en el scratchpad de la sesión, nunca en el proyecto.
+4. Producción solo se observa: las pruebas de carga van en local (la nube es
+   un recurso compartido y Yahoo limita sus IP).
+5. Consultas a Yahoo moderadas: las corridas necesarias, no barridos.
+6. Lo que es decisión del usuario (modelo, alcance, costos) se anota como
+   decisión, no como hallazgo.
+
+**Severidad.** 🔴 Crítico: cifra errada mostrada, caída del servicio o
+vulnerabilidad explotable. 🟠 Alto: falla un flujo principal, barrera de
+accesibilidad que impide usar algo, o riesgo probable con varios usuarios.
+🟡 Medio: confunde o degrada sin impedir; deuda con fecha de vencimiento.
+🟢 Bajo: cosmético, orden, redacción.
+
+**Formato de cada hallazgo.** ID `<dimensión>-NN` (p. ej. `F3-02`), severidad,
+evidencia, propuesta y estado: ⬜ abierto · ✅ corregido · ⏸ decisión del
+usuario · ➖ descartado (con el motivo).
+
+**Etapa 0 — línea base.** Árbol limpio y sincronizado; suite completa con
+`--durations=15`; CI del último commit; salud de producción y versión de
+Streamlit (`/api/v2/app/status`). Herramientas (el usuario aprobó el plan,
+su instalación y axe-core el 2026-10-08; quiere que sirvan también a proyectos
+futuros): `ruff` 0.16.10 y `vulture` 2.16 en un entorno compartido fuera de
+Dropbox, `C:\Users\jose_\tools\audit-env`; `coverage` 7.16.2 en
+`C:\Users\jose_\portfoliolab-env` (corre con las librerías del proyecto; no se
+agregó a `requirements-dev.txt`); axe-core 4.12.1 desde cdnjs con hash de
+integridad. Guía: `C:\Users\jose_\tools\LEEME-herramientas-auditoria.md`.
+
+**Etapa 1 — backend, revisión estática (B1, B3, B5, B6, B7, B8).**
+- B1: paridad y congelados en verde; las decisiones abiertas (tasa 0 % frente
+  a 3 % en Black-Litterman, cripto con 252 días, monedas) dicen lo mismo en
+  CLAUDE, About, la guía y esta auditoría. La guía manual no se repite entera:
+  el motor no cambió desde el 2026-09-27.
+- B3: cada `except` y cada `raise` hasta el mensaje que ve el usuario; qué
+  pasa si `build_report_pdf` falla dentro del hilo de la descarga.
+- B5: cada `unsafe_allow_html` y qué datos entran en él; `?example=` con
+  valores inválidos; allowlist de tickers; patrones de claves en el historial
+  de git; dependencias contra OSV (procedimiento de CLAUDE.md);
+  `.streamlit/config.toml` (XSRF, CORS, estadísticas).
+- B6: `pip list --outdated` (solo lectura); avisos de desuso en el registro
+  de Streamlit; notas de versión de Streamlit posteriores a 1.59 que toquen
+  lo que usa el CSS.
+- B7: cobertura de líneas por módulo; mutaciones del PDF diferido (que la
+  página lo arme en cada recarga, que `build_report_pdf` no agregue el
+  backtest); tests de más de 5 s; suite corrida 3 veces para detectar
+  inestables.
+- B8: código muerto (vulture), errores simples y estilo (ruff), funciones y
+  archivos muy largos, números fuera de `core/constants.py`, `print` o
+  `except:` sin tipo.
+
+**Etapa 2 — backend, pruebas dinámicas en local (B2, B4).**
+- B2: corridas reales difíciles: 20 tickers, rango máximo, un activo recién
+  listado, cripto con acciones, un ETF de bonos, un símbolo inexistente y
+  Black-Litterman (capitalizaciones). Ninguna falla puede dar cifras sin aviso.
+- B4: servidor local con varias sesiones simultáneas: memoria del proceso por
+  sesión, tiempos con varias corridas a la vez, dos PDF armados al mismo
+  tiempo (`core/pdf_shared.py` usa el estado global de `pyplot`, por ejemplo
+  `plt.tight_layout()`: comprobar que cada PDF salga con sus propios
+  gráficos), cachés de Stocks compartidas. Límites de recursos de Community
+  Cloud según su documentación oficial.
+
+**Etapa 3 — frontend en la app local (F1 a F6).**
+- F1: las 4 páginas y un PDF por modelo, cada texto y cifra contra el código
+  (un agente de solo lectura propone y cada punto se verifica); README y
+  About contra el código actual.
+- F2: primera visita → ejemplo → Run → pestañas → PDF; formulario con errores
+  (1 ticker, 21, símbolo inválido, forex con Black-Litterman, fechas
+  invertidas); Run presionado dos veces; Stocks con símbolo inválido, ETF,
+  cripto e índice. Lista de reglas UX de la skill ui-ux-pro-max.
+- F3: árbol de accesibilidad de cada página (nombres de botones, enlaces y
+  campos); recorrido con Tab y foco visible; contraste calculado sobre los
+  colores reales; alternativa textual de los gráficos; zoom 200 % (640 px);
+  `prefers-reduced-motion`. Opcional, con OK del usuario: axe-core desde
+  cdnjs, solo en la sesión local.
+- F4: 375, 768, 1024 y 1440 px midiendo scroll horizontal y cortes; descarga
+  del PDF en Chrome real (Claude in Chrome). Firefox y Safari no están al
+  alcance de las herramientas: lista corta para que el usuario pruebe en su
+  celular, si quiere.
+- F5: tokens de `utils/styles.py` contra los estilos calculados; cada
+  selector del MAINTENANCE MAP sigue encontrando elementos; tipografía y
+  espaciado iguales entre páginas; el PDF con la misma paleta.
+- F6: tiempos de carga de cada página, de cada ejemplo, de una recarga de
+  resultados y del PDF; peso transferido.
+
+**Etapa 4 — producción (F7, F6, T2).** Desde la dirección real (no
+`/~/+/`): navegación, enlaces de ejemplo, Atrás; estáticos con bytes y tipo
+reales; qué guarda el service worker y si podría servir una versión vieja
+tras un push; título de pestaña; tiempos de despertar y primera carga; un PDF
+interceptado sin guardar. T2: cómo se enteraría hoy el usuario de una caída y
+el procedimiento de publicación y reinicio.
+
+**Etapa 5 — consolidación (T1).** Documentos contra el código y entre sí,
+carpeta sin sobrantes, `.gitignore`. Tabla única de hallazgos por severidad,
+con una propuesta para cada uno: es la entrada del paso 3.
+
+**Entregables.** Los hallazgos en esta sección; `ESTADO.md` al día al cerrar
+cada etapa (por si la sesión se corta o el usuario cambia de equipo); un
+resumen para el usuario al terminar la auditoría, antes de corregir nada.
+
+#### Resultados de la etapa 0 — línea base (2026-10-08, LAPTOP-6N608GJL)
+
+- **Incidente previo**: 23 copias en conflicto de Dropbox y 3 imágenes ya
+  borradas del repo, subidas el 2026-10-07 por el otro equipo
+  (DESKTOP-G2518C4) desde una foto vieja de la carpeta. Ninguna con trabajo
+  nuevo (cada una rastreada en el historial de git); a la Papelera con OK del
+  usuario. Nada dentro de `.git`; `git fsck` limpio. Detalle en CLAUDE.md
+  ("Multi-machine setup"). Si no se hubiera visto, pytest habría corrido
+  también la copia vieja de dos archivos de tests.
+- **Git**: `main` = `origin/main` = `e06d8e1`; archivos versionados iguales a
+  HEAD (solo cambia esta auditoría).
+- **CI**: verde en `e06d8e1` (Python 3.12 y 3.14).
+- **Suite**: 140 aprobados. Tardó 755 s porque corrió con medición de
+  cobertura y con el procesador ocupado por otro proyecto del usuario (una
+  simulación con 11 procesos); no sirve como medida de tiempo (lo normal son
+  75-90 s). Los tests más lentos son los de AppTest y los que arman una
+  optimización completa. 50 avisos de dos tipos: el `UserWarning` de
+  PyPortfolioOpt al combinar `max_sharpe` con L2 (esperado, como en el
+  cookbook) y un `PendingDeprecationWarning` de seaborn (`cmap.set_bad`) al
+  dibujar el mapa de correlaciones del PDF → revisar en B6.
+- **Cobertura de líneas**: 71 % en total. Bajas: `pages/1_Stocks.py` 16 %,
+  `core/data_provider.py` 57 %, `utils/session_manager.py` 62 %,
+  `utils/visualizations.py` 63 %. Altas: Portfolio 90 %, `pdf_generator` 89 %,
+  inicio y About 100 % → revisar en B7.
+- **Producción**: `/api/v2/app/status` devuelve `"status":12` con Streamlit
+  1.59.2 y el endpoint de salud responde 400: la app estaba dormida. Se
+  revisa en la etapa 4.
+- **Pendiente para las etapas con tiempos (B4, F6)**: medir con el equipo
+  libre.
+
+#### Resultados de la etapa 1 — backend, revisión estática (2026-10-08)
+
+Método: ruff y vulture sobre el código; `pip list --outdated`; dependencias
+contra OSV; notas de versión de Streamlit 1.60-1.65 y límites de Community
+Cloud (documentación oficial); dos agentes de solo lectura (manejo de errores
+y seguridad) cuyos puntos se verificaron en el código antes de anotarlos;
+mutaciones del PDF diferido en una copia del proyecto en el scratchpad; una
+prueba de hilos de los gráficos del PDF (también en la copia). Ningún archivo
+del proyecto se modificó.
+
+**B1 — correctitud: sin hallazgos.** Paridad y congelados en verde (dentro de
+los 140). Las decisiones abiertas (tasa 0 % frente a 3 % en Black-Litterman,
+pesos que no son los de mercado) dicen lo mismo en About, la guía y CLAUDE.md.
+
+| ID | Sev. | Hallazgo (verificado salvo que diga otra cosa) | Propuesta |
+|---|---|---|---|
+| B3-01 | 🟠 | Stocks: si falla la descarga del periodo elegido (1D, 5D, All…), `except Exception: pass` (`pages/1_Stocks.py:737`) deja los datos diarios de 1 año y los dibuja bajo la etiqueta del periodo nuevo, sin aviso ni registro. Pasa cuando Yahoo limita la segunda consulta | Avisar y no dibujar datos de otro periodo; registrar |
+| B3-02 | 🟡 | Portfolio: una corrida que falla muestra el error y, debajo, los resultados completos de la corrida anterior (métricas, pestañas, PDF) (`pages/2_Portfolio.py:443-494`) | Borrar el resultado anterior o rotularlo "corrida anterior" |
+| B3-03 | 🟡 | Mensajes crudos de PyPortfolioOpt al usuario: "The minimum volatility is 0.153. Please use a higher target_volatility" (fracción y nombre interno, el formulario usa %), una tupla de Python cuando falla el solver, y el titular "con un límite o una meta" también en objetivos sin meta (`2_Portfolio.py:486-487`) | Traducir en el motor a mensajes en % con el mínimo o máximo posible |
+| B3-04 | 🟡 | Errores inesperados se registran sin traceback y llegan crudos al usuario ("The optimization failed: 'SPY'…") (`utils/optimizer_wrapper.py:395-405`) | `logger.exception` y mensaje genérico para errores no previstos |
+| B3-05 | 🟡 | Falla la descarga de SPY → `ValueError` → rama genérica que pide "revisar tus datos" (los datos están bien) (`core/opt_engine.py:156`) | `DataDownloadError` con mensaje de reintento |
+| B3-06 | 🟡 | El backtest del PDF exige 100 filas y el de la web 20: con 20-99 días comunes el PDF omite en silencio la página de rendimiento histórico, pero la portada sigue mostrando "Backtest Period" (`core/backtest.py:183`, `utils/visualizations.py:799`) | Una sola constante y una línea en el PDF si falta |
+| B3-08 | 🟡 | Stocks: fallas de Yahoo en `.info` y en estados financieros se tragan y quedan en caché como "sin datos" (5-10 min; financieros hasta ~70 min); el tipo de activo cae a EQUITY y el texto dice "not available for this asset" (`core/data_provider.py:197-262, 357-403`) | No cachear fallas totales; distinguir "no se pudo cargar" de "no existe" |
+| B3-10 | 🟡 | Errores del formulario que no bloquean Run: fechas invertidas (corre con toda la historia) y views con Low ≥ High (la view se descarta) (`2_Portfolio.py:174-177, 294-297`) | Incluirlos en `disabled` del botón |
+| B3-07 | 🟢 | Si el PDF diferido falla, Streamlit muestra 5 s "Failed to generate file for download" bajo el botón, sin siguiente paso (leído en el código de Streamlit; se confirma en la etapa 3) | Secciones del PDF tolerantes a fallas y nota de reintento |
+| B3-09 | 🟢 | Stocks: símbolo inválido y caída de red dan el mismo mensaje, con el texto crudo de la excepción (`1_Stocks.py:602-607`) | Mensaje con las dos causas; registrar |
+| B3-12 | 🟢 | El PDF omite en silencio páginas cuyo gráfico o backtest falló; errores registrados sin traceback | Línea de reemplazo en el PDF |
+| B3-13 | 🟢 | Web: errores del backtest y de correlaciones con texto crudo; si `prices_clean` no se puede leer, se descargan otros datos en silencio (`visualizations.py:902-912`) | Registrar y quitar la descarga de respaldo |
+| B3-14 | 🟢 | `except: pass` sin registro en el aviso de solapamiento, la franja de retornos, ^GSPC y financieros de Stocks | `logger.warning(..., exc_info=True)` |
+| B3-15/16/17 | 🟢 | Frontera de todo o nada sin decir por qué; presupuesto que no alcanza ni una acción sin explicación; mensaje de datos insuficientes que supone un rango de fechas | Textos específicos |
+| B3-18 | 🟢 | Objetivo desconocido cae en `max_sharpe` con tasa 0 % (no se alcanza desde la UI) | Lanzar `OptimizationError` |
+| B3-19 | 🟢 | `logging.basicConfig` solo en el inicio: si el proceso arranca por una subpágina, los registros INFO se pierden | Configurar en un módulo común |
+| B3-11 | ⬜ | Sin verificar: un activo cuya historia termina antes recorta la ventana de todos sin aviso. Se prueba en la etapa 2 | — |
+| B4-01 | 🟡 | Dos PDF armados a la vez dibujan sus gráficos con otro tamaño y composición: `pdf_shared` usa el estado global de `pyplot` (`plt.tight_layout()`) y el PDF ahora se arma en hilos. Prueba: el mismo gráfico dos veces seguidas da bytes idénticos; 96 de 96 armados en 8 hilos salieron distintos. En las muestras revisadas los datos eran correctos; cambiaba el tamaño | `fig.tight_layout()` / API orientada a objetos |
+| B5-10 | 🟡 | urllib3 2.7.0 (llega con `requests`) tiene 3 avisos publicados el 2026-09-30, dos de severidad alta, corregidos en 2.8.0. Explotarlos exige un servidor malicioso o comprometido | Fijar `urllib3>=2.8.0` como se hizo con GitPython |
+| B5-01 | 🟡 | Textos de Yahoo (nombre, sector, industria, familia del fondo, moneda) entran sin escapar al HTML de Stocks (`1_Stocks.py:623-676`); `_fmt_safe` devuelve el valor crudo si no puede formatearlo. Requiere controlar un campo de Yahoo | `html.escape` y moneda validada `^[A-Z]{3}$` |
+| B5-03 | 🟢 | `client.showErrorDetails` no está fijado: por defecto "full", cualquier excepción no capturada muestra el traceback al visitante; los formateadores de Stocks pueden fallar con tipos inesperados de Yahoo | `showErrorDetails = "type"` o `"none"` |
+| B5-02 | 🟢 | `server.enableCORS = false`: Streamlit avisa que lo cambia a `true` por XSRF, pero en 1.59.2 solo avisa (`config.py:2949-2965`); se acepta cualquier origen. Producción se mira en la etapa 4 | Quitar la línea y comprobar que la app conecta |
+| B5-04 | 🟢 | Service worker y manifest sin efecto útil: alcance `…/app/static/`, guarda `/` (el shell de la plataforma), `start_url` da 404 | Quitarlos o corregirlos |
+| B5-05 | 🟢 | `utils/ssl_fix.py`: en Linux (la nube) copia el bundle de certificados a una ruta relativa dentro del repo; nunca lo refresca; falla en silencio. Ya no hace falta (la carpeta no tiene acentos) | Aplicarlo solo si la ruta de certifi no es ASCII |
+| B5-06/07/08/09 | 🟢 | Cachés de Stocks sin `max_entries` y en dos capas; texto del propio usuario en markdown (solo en su sesión); PyPortfolioOpt por tag de git sin hash y acciones de CI por versión mayor; `.gitignore` sin `.env` | Ajustes menores |
+| B6-01 | 🟡 | Streamlit 1.59.2 → 1.65.0 disponible. Cambios que nos tocan: 1.63 ya no reparte controles en varias líneas dentro de `st.columns`; 1.60 rechaza mensajes de iframes inyectados (PWA); 1.64-1.65 cambian `at.expander` y `at.query_params` de AppTest | Tarea propia con el ritual de dependencias y el mapa de selectores |
+| B6-02 | 🟢 | Otras versiones nuevas: yfinance 1.7.0, plotly 7.1.0 (mayor), pandas 3.0.6, numpy 2.5.3, cvxpy 1.9.3, fpdf2 2.8.9, matplotlib 3.11.2, scikit-learn 1.9.1, GitPython 3.2.0 | Decidir junto con B6-01 |
+| B6-03 | 🟢 | `PendingDeprecationWarning` de seaborn (`cmap.set_bad`) en el mapa del PDF: viene de seaborn, no de nuestro código | Solo observar |
+| B7-01 | 🟡 | Cobertura: `pages/1_Stocks.py` 16 % (sin test que dibuje un símbolo real; ahí viven B3-01 y B5-01), `core/data_provider.py` 57 % | Tests AppTest de Stocks con Yahoo simulado |
+| B7-02 | ✅ | Mutaciones del PDF diferido: 2 de 2 detectadas (armarlo en cada recarga; no agregar el backtest) | — |
+| B7-03 | ✅ | Suite corrida 3 veces seguidas: 140/140 en las tres (104 s, 76 s y 74 s); sin tests inestables | — |
+| B8-01 | 🟢 | Código muerto confirmado (ningún uso, ni en tests): `download_and_run_backtest`, 4 propiedades de `BacktestResult`, `create_prior_chart`/`create_posterior_chart`, `_fmt_div_yield`, `_render_metric_card`, `create_risk_return_scatter`, `create_allocation_table`, `create_metrics_card_html`, 8 funciones de `session_manager`, `MAX_VIEW_THRESHOLD`, `HISTORICAL_PERIOD_YEARS` | Borrar |
+| B8-02 | 🟢 | 14 imports sin uso (10 en la app, 4 en tests), variables desempaquetadas sin uso, docstrings viejos (`core/__init__.py` nombra `core.opt`, que no existe; `pdf_shared` dice "Black-Litterman Portfolio Reports"), un `if` cuyas dos ramas dan lo mismo (`pdf_shared.py:229-230`) | Limpiar |
+| B8-03 | 🟢 | `datetime.now()` sin zona horaria: en la nube el servidor usa UTC (fechas por defecto, inicio de 5D, hora del PDF) | Evaluar; impacto mínimo |
+
+#### Resultados de la etapa 2 — backend en marcha, local (2026-10-08)
+
+Método: 8 corridas reales contra Yahoo con el wrapper de la app (script en el
+scratchpad); la app local con tres sesiones a la vez (los tres ejemplos del
+inicio) y dos PDF pedidos al mismo tiempo, interceptados sin guardar archivos.
+El procesador seguía ocupado por la simulación del usuario: los tiempos son
+indicativos, no medidas.
+
+**Lo que salió bien (B2).** Símbolo inexistente (ZZZZZQ): 3 intentos y un
+mensaje claro que nombra las dos causas posibles. Activo joven (RDDT), cripto
+con acciones y oro, ETF de bonos: corren y activan sus notas (historia común
+más corta, fines de semana). Black-Litterman obtuvo las capitalizaciones. 20
+tickers con toda la historia: correcto, 12 activos con peso. Las tres sesiones
+simultáneas no se mezclaron: cada pestaña mostró su ejemplo con las cifras de
+la guía (17,35 % / 23,07 %; 7,71 % / 16,78 %; 8,38 % / 10,00 %). Los dos PDF
+simultáneos: 200, `application/pdf`, unos 2 s cada uno, sin error.
+
+| ID | Sev. | Hallazgo | Propuesta |
+|---|---|---|---|
+| B2-01 | 🟠 | **Ventanas cortas = contracción total sin aviso.** Con un rango de ~3 meses (63 días) la contracción de Ledoit-Wolf llega a 1,0: la covarianza queda como identidad escalada, "Lowest risk" reparte 33,3/33,3/33,3 y el mapa de correlaciones muestra todo en 0 (se dibuja desde la matriz contraída). Medido con AAPL, MSFT y KO: contracción 1,0 con 63 días, 0,30 con 250, 0,11 con 751. El mínimo permitido hoy es 20 días. Es correcto según el modelo, pero se muestra como un resultado sin explicar | Avisar cuando la contracción sea alta (o la ventana corta) y/o subir el mínimo; decisión del usuario |
+| B3-06 | 🟡 | Confirmado en vivo: con ese rango corto el PDF sale sin backtest (`historical_data` vacío) mientras la web lo muestra | (ya listado) |
+| B3-03 | 🟡 | Confirmado en vivo: límite de riesgo de 2 % con AAPL, MSFT y NVDA → "The minimum volatility is 0.287. Please use a higher target_volatility" | (ya listado) |
+| B4-02 | 🟡 | Memoria: una corrida de 20 tickers con toda la historia asigna en su pico unos 86 MB (tracemalloc) y su resultado pesa 1,2 MB serializado en la sesión. El servidor local pasó de 170 a 325 MB de memoria en uso con tres corridas chicas a la vez. Community Cloud garantiza 690 MB y permite hasta 2,7 GB (su documentación, cifras "a febrero de 2024", sujetas a cambio): unas 6-8 corridas grandes simultáneas se acercan al mínimo garantizado | Considerar limitar el historial por defecto (p. ej. 10 años) o guardar menos en la sesión; decisión con B2-01 |
+| B3-23 | 🟢 | Al abrir un ejemplo con límite de riesgo, Streamlit registra "The widget with key `target_volatility_pct` was created with a default value but also had its value set via the Session State API" (solo en el registro; la página no lo muestra) | No pasar `value=` cuando la clave ya está en la sesión |
+| B3-11 | ⬜ | No se pudo probar en vivo (no hay un símbolo real cuya historia termine antes); queda como test unitario en el paso 4 si se decide | — |
+
+#### Resultados de la etapa 3 — frontend en la app local (2026-10-08)
+
+Método: axe-core 4.12.1 (reglas WCAG 2.0/2.1/2.2 A y AA, más
+"best-practice") en el inicio, Portfolio con resultados, Stocks con AAPL y las
+tres pestañas de About; recorrido con Tab midiendo el foco; anchos de 320, 375,
+768, 1024 y 1440 px midiendo desbordes y alineación; selectores del MAINTENANCE
+MAP contra el DOM real; peso de la página. Los tiempos locales no se midieron
+(procesador ocupado); los de producción están en la etapa 4.
+
+**Lo que salió bien.** WCAG 2.2 AA según axe: 0 violaciones en el inicio,
+Portfolio con resultados y About; 1 en Stocks (F3-03). Hay reglas de foco
+visible y `prefers-reduced-motion`. Sin scroll horizontal de página entre 320 y
+1440 px (incluye el reflujo a 320 px que pide WCAG). Las cinco métricas quedan a
+la misma altura entre 768 y 1440 px y apiladas en el celular. En el celular las
+pestañas muestran una flecha y las tablas tienen su propio scroll. Todos los
+selectores vigentes del MAINTENANCE MAP encuentran sus elementos en 1.59.
+
+| ID | Sev. | Hallazgo | Propuesta |
+|---|---|---|---|
+| F3-01 | 🟡 | La primera parada del Tab en todas las páginas es el iframe invisible del PWA (16×1 px, `tabindex=0`, título "st.iframe"): un paso vacío para teclado y lectores de pantalla | Quitar el PWA (B5-04) o sacarlo del orden de foco |
+| F3-02 | 🟡 | El anillo de foco es casi invisible: contorno azul al 35 % más sombra al 50 % (`--color-accent-ring`), unos 2:1 contra blanco; el mínimo usual para indicadores de foco es 3:1 | Contorno sólido `#2E6FC7` (4,99:1) |
+| F3-03 | 🟡 | Stocks, franja de retornos: región con scroll horizontal que no se puede enfocar con teclado (axe "serious", WCAG 2.1.1) y con la barra oculta (`scrollbar-width: none`) | Que quepa sin scroll (dos filas en celular) o hacerla enfocable y visible |
+| F4-01 | 🟡 | Esa misma franja a 375 px: las cifras chocan ("+30.02%+23.82%+30.4") y 5Y y All quedan fuera de la pantalla sin señal | Rejilla de 4×2 en pantallas angostas |
+| F2-01 | 🟡 | Tickers solo se separan por comas: "AAPL MSFT" se lee como un símbolo y aparece "Enter at least 2 tickers." (`2_Portfolio.py:137`) | Separar también por espacios y punto y coma |
+| F2-02 | 🟢 | Símbolos duplicados o mal escritos se detectan recién al presionar Run, con el mensaje genérico "The optimization failed: Duplicate tickers found…" | Avisar bajo el campo y bloquear Run |
+| F3-04 | 🟢 | Buenas prácticas de axe: sin landmark `main` (estructura de Streamlit), saltos de nivel de encabezado (sección Report, About), contenido fuera de landmarks | Ajustar niveles de encabezado; lo demás es de Streamlit |
+| F3-05 | 🟢 | Los gráficos de Plotly no tienen alternativa textual; en parte la cubren las tablas (asignación, detalles) y las métricas del backtest | Una línea de resumen bajo cada gráfico, si se quiere |
+| F4-02 | 🟢 | En el celular sobra espacio vacío alrededor de la dona; el enlace "Source on GitHub" del pie mide 22 px de alto (la regla del rediseño pide 44 px táctiles) | Ajustar alturas |
+| F5-01 | 🟢 | Cuatro selectores del MAINTENANCE MAP ya no encuentran nada en 1.59 (`stSidebar`, `collapsedControl`, `stToolbar`, `stSidebarNav`): CSS sin efecto | Quitar o anotar |
+
+**F1 — exactitud de lo mostrado** (un agente de solo lectura contrastó cada
+texto con el código; los puntos marcados se verificaron a mano). Lo que está
+bien: etiquetas y ayudas de objetivos, views y ajustes avanzados; métricas,
+caja de notas, pestañas y sus leyendas; unidades de Stocks; el inicio (las
+cifras 9,46 % / 14,00 % / 0,461 coinciden con `assets/example_portfolio.json`);
+About; el README (140 tests = 133 funciones + 7 casos parametrizados) y los
+números repetidos en textos, que coinciden con `core/constants.py`.
+
+| ID | Sev. | Hallazgo | Propuesta |
+|---|---|---|---|
+| F1-02 | ⏸ | Decisión abierta desde la Fase 6, ahora con su efecto medido en texto: un portafolio solo de cripto (≈365 filas por año) se anualiza con 252, así que la volatilidad sale ~17 % baja (×√(252/365)) y un límite de riesgo de 20 % admite ~24 % real; el backtest, sin fines de semana, no coincide con la tarjeta. Nada lo avisa | Decidir: `frequency=365` en ese caso (rompe paridad con el cookbook en ese caso) o una nota |
+| F1-01 | 🟡 | Verificado. El PDF redondea la meta a entero (`pdf_shared.py:268-269`, `:.0%`): un límite de 12,5 % se lee "at most 12%", y una meta de 7,5 % "at least 8%"; el detalle del mismo PDF y la web dicen 12.5% | Formato `:g` como `goal_text` |
+| F1-03 | 🟡 | Verificado. Privacidad: el registro INFO "Allocated %d positions, $%.2f invested, $%.2f remaining" (`opt_engine.py:525-526`) deja el presupuesto en los registros de la plataforma, contra la intención del comentario de la línea 489; también quedan tickers en mensajes de error y reintentos. About y el README dicen que la app no guarda entradas | Bajar a DEBUG o quitar montos; o precisar el texto |
+| F1-04 | 🟡 | Verificado. Stocks "5D": el gráfico parte 5 días corridos atrás (`1_Stocks.py:704`, casi siempre 4 días hábiles) y la franja de retornos usa una semana (`:168`, 5 días hábiles): mismo rótulo, distintos lapsos | Partir 7 días atrás o tomar las últimas 5 sesiones |
+| F1-05 | 🟡 | Verificado. Precios bajo un centavo (p. ej. SHIB-USD) se muestran 0.00 en Stocks, en el detalle de asignación y en el PDF (formato `.2f`) | Dígitos significativos si el precio < 1 |
+| F1-06 | 🟢 | La leyenda de Correlation dice "the shrunk covariance matrix the optimizer uses"; con views de Black-Litterman el optimizador usa la del posterior y el mapa muestra la del prior (el PDF lo dice bien) | Usar la frase del PDF |
+| F1-07 | 🟢 | Con gamma 0, el PDF de Black-Litterman igual describe "an L2 penalty (gamma = 0.0)" | Rama "sin penalización" como en Markowitz |
+| F1-08 | 🟢 | El aviso de activos no accionarios culpa a CAPM y a Black-Litterman aunque se use Markowitz con media histórica | Ajustar el texto según el caso |
+| F1-09 | ⏸ | Ligado a la decisión de la tasa 0 % / 3 %: Detalles y PDF muestran "Risk-free rate: 3%" en Black-Litterman, pero el prior usa 0 % | Precisarlo en el texto mientras no se decida |
+| F1-10 | 🟢 | "Price data (dates with a price for every asset…)": en Black-Litterman la aversión al riesgo usa toda la historia de SPY | Una cláusula más |
+| F1-11 | ⬜ | Sin verificar: "Shares are bought at each asset's close on {fecha}" podría ser el precio intradía si se corre con el mercado abierto | Probar en horario de mercado |
+| F1-12 | 🟢 | La nota del método greedy dice que el solver exacto "no estaba disponible"; también corre cuando el exacto falla o no encuentra nada | "could not be used" |
+| F1-13/14/15 | 🟢 | "Forward Dividend & Yield" puede mostrar el rendimiento pasado; volúmenes bajo 1 M con decimales; fechas de Stocks en la zona horaria del servidor | Ajustes menores |
+| F1-16/17/18 | 🟢 | Web y PDF nombran distinto lo mismo (Budget / Portfolio Value / Total Value, Low/High / Lower/Upper…); el PDF dice "returned X%" para retornos anualizados; Sortino, Calmar, caída máxima, prior/posterior, Ledoit-Wolf y CAPM se muestran sin definición en el glosario | Un solo vocabulario; "a year"; ampliar el glosario |
+
+#### Resultados de la etapa 4 — producción (2026-10-08, `e06d8e1`)
+
+Lo que salió bien: la app estaba dormida y respondió `ok` unos 62 s después
+de despertarla; desde la dirección real el enlace de ejemplo Big Tech llenó
+el formulario (~6 s), Run tardó 14 s y dio 17,36 % / 23,07 % / 0,622, como en
+local; el PDF salió en 2,4 s (200, `application/pdf`, 257 KB, interceptado sin
+guardar); el logo carga como imagen real (526×200); About abre en `/About`
+sin anidar marcos. CORS: con un origen ajeno, el endpoint de salud de
+producción no devuelve `Access-Control-Allow-Origin` (en local sí: `*`), así
+que B5-02 no se nota en producción.
+
+| ID | Sev. | Hallazgo | Propuesta |
+|---|---|---|---|
+| F6-01 | 🟡 | La primera visita al inicio descarga ~7,8 MB sin comprimir (81 pedidos); 4,6 MB son el paquete de Plotly, que se carga solo para los dos gráficos de ejemplo. Streamlit 1.59 deja los estáticos sin gzip a propósito (`starlette_app.py:224-229`); quedan en caché un año (`immutable`). Pesa sobre todo en celulares | Decisión: imágenes estáticas generadas con las mismas funciones (es "figura real") o dejarlo |
+| B5-04 | 🟢 | Confirmado en producción: el service worker está activo con alcance `/~/+/app/static/` y no controla la página (`controller` vacío) | (ya listado) |
+| F7-01 | 🟢 | La pestaña del navegador queda sin título en producción aun navegando dentro de la app (la app fija "About · PortfolioLab" en su marco). El 2026-09-26 la navegación interna sí lo mostraba: cambió del lado de la plataforma | Solo documentar |
+| T2-01 | 🟡 | Operación: nada avisa si la app se cae o un push la deja con `ImportError` hasta el reinicio; la app duerme tras 12 h sin tráfico (documentación) y el primer visitante espera ~1 min. Hoy solo se nota entrando | Procedimiento: revisar salud después de cada push; opcional, un monitor externo gratuito (decisión del usuario) |
+
+#### Etapa 5 — consolidación (entrada del paso 3)
+
+**T1 — documentación y orden.** Carpeta limpia (solo cambia este archivo; lo
+ignorado es lo de siempre). CLAUDE.md, README y About coinciden con el código
+en lo revisado; los textos viejos están en B8-02 (docstrings) y F1-03
+(privacidad).
+
+**Totales.** 0 🔴 · 2 🟠 · 24 🟡 · unos 40 🟢 (contando por separado los que
+comparten fila) · 2 ⏸ (decisiones ya abiertas) · 2 ⬜ sin verificar (B3-11,
+F1-11). Ningún hallazgo toca la paridad ni los snapshots congelados:
+el motor coincide con PyPortfolioOpt.
+
+**Los dos 🟠.** B3-01 (Stocks dibuja datos de otro periodo si Yahoo falla) y
+B2-01 (ventanas cortas: contracción total, pesos iguales y correlaciones en 0
+sin aviso).
+
+**Agrupación propuesta para el paso 3** (cada paquete es un cambio coherente
+con sus tests):
+
+| Paquete | Hallazgos |
+|---|---|
+| A. Errores y mensajes | B3-01, B3-02, B3-03, B3-04, B3-05, B3-08, B3-09, B3-10, B3-12 a B3-19, F2-01, F2-02, F1-12 |
+| B. PDF | B3-06, B3-07, B4-01, F1-01, F1-07, F1-16, F1-17 |
+| C. Stocks: franja y formatos | F3-03, F4-01, F1-04, F1-05, F1-13, F1-14, F1-15 |
+| D. Accesibilidad y PWA | F3-01, F3-02, B5-04, F3-04, F3-05, F4-02, F5-01 |
+| E. Seguridad y dependencias | B5-10 (urllib3), B5-01, B5-03, B5-02, B5-05, B5-06 a B5-09 |
+| F. Privacidad y textos | F1-03, F1-06, F1-08, F1-10, F1-18 |
+| G. Limpieza de código | B8-01, B8-02, B8-03, B3-23 |
+| H. Tests | B7-01 y un test por cada arreglo |
+
+**Decisiones para el usuario:** B2-01 (cómo tratar ventanas cortas), F1-02
+(cripto con 365 días), F1-09 (tasa 0 % / 3 % en Black-Litterman, ya abierta),
+F6-01 (imágenes estáticas en el inicio), B4-02 (limitar la historia por
+defecto), B6-01 (actualizar Streamlit ahora o aparte), T2-01 (monitor externo),
+B5-04 (quitar el PWA).
+
+#### Paso 3 — decisiones y plan de arreglos (aprobado por el usuario el 2026-10-08)
+
+**Decisiones del usuario** (aceptó las recomendaciones tal cual):
+
+| # | Decisión | Por qué |
+|---|---|---|
+| B2-01 | Avisar (caja de notas y PDF) cuando la contracción de Ledoit-Wolf sea alta (≥ 0,5), explicando que con pocos datos el modelo supone riesgos iguales y correlaciones cercanas a 0. El mínimo de 20 días no cambia | No cambia cifras ni paridad, y enseña cómo se comporta el modelo; subir el mínimo bloquearía pruebas legítimas |
+| F1-02 | Anualizar con 365 cuando todos los activos cotizan todos los días (detectado en los datos, ~365 filas por año); las mezclas siguen con 252 | La tarjeta dice "anual" y la cifra estaba ~17 % baja; `frequency` es un parámetro de PyPortfolioOpt, así que el motor sigue igual a la librería llamada con ese valor |
+| F1-09 | El modelo no cambia (decisión del 2026-09-27); solo se corrige el texto: "3% (optimizer); 0% in the market-implied prior" | El texto decía 3 % sin más |
+| F6-01 | Dejar Plotly en el inicio por ahora | Las imágenes exigirían kaleido (con Chrome) y un paso de regeneración; abrir cualquier herramienta descarga Plotly igual; la espera mayor es despertar la app. Se retoma si hay quejas en celular |
+| B4-02 | Sin cambios | Alcanza para el tráfico actual; se revisa si crece |
+| B6-01 | Actualizar Streamlit como tarea aparte, después de publicar estos arreglos | Separar causas si algo se ve distinto; el pin de urllib3 sí va ahora |
+| B5-04 | Quitar el PWA (`sw.js`, `manifest.json`, la inyección) | No funciona dentro del marco de Streamlit Cloud y su iframe es la primera parada del Tab (F3-01). Los service workers ya registrados son inofensivos (solo cubren la carpeta estática, red primero) |
+| T2-01 | Procedimiento después de cada push en CLAUDE.md, sin monitor externo | Un monitor daría falsas alarmas cada vez que la app duerme (12 h sin visitas) |
+
+**Orden de trabajo** (un commit por paquete, en `main` local; se publica en el
+paso 5 con permiso; después hará falta reiniciar la app porque se tocan
+`utils/` y `core/`):
+
+1. **E. Seguridad y dependencias**: fijar `urllib3>=2.8.0` (B5-10); escapar
+   los textos de Yahoo y validar la moneda (B5-01, incl. `_fmt_safe`);
+   `client.showErrorDetails = "type"` y formateadores de Stocks que no se caen
+   (B5-03); quitar `enableCORS = false` y comprobar que la app conecta (B5-02);
+   `ssl_fix` solo si la ruta de certifi no es ASCII, con registro (B5-05);
+   `max_entries` en las cachés de Stocks (B5-06); escapar el texto propio del
+   usuario en markdown (B5-07); `.gitignore` con `.env` (B5-09).
+2. **D. Accesibilidad y PWA**: quitar el PWA (B5-04, F3-01); anillo de foco
+   sólido `#2E6FC7` (F3-02); niveles de encabezado (F3-04); objetivo táctil
+   del pie (F4-02); selectores muertos del MAINTENANCE MAP (F5-01).
+3. **A. Errores y mensajes** (incluye el 🟠 B3-01): Stocks no dibuja datos de
+   otro periodo; el resultado anterior se borra al fallar; mensajes del motor
+   en % con el mínimo o máximo posible; errores inesperados con traceback en
+   el registro y mensaje genérico; SPY como `DataDownloadError`; fallas de
+   Yahoo en Stocks que no se guardan en caché como "sin datos"; fechas y views
+   inválidas bloquean Run; tickers separados también por espacios; duplicados
+   avisados antes de Run; `logging` configurado en un módulo común; y los 🟢
+   B3-09, B3-12 a B3-19, B3-23, F1-12.
+4. **C. Stocks**: franja de retornos sin choques ni scroll oculto (F3-03,
+   F4-01); 5D de 5 sesiones (F1-04); precios bajo un centavo (F1-05);
+   rótulo del rendimiento por dividendo, volúmenes sin decimales (F1-13,
+   F1-14).
+5. **B. PDF**: una sola constante de filas mínimas para el backtest y una línea
+   cuando falta (B3-06, B3-12); gráficos con la API orientada a objetos de
+   matplotlib (B4-01); meta con `:g` (F1-01); gamma 0 en Black-Litterman
+   (F1-07); vocabulario igual a la web (F1-16); "a year" en el análisis
+   comparativo (F1-17); secciones que toleran fallas (B3-07).
+6. **Decisiones de modelo y textos (F)**: aviso de contracción (B2-01);
+   cripto con 365 (F1-02); texto de la tasa (F1-09); privacidad del registro
+   (F1-03); leyenda de correlaciones (F1-06); aviso de no acciones (F1-08);
+   ventana de Black-Litterman (F1-10); glosario ampliado con Sortino, Calmar,
+   caída máxima, prior/posterior, Ledoit-Wolf y CAPM (F1-18); nota si un activo
+   deja de cotizar antes (B3-11, con test).
+7. **G. Limpieza**: código muerto (B8-01), imports y docstrings (B8-02).
+8. **H. Tests**: cada arreglo lleva un test que falla sin él (se comprueba
+   deshaciendo el arreglo, como en las fases anteriores); tests AppTest de Stocks
+   con Yahoo simulado (B7-01).
+9. **Documentos**: CLAUDE.md (decisiones, procedimiento después de cada push,
+   T2-01), README si cambia algo público, la guía manual si cambia alguna cifra
+   de referencia, y esta auditoría.
+
+**Descartados, con motivo:** B8-03 y F1-15 (zona horaria: en la nube el
+servidor usa UTC, que es lo correcto; impacto mínimo); F3-05 (texto alternativo
+de Plotly: lo cubren en parte las tablas y métricas; se reevalúa con la
+actualización de Streamlit); el landmark `main` de F3-04 (lo arma Streamlit);
+B5-08 (fijar acciones de CI por hash es desproporcionado para este repo; el
+tag de PyPortfolioOpt se deja como está, ya documentado); B6-02 y B6-03 (van con
+la actualización de Streamlit); F7-01 (lo causa la plataforma; solo se
+documenta). F1-11 (¿precio intradía?) se verifica corriendo con el mercado de
+EE. UU. abierto antes de decidir.
+
+#### Paso 4 — avance
+
+| Paquete | Commit | Tests | Verificación |
+|---|---|---|---|
+| E. Seguridad y dependencias | `2c18752` | 140 → 149; 9 mutaciones detectadas (9/9) | App local: SAP.DE muestra nombre, sector y EUR; la app conecta sin CORS abierto y la salud ya no devuelve `Access-Control-Allow-Origin: *`; el aviso de CORS desapareció del registro |
+| A. Errores y mensajes | `2ad7d12` | 153 → 173; 18/18 | App local: límite de riesgo de 1 % tras una corrida buena muestra "The risk limit of 1% is below the lowest risk these assets allow (5.2%)…", sin métricas ni PDF de la corrida anterior; el registro ya no trae el aviso del widget; Stocks con MSFT y 5D sin avisos. El test de casos borde atrapó un error propio (el patrón tomaba el punto final de "0.167.") |
+| Contraste (verificación final) | `61735ee` | 209 → 212; 3/3 | axe, ya sin las violaciones anteriores, mostró tres de contraste que antes no reportaba: leyendas `st.caption` (Streamlit las dibuja con opacidad 0,6: 3,3:1), el enlace activo del menú (4,3:1) y las ganancias en verde de Stocks (3,1:1). Corregidas: 0 violaciones WCAG 2.2 AA en Inicio, Stocks (3 pestañas con AAPL), Portfolio (5 pestañas con resultados) y About |
+| G. Limpieza | `effdd6b` | 214 → 209 (6 tests de código borrado, 1 nuevo) | vulture al 60 % ya solo da falsos positivos; ruff (pyflakes) pasa. De paso, el backtest del PDF tenía la misma descarga silenciosa que la web (B3-13): quitada. `session_manager` guardaba hasta 10 copias del resultado por visitante sin leerlas (memoria, B4-02): quitado |
+| F. Decisiones de modelo y textos | `c186b2f` | 202 → 214; 15/15 (un test se reforzó: "Lowest risk" no mira el retorno esperado, así que no veía la anualización de la media histórica) | Datos reales: BTC + ETH con 365 días; AAPL, MSFT y KO con 3 meses dan contracción 1,00 (nota visible) y con toda la historia 0,01. Paridad y congelados intactos; la guía manual no tiene escenarios con cripto, así que sus cifras no cambian |
+| B. PDF | `5354ae6` | 191 → 202; 14/14 (un test se reforzó: el fixture solo pasaba por una de las tres redacciones de la comparación) | Dos informes con datos reales leídos página por página (Markowitz con límite de 12,5 %, Black-Litterman con gamma 0 y una view): vocabulario de la web, meta "of 12.5%", "a year", tabla Low/High. Ajuste al leerlos: la portada decía "Price Data"/"Backtest Period" en mayúsculas, distinto del desglose |
+| C. Stocks | `d3a3aff` | 173 → 191; 8/8 | App local a 375 px: la franja en 4×2 sin cortes; a 1440 px una fila de 8. SHIB-USD muestra 0.000005290 y sus rangos con dígitos. Hallazgos nuevos al verificar: "All +265132.05%" se partía en el celular (ahora "+265,132%") y SHIB-USD mostraba "All +inf%" porque Yahoo trae 217 cierres en 0 al inicio (ahora se ignoran). Cobertura de `pages/1_Stocks.py`: 16 % → 78 % (B7-01) |
+| D. Accesibilidad y PWA | `aa3bccb` | 149 → 153; 5/5 | axe-core en Portfolio con resultados (3 pestañas) y About: 0 violaciones WCAG y sin `heading-order`; sin iframes; los encabezados conservan 24 px. Hallazgo nuevo al verificar: el panel de pestañas y `section[data-testid="stMain"]` (la primera parada del Tab, de Streamlit) tomaban el foco sin mostrarlo; ahora llevan el anillo |
+
+**Verificación final del paso 4 (2026-10-08).** Suite: 212 aprobados; paridad
+y congelados sin tocar. Casos reales de la etapa 2 repetidos: el rango corto
+ahora trae backtest en el PDF y el límite imposible responde en porcentaje
+("lowest risk these assets allow (28.7%)"); los demás, con las mismas cifras.
+Dos PDF reales (Markowitz con límite de 12,5 %, Black-Litterman con gamma 0 y
+una view) leídos página por página. axe: 0 violaciones WCAG 2.2 AA en las
+cuatro páginas; sin scroll horizontal a 320 px. La guía manual suma el
+escenario 8 (los avisos nuevos); sus cifras de referencia no cambian: el
+motor solo cambió para portafolios que cotizan todos los días, y la guía no
+tiene ninguno.
+
+**Estado de los hallazgos tras el paso 4.** Corregidos (✅): el 🟠 B3-01 y
+B2-01 (como aviso, por decisión del usuario); B3-02 a B3-19, B3-23 (B3-11
+con una nota y su test, sin caso real con que probarlo en vivo); B4-01, B4-02 (en lo que cabía: sin historial de resultados en la
+sesión); B5-01 a B5-07, B5-09, B5-10; B7-01 (Stocks 16 % → 78 % de
+cobertura); B8-01, B8-02; F1-01 a F1-10, F1-12 a F1-14, F1-16 a F1-18; F2-01,
+F2-02; F3-01 a F3-03 y la parte de encabezados de F3-04; F4-01, F4-02;
+F5-01 (anotados, se conservan como resguardo); T2-01 (procedimiento en
+CLAUDE.md). Decisión del usuario (⏸): F1-09 se aclara en el texto; alinear
+las tasas sigue abierto. Pendiente de verificar (⬜): F1-11 (precio intradía
+con el mercado abierto; esta corrida fue con el mercado cerrado). Descartados
+(➖) con su motivo en el paso 3: B5-08, B6-02, B6-03, B8-03, F1-15, F3-05, el
+landmark de F3-04, F6-01 (decisión), F7-01. Aparte: la actualización de
+Streamlit (B6-01), por decisión del usuario.
+
+**Verificación al cerrar el paso 4:** suite completa (paridad y congelados sin
+tocar; el fixture sintético no debe activar la regla de 365 días); los casos
+reales de la etapa 2 otra vez; axe-core y anchos de 320 a 1440 px en la app
+local; un PDF por modelo leído página por página; los escenarios de la guía
+manual si el motor cambió en algo que los toque.
 
 ## Estado final
 
