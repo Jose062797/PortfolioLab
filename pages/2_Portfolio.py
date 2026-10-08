@@ -15,9 +15,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-from utils.session_manager import init_session_state, save_config, save_result, get_result
+from utils.session_manager import init_session_state, save_config, save_result, get_result, clear_results
 from utils.optimizer_wrapper import run_optimization, find_highly_correlated_pairs
-from core.constants import MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, TICKER_PATTERN, goal_text
+from core.constants import (
+    MIN_DATA_POINTS, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, TICKER_PATTERN, goal_text,
+)
 from core.example_market import EXAMPLE_PORTFOLIOS
 from utils.text import escape_markdown
 from utils.visualizations import (
@@ -120,6 +122,10 @@ def main():
     """, unsafe_allow_html=True)
 
     # ── Form: what to optimize (left) and how (right) ──
+    # Problems shown in the form that must also keep Run disabled: an error
+    # next to an enabled Run used to run anyway, silently without that input
+    # (whole history for inverted dates, the view dropped; audit B3-10).
+    form_errors = []
     col1, spacer, col2 = st.columns([1, 0.08, 1])
 
     with col1:
@@ -133,15 +139,19 @@ def main():
             help="Yahoo Finance symbols: stocks, ETFs, crypto (BTC-USD) or, with Markowitz, "
                  "forex (EURUSD=X)."
         )
-        st.caption("2 to 20 symbols, separated by commas.")
+        st.caption("2 to 20 symbols, separated by commas or spaces.")
 
-        # Parse tickers
-        tickers = [t.strip().upper() for t in tickers_input.split(',') if t.strip()]
+        # Parse tickers: commas, spaces and semicolons all separate them
+        # ("AAPL MSFT" used to read as one symbol, audit F2-01), and a symbol
+        # typed twice counts once (it used to fail only after Run, F2-02).
+        typed = [t.upper() for t in re.split(r"[,;\s]+", tickers_input) if t]
+        tickers = list(dict.fromkeys(typed))
         # Text that cannot be a Yahoo symbol is listed under the field (escaped)
         # and kept out of every note and label below, so typed text never
         # becomes markdown (audit B5-07); Run stays disabled until it is fixed.
         invalid_tickers = [t for t in tickers if not re.fullmatch(TICKER_PATTERN, t)]
         tickers = [t for t in tickers if t not in invalid_tickers]
+        repeated_tickers = [t for t in tickers if typed.count(t) > 1]
 
         # Notes on the tickers go right under them, but depend on the model
         # chosen in the right column: filled in further down.
@@ -180,6 +190,7 @@ def main():
 
             if start_date >= end_date:
                 st.error("The start date must be before the end date.")
+                form_errors.append("dates")
             else:
                 date_range = (start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
 
@@ -218,12 +229,18 @@ def main():
                      "least volatility that reaches at least your return."
             )
 
+            # Defaults through session state, not value=: a Home example link
+            # sets these keys, and a widget given both logs Streamlit's
+            # "created with a default value but also had its value set via
+            # the Session State API" warning (audit B3-23)
+            st.session_state.setdefault("target_volatility_pct", 20.0)
+            st.session_state.setdefault("target_return_pct", 10.0)
+
             if obj_function == "Maximise Return for a Given Risk":
                 target_volatility = st.number_input(
                     "Risk limit (annual volatility, %)",
                     min_value=1.0,
                     max_value=100.0,
-                    value=20.0,
                     step=1.0,
                     format="%.1f",
                     key="target_volatility_pct",
@@ -235,7 +252,6 @@ def main():
                     "Target return (annual, %)",
                     min_value=-50.0,
                     max_value=200.0,
-                    value=10.0,
                     step=1.0,
                     format="%.1f",
                     key="target_return_pct",
@@ -300,8 +316,10 @@ def main():
                         # The inputs are percentages; the engine takes fractions
                         if lower >= upper:
                             st.error(f"For {ticker}, Low must be below High.")
+                            form_errors.append(f"view {ticker}")
                         elif expected < lower or expected > upper:
                             st.error(f"For {ticker}, the expected return must be between Low and High.")
+                            form_errors.append(f"view {ticker}")
                         else:
                             views[ticker] = {
                                 'expected': expected / 100,
@@ -358,6 +376,10 @@ def main():
                 f"**Not a valid ticker symbol:** {', '.join(escape_markdown(t) for t in invalid_tickers)}. "
                 "Use letters, digits and `.` `-` `^` `=` only (e.g. `AAPL`, `BRK-B`, `BTC-USD`)."
             )
+        if repeated_tickers:
+            st.caption(f"{', '.join(repeated_tickers)} "
+                       f"{'is' if len(repeated_tickers) == 1 else 'are'} listed more than once; "
+                       f"{'it counts' if len(repeated_tickers) == 1 else 'each counts'} once.")
         if len(tickers) == 1:
             st.warning("Enter at least 2 tickers.")
         elif len(tickers) > 20:
@@ -411,7 +433,8 @@ def main():
             "Run optimization",
             type="primary",
             width='stretch',
-            disabled=(len(tickers) < 2 or len(tickers) > 20 or _bl_forex_blocked or bool(invalid_tickers))
+            disabled=(len(tickers) < 2 or len(tickers) > 20 or _bl_forex_blocked
+                      or bool(invalid_tickers) or bool(form_errors))
         )
 
     # Run optimization
@@ -456,7 +479,11 @@ def main():
         if result['success']:
             save_result(result)
         else:
+            # A failed run must not leave the previous result on screen under
+            # its error, where it read as the answer to these inputs (B3-02)
+            clear_results()
             error_msg = result.get('error', 'Unknown error')
+            error_type = result.get('error_type')
             if "Could not fetch market size" in error_msg:
                 # Black-Litterman only (core/opt_engine.download_market_caps): its
                 # prior needs every asset's market cap. Yahoo rate-limits that
@@ -480,13 +507,21 @@ def main():
             elif ("No data found" in error_msg or "No price data found" in error_msg
                   or "Download failed" in error_msg):
                 st.error(f"**No prices found**: Yahoo Finance returned no prices for one or more tickers. Check the symbols; if they are valid, Yahoo may be limiting requests, so try again in a minute.\n\nDetails: {error_msg}")
+            elif error_type == "DataDownloadError":
+                # core/opt_engine.download_data: Yahoo or the connection failed
+                # (SPY or the whole download), not the inputs (B3-05)
+                st.error(f"**Market data unavailable**: {error_msg}")
             elif "in common" in error_msg:
                 # utils/optimizer_wrapper: too few dates with a price for every asset
                 st.error(f"**Not enough data in common**: {error_msg.split(': ', 1)[-1]}")
-            elif "Not enough data" in error_msg or "insufficient" in error_msg.lower():
+            elif error_type == "InsufficientDataError":
                 # core/opt_engine.download_data: the whole download has fewer
-                # than MIN_DATA_POINTS rows, i.e. the date range is too short.
-                st.error(f"**Not enough data**: the selected date range contains fewer than 20 trading days. Choose a longer range.\n\nDetails: {error_msg}")
+                # than MIN_DATA_POINTS rows. Worded by what made it short (B3-17).
+                _short = (f"the selected date range contains fewer than {MIN_DATA_POINTS} trading "
+                          "days. Choose a longer range." if date_range else
+                          f"these assets have fewer than {MIN_DATA_POINTS} days of prices. Use "
+                          "assets with a longer history.")
+                st.error(f"**Not enough data**: {_short}\n\nDetails: {error_msg}")
             elif "exceeding the risk-free rate" in error_msg:
                 # PyPortfolioOpt's max_sharpe needs one asset above the risk-free rate
                 _next_step = (
@@ -495,10 +530,17 @@ def main():
                     "Add a view above 3% for an asset you expect to do better, try another date range, or use Markowitz."
                 )
                 st.error(f"**No asset beats the risk-free rate**: the best return for the risk needs at least one asset whose expected return is above the 3% risk-free rate, and none is here. {_next_step}\n\nDetails: {error_msg}")
-            elif "optimization" in error_msg.lower() or "solver" in error_msg.lower() or "Infeasible" in error_msg:
-                st.error(f"**No portfolio meets the goal**: with a limit or a target, it may be out of reach for these assets (a risk limit below their lowest risk, or a return above their highest); the details say which.\n\nDetails: {error_msg}")
+            elif error_msg.startswith(("The risk limit of", "The target return of")):
+                # core/opt_engine._explain_optimization_failure: the goal's
+                # target is out of reach, with the reachable value in percent
+                st.error(f"**No portfolio meets the goal**: {error_msg}")
+            elif error_type == "OptimizationError":
+                st.error(f"**The optimizer could not solve this problem**: {error_msg}")
+            elif error_type == "validation":
+                st.error(f"**Please check the inputs**: {error_msg}")
             else:
-                st.error(f"**The optimization failed**: {error_msg.rstrip('.')}. Please check your inputs and try again.")
+                # An unexpected error: logged with its traceback by the wrapper
+                st.error(f"**The optimization failed**: {error_msg}")
 
     # ── Display Results ──
     result = get_result()
@@ -546,7 +588,9 @@ def main():
                         _emp_corr.values, list(_emp_corr.columns)
                     )
         except Exception:
-            pass  # a failed overlap check must never break the results page
+            # A failed overlap check must never break the results page, but
+            # it must not vanish in silence either (audit B3-14)
+            logger.warning("Overlap check failed", exc_info=True)
         if _overlap_pairs:
             _pairs_txt = "; ".join(f"{a} and {b} ({c:.2f})" for a, b, c in _overlap_pairs[:5])
             notes.append(
@@ -625,9 +669,18 @@ def main():
                        " Black-Litterman's market weights use today's market capitalizations.")
                 )
 
-                if result.get('allocation_method') == 'greedy':
+                if not any(allocation.values()):
+                    # Every share costs more than its slice of the budget (audit B3-16)
                     st.caption(
-                        "Share counts use the greedy method (the exact solver was not available for "
+                        "The budget does not buy a single whole share of these assets at their last "
+                        "prices, so no shares are listed. The weights still apply; a larger budget "
+                        "turns them into shares."
+                    )
+                elif result.get('allocation_method') == 'greedy':
+                    # Also runs when the exact method fails or finds nothing,
+                    # not only when its solver is missing (audit F1-12)
+                    st.caption(
+                        "Share counts use the greedy method (the exact method could not be used for "
                         "this run), so they can differ slightly from the exact optimum. The weights "
                         "are the same."
                     )
@@ -708,6 +761,9 @@ def main():
                         prices_df.index = pd.to_datetime(prices_df.index)
                         prices_df = prices_df.sort_index()
                     except Exception:
+                        # The chart then says it could not compute the backtest
+                        # (it no longer downloads other data in silence)
+                        logger.exception("Could not read the run's prices for the backtest")
                         prices_df = None
 
                 st.caption(
@@ -761,8 +817,9 @@ def main():
                         width='stretch', hide_index=True,
                     )
 
-            except Exception as e:
-                st.error(f"Could not generate historical performance chart: {e}")
+            except Exception:
+                logger.exception("Historical performance tab failed")
+                st.info("The historical performance of this run could not be computed.")
 
         with tab_mapping["Correlation"]:
             st.caption(
@@ -778,8 +835,9 @@ def main():
                     fig_corr = create_correlation_heatmap(
                         cov_matrix, result.get('covariance_tickers') or result['tickers'])
                     st.plotly_chart(fig_corr, width='stretch', config={'scrollZoom': False})
-                except Exception as e:
-                    st.warning(f"Could not display correlation matrix: {e}")
+                except Exception:
+                    logger.exception("Correlation heatmap failed")
+                    st.info("The correlation matrix of this run could not be drawn.")
 
         with tab_mapping["Details"]:
             col_a, col_b = st.columns(2, gap="large")

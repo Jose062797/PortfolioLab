@@ -462,7 +462,9 @@ def _render_revenue(fin_df: pd.DataFrame, currency: str = None):
     """
 
     if fin_df.empty:
-        st.info("Revenue data is not available for this asset.")
+        # Yahoo answered and has no statements (a failed request is told apart
+        # by the caller)
+        st.info("Yahoo Finance has no quarterly results for this asset.")
         return
 
     df = fin_df.tail(4)
@@ -626,24 +628,37 @@ def main():
     # ═══════════════════════════════════════════════════════
     yf_period, yf_interval = PERIOD_MAP["1Y"]
 
-    try:
-        with st.spinner(f"Loading {active_ticker}..."):
+    # Prices and details are fetched apart: the page works with prices
+    # alone, and each failure gets its own message (audit B3-08, B3-09)
+    no_prices_msg = (
+        f"**No prices for {active_ticker}**: Yahoo Finance returned none. Check the symbol; "
+        "if it is right, Yahoo may be limiting requests, so try again in a minute."
+    )
+    with st.spinner(f"Loading {active_ticker}..."):
+        try:
             # auto_adjust=False: the quoted closes (adjusted for splits only),
             # as Yahoo charts them and as the returns strip computes them.
             # The default would also subtract past dividends.
             ohlcv = _cached_ohlcv(active_ticker, period=yf_period, interval=yf_interval,
                                   auto_adjust=False)
+        except Exception:
+            logger.warning("Price download failed for %s", active_ticker, exc_info=True)
+            st.error(no_prices_msg)
+            return
+        try:
             info = _cached_asset_info(active_ticker)
-    except ValueError as e:
-        st.error(f"{e}")
-        return
-    except Exception as e:
-        st.error(f"Could not fetch data for **{active_ticker}**: {e}")
-        return
+            info_failed = False
+        except Exception:
+            # Not cached (st.cache_data keeps only results): the next visit retries
+            logger.warning("Asset details failed for %s", active_ticker, exc_info=True)
+            info, info_failed = {}, True
 
     if ohlcv.empty:
-        st.error(f"No data found for {active_ticker}")
+        st.error(no_prices_msg)
         return
+    if info_failed:
+        st.info("Yahoo Finance did not send this asset's details just now, so its name, statistics "
+                "and type may be missing. Try again in a minute.")
 
     # ═══════════════════════════════════════════════════════
     # Determine asset type
@@ -728,6 +743,10 @@ def main():
 
     yf_period, yf_interval = PERIOD_MAP[period_label]
     is_intraday = yf_interval not in ("1d", "1wk", "1mo")
+    # The 1Y daily data loaded above serves the 1Y chart; any other period
+    # downloads its own. If that fails, say so: the 1Y data used to be drawn
+    # under the new period's label, in silence (audit B3-01).
+    chart_ohlcv = ohlcv
     if (yf_period, yf_interval) != PERIOD_MAP.get("1Y"):
         try:
             # Extended hours for 1D and 5D equity charts (not crypto).
@@ -738,20 +757,20 @@ def main():
             _dl = _cached_ohlcv_intraday if is_intraday else _cached_ohlcv
             if period_label == "5D":
                 _start_5d = (_dt.datetime.now() - _dt.timedelta(days=5)).strftime("%Y-%m-%d")
-                ohlcv = _dl(active_ticker, start=_start_5d,
+                chart_ohlcv = _dl(active_ticker, start=_start_5d,
                             interval=yf_interval, prepost=use_prepost, auto_adjust=False)
             else:
-                ohlcv = _dl(active_ticker, period=yf_period,
+                chart_ohlcv = _dl(active_ticker, period=yf_period,
                             interval=yf_interval, prepost=use_prepost, auto_adjust=False)
-            if is_intraday and ohlcv.index.tz is not None:
+            if is_intraday and chart_ohlcv.index.tz is not None:
                 try:
-                    ohlcv.index = ohlcv.index.tz_convert('America/New_York').tz_localize(None)
+                    chart_ohlcv.index = chart_ohlcv.index.tz_convert('America/New_York').tz_localize(None)
                 except Exception:
-                    ohlcv.index = ohlcv.index.tz_localize(None)
+                    chart_ohlcv.index = chart_ohlcv.index.tz_localize(None)
                 
             # --- INTRADAY PADDING: fill empty bars up to market end ---
-            if period_label == "1D" and not ohlcv.empty:
-                last_ts = ohlcv.index[-1]
+            if period_label == "1D" and not chart_ohlcv.empty:
+                last_ts = chart_ohlcv.index[-1]
                 last_date = last_ts.date()
                 
                 if asset_type == "CRYPTOCURRENCY":
@@ -768,16 +787,21 @@ def main():
                     freq = pd.Timedelta(freq_str)
                     future_index = pd.date_range(start=last_ts + freq, end=end_dt, freq=freq)
                     if not future_index.empty:
-                        empty_df = pd.DataFrame(index=future_index, columns=ohlcv.columns)
-                        ohlcv = pd.concat([ohlcv, empty_df])
+                        empty_df = pd.DataFrame(index=future_index, columns=chart_ohlcv.columns)
+                        chart_ohlcv = pd.concat([chart_ohlcv, empty_df])
         except Exception:
-            pass
+            logger.warning("%s chart download failed for %s", period_label, active_ticker, exc_info=True)
+            chart_ohlcv = None
 
-    st.plotly_chart(
-        create_price_chart(ohlcv, active_ticker, chart_type,
-                            prev_close=prev_close, is_intraday=is_intraday),
-        width='stretch', config={'scrollZoom': False}
-    )
+    if chart_ohlcv is None or chart_ohlcv.empty:
+        st.warning(f"The {period_label} chart could not be loaded from Yahoo Finance right now. "
+                   "Try again in a moment, or pick another period.")
+    else:
+        st.plotly_chart(
+            create_price_chart(chart_ohlcv, active_ticker, chart_type,
+                               prev_close=prev_close, is_intraday=is_intraday),
+            width='stretch', config={'scrollZoom': False}
+        )
 
     # ═══════════════════════════════════════════════════════
     # Period Returns Strip
@@ -790,6 +814,8 @@ def main():
         hist_close = hist_raw["Close"].squeeze().dropna()
         rets = _calculate_returns(hist_close, current_price=price)
     except Exception:
+        # The strip then shows dashes; the cause goes to the log (audit B3-14)
+        logger.warning("Full history failed for %s", active_ticker, exc_info=True)
         rets = {}
         
     day_ret = ((price - prev_close) / prev_close) if price and prev_close and prev_close != 0 else None
@@ -825,17 +851,20 @@ def main():
     # ═══════════════════════════════════════════════════════
     spy_close = pd.Series(dtype=float)
     quarterly_fin_df = pd.DataFrame()
+    financials_failed = False
 
     if asset_type == "EQUITY":
         try:
             _spy_raw = _cached_ohlcv('^GSPC', period='max', interval='1d', auto_adjust=False)
             spy_close = _spy_raw['Close'].squeeze().dropna()
         except Exception:
-            pass
+            logger.warning("S&P 500 history failed", exc_info=True)
         try:
             quarterly_fin_df = _cached_quarterly_financials(active_ticker)
         except Exception:
-            pass
+            # A failed request, not an asset without statements (audit B3-08)
+            logger.warning("Quarterly financials failed for %s", active_ticker, exc_info=True)
+            financials_failed = True
 
     # ═══════════════════════════════════════════════════════
     # Adaptive Tabs
@@ -848,11 +877,16 @@ def main():
         with tab_stats:
             _render_key_stats(info, asset_type)
         with tab_perf:
+            if spy_close.empty:
+                st.caption("The S&P 500 comparison could not be loaded just now.")
             _render_performance(active_ticker, hist_close, price, spy_close)
         with tab_rev:
-            _render_revenue(quarterly_fin_df,
-                            _currency_code(info.get('financial_currency'))
-                            or _currency_code(info.get('currency')))
+            if financials_failed:
+                st.info("Yahoo Finance did not send the quarterly results just now. Try again in a minute.")
+            else:
+                _render_revenue(quarterly_fin_df,
+                                _currency_code(info.get('financial_currency'))
+                                or _currency_code(info.get('currency')))
 
     elif asset_type == "ETF":
         tab_stats, tab_fund = st.tabs(["Market data", "Fund details"])

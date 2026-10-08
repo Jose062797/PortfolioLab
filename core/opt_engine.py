@@ -10,6 +10,7 @@ Consumers:
 """
 
 import logging
+import re
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -93,6 +94,7 @@ def download_data(tickers, date_range):
                 prices.columns = tickers
             else:
                 if "Close" not in ohlc.columns:
+                    # Yahoo answered with nothing at all; retried below
                     raise ValueError("No price data downloaded")
                 prices = ohlc["Close"]
 
@@ -134,7 +136,13 @@ def download_data(tickers, date_range):
         except Exception as e:
             if attempt == max_retries - 1:
                 logger.error("Data download failed after %d attempts: %s", max_retries, e)
-                raise
+                # A typed error with a message for the user: the page used to
+                # get this as an unknown error and ask to "check your inputs"
+                # (audit B3-05), though the inputs were fine.
+                raise DataDownloadError(
+                    f"Could not download prices from Yahoo Finance after {max_retries} attempts. "
+                    f"Yahoo may be limiting requests or the connection failed; try again in a minute."
+                ) from e
             else:
                 logger.warning("Download failed: %s", e)
 
@@ -163,7 +171,11 @@ def download_data(tickers, date_range):
             if attempt == max_retries - 1:
                 logger.error("Failed to download %s benchmark after %d attempts: %s",
                              BENCHMARK_TICKER, max_retries, e)
-                raise
+                raise DataDownloadError(
+                    f"Could not download {BENCHMARK_TICKER}, the market benchmark, from Yahoo "
+                    f"Finance after {max_retries} attempts. Your tickers are fine: Yahoo may be "
+                    f"limiting requests, so try again in a minute."
+                ) from e
             else:
                 logger.warning("Market data download failed: %s", e)
 
@@ -376,7 +388,7 @@ def calculate_markowitz_inputs(
         return mu, S
     except Exception as e:
         logger.error(f"[Engine] Error calculating Markowitz inputs: {str(e)}")
-        raise OptimizationError(f"Failed to calculate Markowitz inputs: {str(e)}")
+        raise OptimizationError(f"Failed to calculate Markowitz inputs: {str(e)}") from e
 
 def calculate_efficient_frontier(mu, S, points=100):
     """
@@ -387,10 +399,16 @@ def calculate_efficient_frontier(mu, S, points=100):
     logger.info("Computing Efficient Frontier values using scipy...")
     
     try:
-        # 1. Optimal tangency portfolio
-        ef_sharpe = pp.EfficientFrontier(mu, S)
-        ef_sharpe.max_sharpe(risk_free_rate=RISK_FREE_RATE)
-        optimal_ret, optimal_risk, sharpe_max = ef_sharpe.portfolio_performance(risk_free_rate=RISK_FREE_RATE)
+        # 1. Optimal tangency portfolio. It does not exist when no asset's
+        # expected return beats the risk-free rate; the frontier is drawn
+        # without that marker then (it used to be dropped whole, audit B3-15).
+        optimal_ret = optimal_risk = sharpe_max = None
+        try:
+            ef_sharpe = pp.EfficientFrontier(mu, S)
+            ef_sharpe.max_sharpe(risk_free_rate=RISK_FREE_RATE)
+            optimal_ret, optimal_risk, sharpe_max = ef_sharpe.portfolio_performance(risk_free_rate=RISK_FREE_RATE)
+        except Exception as e:
+            logger.info("Frontier without the Max Sharpe marker: %s", e)
 
         # 2. Min volatility portfolio
         ef_min = pp.EfficientFrontier(mu, S)
@@ -429,15 +447,60 @@ def calculate_efficient_frontier(mu, S, points=100):
             'asset_mu': asset_mu,
             'asset_sigma': asset_sigma
         }
-    except Exception as e:
-        logger.error("Failed to compute Efficient Frontier: %s", e)
+    except Exception:
+        logger.exception("Failed to compute Efficient Frontier")
         return None
+
+OBJECTIVES = (
+    "Min Variance",
+    "Max Sharpe",
+    "Maximise Return for a Given Risk",
+    "Minimise Risk for a Given Return",
+)
+
+
+def _explain_optimization_failure(error, mu, obj_function, target_volatility, target_return) -> str:
+    """
+    The optimizer's failure in the form's own terms (audit B3-03).
+
+    PyPortfolioOpt words these for programmers: "The minimum volatility is
+    0.287. Please use a higher target_volatility" (a fraction, a parameter
+    name, while the form takes percent), "target_return must be lower than
+    the maximum possible return" (without the maximum), and its
+    OptimizationError prints as a Python tuple. The max_sharpe message
+    ("...exceeding the risk-free rate") is kept as it is: the page words it.
+    """
+    text = " ".join(str(a) for a in error.args) if error.args else str(error)
+
+    if obj_function == "Maximise Return for a Given Risk" and "minimum volatility is" in text:
+        match = re.search(r"minimum volatility is (\d+(?:\.\d+)?)", text)
+        lowest = f" ({float(match.group(1)) * 100:.1f}%)" if match else ""
+        return (f"The risk limit of {target_volatility * 100:g}% is below the lowest risk these "
+                f"assets allow{lowest}. Raise the limit to at least that.")
+
+    if obj_function == "Minimise Risk for a Given Return" and "maximum possible return" in text:
+        return (f"The target return of {target_return * 100:g}% is above the highest expected "
+                f"return of these assets ({float(mu.max()) * 100:.1f}%). Lower the target to at "
+                f"most that.")
+
+    if type(error).__name__ == "OptimizationError":  # PyPortfolioOpt's solver failure
+        status = " ".join(str(a) for a in error.args[1:]) or "no solution"
+        return (f"The optimizer found no portfolio that meets this goal ({status}). Try another "
+                f"goal, other assets or another date range.")
+
+    return f"Portfolio optimization failed: {text}"
+
 
 def optimize_portfolio(ret_bl, S_bl, obj_function="Max Sharpe", target_volatility=0.20, target_return=0.15, l2_gamma=0.0):
     """Optimize portfolio weights."""
     pp = _get_pypfopt()
 
     logger.info("Optimizing portfolio weights (Obj: %s, L2 Gamma: %.2f)...", obj_function, l2_gamma)
+
+    # An unknown name used to fall back silently to max_sharpe() with
+    # PyPortfolioOpt's default risk-free rate of 0% (audit B3-18)
+    if obj_function not in OBJECTIVES:
+        raise OptimizationError(f"Unknown objective: {obj_function}")
 
     try:
         ef = pp.EfficientFrontier(ret_bl, S_bl)
@@ -453,12 +516,9 @@ def optimize_portfolio(ret_bl, S_bl, obj_function="Max Sharpe", target_volatilit
             ef.max_sharpe(risk_free_rate=RISK_FREE_RATE)
         elif obj_function == "Maximise Return for a Given Risk":
             ef.efficient_risk(target_volatility=target_volatility)
-        elif obj_function == "Minimise Risk for a Given Return":
+        else:  # "Minimise Risk for a Given Return"
             ef.efficient_return(target_return=target_return)
-        else:
-            # Default fallback
-            ef.max_sharpe()
-            
+
         weights = ef.clean_weights()
 
         for ticker, weight in sorted(weights.items(), key=lambda x: x[1], reverse=True):
@@ -479,7 +539,8 @@ def optimize_portfolio(ret_bl, S_bl, obj_function="Max Sharpe", target_volatilit
 
     except Exception as e:
         logger.error("Portfolio optimization failed: %s", e)
-        raise OptimizationError(f"Portfolio optimization failed: {e}") from e
+        raise OptimizationError(_explain_optimization_failure(
+            e, ret_bl, obj_function, target_volatility, target_return)) from e
 
 
 def calculate_allocation(weights, prices, portfolio_value):

@@ -3,15 +3,18 @@ Visualization utilities for Black-Litterman Portfolio Optimizer
 Creates interactive charts using Plotly
 """
 
+import logging
+
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional, List, Tuple
-from datetime import datetime, timedelta
 import yfinance as yf
 
 from core.constants import ASSET_COLORS, MIN_WEIGHT_THRESHOLD, TRADING_DAYS_PER_YEAR
+
+logger = logging.getLogger(__name__)
 
 
 # ── Brand chart style ──
@@ -899,14 +902,17 @@ def create_historical_performance_chart(
 
         return apply_brand_layout(fig), bt_result
 
-    except Exception as e:
+    except Exception:
+        # Logged with its traceback; the page shows a plain message instead of
+        # the raw exception text in red (audit B3-13)
+        logger.exception("Historical performance chart failed")
         fig = go.Figure()
         fig.add_annotation(
-            text=f"Could not load historical data: {str(e)}",
+            text="The historical performance of this run could not be computed.",
             xref="paper", yref="paper",
             x=0.5, y=0.5,
             showarrow=False,
-            font=dict(size=14, color='red')
+            font=dict(size=14, color='#64748B')
         )
         fig.update_layout(height=400)
         return fig, None
@@ -919,47 +925,26 @@ def _prepare_price_data(
     prices_data: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """
-    Prepare a clean DataFrame with ticker + benchmark columns for backtest.
+    The run's own prices (tickers + benchmark), on the rows the PDF backtests.
 
-    Reuses pre-downloaded data when available, downloads from yfinance otherwise.
+    Only the prices the optimization used: until 2026-10-08 a missing column
+    or an unreadable `prices_clean` made this download fresh data over
+    another window, so the web backtest could silently differ from the
+    optimization and the PDF (audit B3-13). Now that is an error the page
+    reports.
     """
+    if prices_data is None:
+        raise ValueError("The prices of this run are not available")
+    # Once each: SPY can be a portfolio asset too (fixed in f8a6f41)
+    needed = list(dict.fromkeys(list(tickers) + [benchmark]))
+    missing = [c for c in needed if c not in prices_data.columns]
+    if missing:
+        raise ValueError(f"The prices of this run lack {', '.join(missing)}")
+
+    price_df = prices_data[needed].copy()
     if initial_date:
-        start_date = pd.to_datetime(initial_date)
-    else:
-        start_date = datetime.now() - timedelta(days=365 * 5)
-    end_date = datetime.now()
+        price_df = price_df.loc[price_df.index >= pd.to_datetime(initial_date)]
 
-    # Try to use pre-downloaded data
-    if prices_data is not None:
-        available_tickers = [t for t in tickers if t in prices_data.columns]
-        if len(available_tickers) == len(tickers):
-            price_df = prices_data[tickers].copy()
-            if initial_date:
-                price_df = price_df.loc[price_df.index >= start_date]
-
-            # Add benchmark
-            if benchmark in prices_data.columns:
-                price_df[benchmark] = prices_data[benchmark]
-                if initial_date:
-                    price_df = price_df.loc[price_df.index >= start_date]
-            else:
-                # Download just the benchmark via unified data provider
-                from core.data_provider import download_prices
-                start_str = start_date.strftime('%Y-%m-%d') if isinstance(start_date, (datetime, pd.Timestamp)) else str(start_date)
-                end_str = end_date.strftime('%Y-%m-%d') if isinstance(end_date, (datetime, pd.Timestamp)) else str(end_date)
-                bench_df = download_prices([benchmark], start=start_str, end=end_str)
-                price_df[benchmark] = bench_df[benchmark]
-
-            # The same rows the PDF backtests (core.backtest.prepare_backtest_prices)
-            from core.backtest import prepare_backtest_prices
-            return prepare_backtest_prices(price_df, tickers, benchmark)
-
-    # Fallback: download everything via unified data provider
-    from core.data_provider import download_prices
-
-    all_tickers = list(set(tickers + [benchmark]))
-    return download_prices(
-        all_tickers,
-        start=start_date.strftime('%Y-%m-%d') if isinstance(start_date, (datetime, pd.Timestamp)) else str(start_date),
-        end=end_date.strftime('%Y-%m-%d') if isinstance(end_date, (datetime, pd.Timestamp)) else str(end_date),
-    )
+    # The same rows the PDF backtests (core.backtest.prepare_backtest_prices)
+    from core.backtest import prepare_backtest_prices
+    return prepare_backtest_prices(price_df, tickers, benchmark)

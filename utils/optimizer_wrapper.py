@@ -36,6 +36,9 @@ from core.constants import (
     BENCHMARK_TICKER,
     TRADING_DAYS_PER_YEAR,
     TICKER_PATTERN,
+    OptimizationError,
+    DataDownloadError,
+    InsufficientDataError,
 )
 
 logger = logging.getLogger(__name__)
@@ -224,6 +227,7 @@ def run_optimization(
             return {
                 'success': False,
                 'error': error_msg,
+                'error_type': 'validation',
                 'timestamp': datetime.now().isoformat()
             }
 
@@ -262,6 +266,7 @@ def run_optimization(
                     f"day only {len(prices)} times (at least {MIN_DATA_POINTS} are needed). "
                     f"Use assets with more history in common, or a longer date range."
                 ),
+                'error_type': 'InsufficientDataError',
                 'timestamp': datetime.now().isoformat(),
             }
 
@@ -393,16 +398,28 @@ def run_optimization(
         update_progress("Optimization complete!")
         return result
 
-    except Exception as e:
-        error_msg = str(e)
-        logger.error("Optimization error: %s", error_msg)
-
+    except (OptimizationError, DataDownloadError, InsufficientDataError) as e:
+        # Domain errors carry a message written for the user
+        logger.warning("Optimization stopped (%s): %s", type(e).__name__, e)
         return {
             'success': False,
-            'error': error_msg,
+            'error': str(e),
+            'error_type': type(e).__name__,
             'timestamp': datetime.now().isoformat(),
             'tickers': tickers,
-            'portfolio_value': portfolio_value
+        }
+    except Exception:
+        # A bug, not a market or input problem: the traceback goes to the log
+        # and the user gets a plain message instead of the raw exception text
+        # (audit B3-04: a KeyError used to reach the page as "'SPY'").
+        logger.exception("Unexpected error during optimization")
+        return {
+            'success': False,
+            'error': ("An unexpected error stopped the optimization. It has been logged; "
+                      "try again, or try other assets or settings."),
+            'error_type': 'unexpected',
+            'timestamp': datetime.now().isoformat(),
+            'tickers': tickers,
         }
 
 

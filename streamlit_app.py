@@ -3,18 +3,12 @@ PortfolioLab - Multi-Tool Financial Platform
 Home page: the front door (hero, example portfolios, the two tools, how it works)
 """
 
-import logging
 import os
 
+# Also configures logging for the whole app (utils/__init__.py)
 import utils.ssl_fix  # noqa: F401 — applies SSL cert fix on import
 
 import streamlit as st
-
-# Configure logging for the Streamlit app
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s | %(name)s | %(message)s",
-)
 
 # Page configuration. Every page uses the brand favicon; a plain string that
 # is not an emoji would be taken as an image URL.

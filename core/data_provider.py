@@ -261,6 +261,13 @@ def get_asset_info(ticker: str) -> dict:
     except Exception as e:
         logger.warning("Failed to fetch info for %s: %s", ticker, e)
 
+    # Nothing at all from either endpoint is a failed request (rate limits),
+    # not an asset without details: raise, so st.cache_data keeps nothing and
+    # the next visit retries. A dict of Nones used to stay cached as "no
+    # data", with the asset type falling back to EQUITY (audit B3-08).
+    if not fast and not info:
+        raise ValueError(f"Yahoo Finance sent no details for {ticker}")
+
     # Merge: .info is primary; fast_info fills any None gaps
     def _get(key):
         v = info.get(key)
@@ -361,14 +368,20 @@ def get_quarterly_financials(ticker: str) -> pd.DataFrame:
 
     Returns:
         DataFrame with DatetimeIndex (quarter dates, ascending) and columns
-        'revenue' and/or 'net_income'. Empty DataFrame if unavailable.
+        'revenue' and/or 'net_income'. Empty DataFrame when Yahoo has no
+        statements for the asset.
+
+    Raises:
+        Exception: when the request itself fails. It is not cached, so the
+        next visit retries; an empty frame used to be cached for an hour
+        and shown as "not available for this asset" (audit B3-08).
     """
     import yfinance as yf
 
     logger.debug("Fetching quarterly financials for %s", ticker)
+    stock = yf.Ticker(ticker)
+    stmt = stock.quarterly_income_stmt
     try:
-        stock = yf.Ticker(ticker)
-        stmt = stock.quarterly_income_stmt
         if stmt is None or stmt.empty:
             return pd.DataFrame()
 
@@ -399,5 +412,6 @@ def get_quarterly_financials(ticker: str) -> pd.DataFrame:
         df = df.sort_index(ascending=True)
         return df
     except Exception as e:
-        logger.warning("Failed to fetch quarterly financials for %s: %s", ticker, e)
+        # The statement arrived but could not be parsed: no usable data
+        logger.warning("Could not read quarterly financials for %s: %s", ticker, e)
         return pd.DataFrame()
