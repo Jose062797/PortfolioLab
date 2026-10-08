@@ -23,7 +23,8 @@ from core.opt_engine import (
     calculate_markowitz_inputs,
     calculate_efficient_frontier,
     optimize_portfolio,
-    calculate_allocation
+    calculate_allocation,
+    shrinkage_intensity,
 )
 from core.constants import (
     MIN_DATA_POINTS,
@@ -36,6 +37,7 @@ from core.constants import (
     BENCHMARK_TICKER,
     TRADING_DAYS_PER_YEAR,
     TICKER_PATTERN,
+    CALENDAR_DAYS_PER_YEAR,
     OptimizationError,
     DataDownloadError,
     InsufficientDataError,
@@ -65,6 +67,9 @@ def _data_notes(prices: pd.DataFrame) -> Dict[str, Any]:
 
     - late_assets: assets whose history starts more than a week after the
       earliest one, so the common window starts with the youngest of them.
+    - early_end_assets: assets whose prices stop more than a week before the
+      latest one (a delisted symbol Yahoo still serves), so the window, and
+      the share prices, end with them (audit B3-11).
     - mixed_calendar: some assets have weekend prices (crypto) and others do
       not, so the window keeps the weekdays when all of them trade.
 
@@ -72,13 +77,19 @@ def _data_notes(prices: pd.DataFrame) -> Dict[str, Any]:
         prices: Downloaded close prices, one column per portfolio asset.
 
     Returns:
-        Dict with 'data_start' (earliest first price), 'late_assets' (list of
-        (ticker, first date), latest last) and 'mixed_calendar' (bool).
+        Dict with 'data_start' (earliest first price), 'late_assets' and
+        'early_end_assets' (lists of (ticker, date)) and 'mixed_calendar'
+        (bool). run_optimization adds 'shrinkage' and 'trading_days_per_year'.
     """
     firsts = {t: prices[t].first_valid_index() for t in prices.columns}
-    data_start = min(firsts.values())
+    lasts = {t: prices[t].last_valid_index() for t in prices.columns}
+    data_start, data_end = min(firsts.values()), max(lasts.values())
     late = sorted(
         ((t, d) for t, d in firsts.items() if (d - data_start).days > 7),
+        key=lambda item: item[1],
+    )
+    early_end = sorted(
+        ((t, d) for t, d in lasts.items() if (data_end - d).days > 7),
         key=lambda item: item[1],
     )
     weekend = prices.index.dayofweek >= 5
@@ -86,8 +97,23 @@ def _data_notes(prices: pd.DataFrame) -> Dict[str, Any]:
     return {
         'data_start': data_start.strftime('%Y-%m-%d'),
         'late_assets': [(t, d.strftime('%Y-%m-%d')) for t, d in late],
+        'early_end_assets': [(t, d.strftime('%Y-%m-%d')) for t, d in early_end],
         'mixed_calendar': mixed_calendar,
     }
+
+
+def trading_days_per_year(prices: pd.DataFrame) -> int:
+    """
+    Rows per year of the estimation window: 365 when every asset trades
+    every day, 252 otherwise (decision of 2026-10-08, audit F1-02).
+
+    The window holds only the dates when every asset has a price, so weekend
+    rows survive only when ALL the assets trade on weekends (an all-crypto
+    portfolio). A full calendar week has 2 weekend days in 7; mixed
+    portfolios and stocks have none.
+    """
+    weekend_share = float((prices.index.dayofweek >= 5).mean()) if len(prices) else 0.0
+    return CALENDAR_DAYS_PER_YEAR if weekend_share > 0.2 else TRADING_DAYS_PER_YEAR
 
 
 def validate_inputs(
@@ -254,7 +280,8 @@ def run_optimization(
         # real Min Variance run on MSFT, AAPL, SNOW and KO put half the money
         # in SNOW, the most volatile of the four (2026-09-26). Dropping the
         # incomplete rows also lines crypto's weekend prices up with
-        # weekday-traded assets, so returns and annualization (252 days) hold.
+        # weekday-traded assets, so returns and annualization (252 days) hold;
+        # an every-day window (all crypto) is annualized with 365 (below).
         # The cookbook passes raw prices; with complete histories this is the
         # same input, which keeps the parity tests meaningful.
         prices = prices.dropna()
@@ -270,6 +297,14 @@ def run_optimization(
                 'timestamp': datetime.now().isoformat(),
             }
 
+        # Annualization (365 when every asset trades every day) and how much
+        # the estimates lean on Ledoit-Wolf's neutral target, for the notes
+        # (audit F1-02, B2-01)
+        frequency = trading_days_per_year(prices)
+        data_notes['trading_days_per_year'] = frequency
+        data_notes['shrinkage'] = shrinkage_intensity(prices)
+        data_notes['common_days'] = len(prices)
+
         S = None
         delta = None
         market_prior = None
@@ -284,6 +319,7 @@ def run_optimization(
             mu, S_bl = calculate_markowitz_inputs(
                 prices_clean, market_prices=spy_aligned,
                 returns_estimator=returns_estimator,
+                frequency=frequency,
             )
             ret_bl = mu
 
@@ -297,7 +333,8 @@ def run_optimization(
 
             # Step 3: Calculate market prior (pairwise covariance, returns cleaned prices for downstream)
             update_progress("Calculating market equilibrium...")
-            S, delta, market_prior, prices_clean2 = calculate_prior(prices, market_prices, mcaps)
+            S, delta, market_prior, prices_clean2 = calculate_prior(prices, market_prices, mcaps,
+                                                                    frequency=frequency)
             # Ensure we use identically cleaned
             prices_clean = prices_clean2
 
@@ -378,6 +415,7 @@ def run_optimization(
             'full_data_range': (full_data_start, full_data_end),
             'backtest_range': backtest_range,
             'data_notes': data_notes,
+            'trading_days_per_year': frequency,
             'viewdict': viewdict if viewdict else {},
             'views_detail': views if views else {},
             'model_type': model_type,

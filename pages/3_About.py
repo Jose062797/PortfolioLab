@@ -70,7 +70,13 @@ def main():
         - **Sharpe ratio**: return above the risk-free rate for each unit of volatility, a measure of risk-adjusted return. The tools show an expected one (from the model's estimates) and a realized one (from the backtest). Above 1.0 is often considered good.
         - **L2 regularization (gamma)**: a penalty added during optimization that discourages putting most of the money into just 1 or 2 assets. Higher gamma spreads the weights more evenly.
         - **Market-implied returns**: the expected returns that would make today's market-cap weights the optimal portfolio, given the assets' risk (the starting point of Black-Litterman).
+        - **Prior and posterior**: in Black-Litterman, the prior is the market-implied returns; the posterior blends them with your views, giving each view more weight the narrower its range.
+        - **CAPM**: a way to estimate expected returns from each asset's beta, how strongly it moves with the market (SPY here): the risk-free rate plus beta times the market's return above it.
+        - **Ledoit-Wolf shrinkage**: how both models estimate risk. The covariance measured from the data is blended with a neutral starting point (every asset equally risky, none correlated), which steadies the estimate and pulls correlations toward zero; the less data, the more weight the neutral point gets.
         - **Efficient frontier**: the portfolios with the highest expected return for each level of risk.
+        - **Max drawdown**: the largest fall from a peak to a later low during the backtest.
+        - **Sortino ratio**: like the Sharpe ratio, but it divides by downside risk only: the shortfalls below the risk-free rate, averaged over every day (the Sortino-van der Meer definition, which Morningstar uses).
+        - **Calmar ratio**: the backtest's annualized return divided by the size of its max drawdown.
         """)
 
     with tab3:
@@ -83,8 +89,9 @@ def main():
         with st.expander("Is my portfolio data private?"):
             st.write("PortfolioLab does not store your inputs or results: they stay in the server's memory for your "
                      "session and are gone when it ends. To fetch prices, the ticker symbols you enter are sent to Yahoo "
-                     "Finance. The hosted app runs on Streamlit Community Cloud, which keeps its own technical logs, and "
-                     "the page fonts load from Google Fonts.")
+                     "Finance. The hosted app runs on Streamlit Community Cloud, whose technical logs can include the "
+                     "symbols of a request that failed, but not your budget, views or results. The page fonts load "
+                     "from Google Fonts.")
         with st.expander("Why are portfolio weights changing across runs?"):
             st.write("Market data changes every day, so each run estimates from a slightly different history. Small "
                      "differences in the data window and in solver precision can also move the weights a little, "

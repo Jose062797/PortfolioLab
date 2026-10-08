@@ -18,7 +18,8 @@ import numpy as np
 from utils.session_manager import init_session_state, save_config, save_result, get_result, clear_results
 from utils.optimizer_wrapper import run_optimization, find_highly_correlated_pairs
 from core.constants import (
-    MIN_DATA_POINTS, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, TICKER_PATTERN, goal_text,
+    CALENDAR_DAYS_PER_YEAR, MIN_DATA_POINTS, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS,
+    SHRINKAGE_NOTE_THRESHOLD, TICKER_PATTERN, goal_text, risk_free_text,
 )
 from core.example_market import EXAMPLE_PORTFOLIOS
 from utils.text import escape_markdown, fmt_price
@@ -393,11 +394,17 @@ def main():
                 f"Switch to the **Markowitz** model to include forex."
             )
         elif _non_equity:
-            _estimator_hint = (
-                " Setting *Expected returns* to **Historical mean** under *Advanced "
-                "settings* suits them better."
-                if model_type == "Markowitz" and returns_estimator == "capm" else ""
-            )
+            # Only the model in use is named: with Markowitz on the historical
+            # mean, neither CAPM nor Black-Litterman applies (audit F1-08)
+            if model_type == "Black-Litterman":
+                _why = (" Black-Litterman starts from market values, which suit stocks, so the "
+                        "results may not mean much.")
+            elif returns_estimator == "capm":
+                _why = (" CAPM measures each asset against SPY, a stock index, so the results may "
+                        "not mean much. Setting *Expected returns* to **Historical mean** under "
+                        "*Advanced settings* suits them better.")
+            else:
+                _why = ""
             # Crypto has weekend prices and stocks do not: the wrapper keeps
             # the days when all of them trade (see run_optimization)
             _calendar_note = (
@@ -405,12 +412,11 @@ def main():
                 "when every asset trades."
                 if _crypto_tickers and len(_crypto_tickers) < len(tickers) else ""
             )
-            st.warning(
-                f"**{', '.join(_non_equity)} {'is' if len(_non_equity) == 1 else 'are'} not "
-                f"{'a stock' if len(_non_equity) == 1 else 'stocks'}.** CAPM measures each asset "
-                "against SPY, a stock index, and Black-Litterman starts from market values, so "
-                "the results may not mean much." + _estimator_hint + _calendar_note
-            )
+            if _why or _calendar_note:
+                st.warning(
+                    f"**{', '.join(_non_equity)} {'is' if len(_non_equity) == 1 else 'are'} not "
+                    f"{'a stock' if len(_non_equity) == 1 else 'stocks'}.**" + _why + _calendar_note
+                )
 
         if _other_currency:
             _one = len(_other_currency) == 1
@@ -612,11 +618,30 @@ def main():
                 f"{_late_txt}. The estimates use only the dates when every asset has a "
                 f"price{_window_txt}."
             )
+        if _data.get('early_end_assets'):
+            _end_txt = ", ".join(f"{t} has none after {d}" for t, d in _data['early_end_assets'])
+            notes.append(
+                f"**Prices end early**: {_end_txt}. The estimates and the share prices stop on "
+                f"the last date every asset has a price{_window_txt}."
+            )
         if _data.get('mixed_calendar'):
             notes.append(
                 "**Weekend prices**: some of these assets trade on weekends (crypto) and others do "
                 "not. The estimates use the days when all of them trade, so weekend moves count "
                 "toward the following Monday."
+            )
+        if _data.get('trading_days_per_year') == CALENDAR_DAYS_PER_YEAR:
+            notes.append(
+                "**Every day a trading day**: all these assets trade on weekends too, so the "
+                "annual figures use 365 days a year, not the 252 of stock markets."
+            )
+        if (_data.get('shrinkage') or 0) >= SHRINKAGE_NOTE_THRESHOLD:
+            notes.append(
+                f"**Little data for the risk model**: with {_data.get('common_days', 'few')} days of "
+                f"prices in common, the Ledoit-Wolf risk model leans {_data['shrinkage']:.0%} on its "
+                "neutral starting point (every asset equally risky, none correlated). The weights "
+                "drift toward equal shares and the correlations toward zero; a longer common "
+                "history gives the data more say."
             )
 
         if notes:
@@ -822,10 +847,13 @@ def main():
                 st.info("The historical performance of this run could not be computed.")
 
         with tab_mapping["Correlation"]:
+            # "the risk model both optimizers start from", as the PDF says:
+            # with views, Black-Litterman's optimizer then uses the posterior
+            # covariance, not this one (audit F1-06)
             st.caption(
-                "From the shrunk covariance matrix the optimizer uses (Ledoit-Wolf), which pulls every "
-                "correlation toward zero. Blue: assets that tend to move together; red: in opposite "
-                "directions."
+                "From the Ledoit-Wolf shrunk covariance matrix, the risk model both optimizers start "
+                "from; shrinkage pulls every correlation toward zero. Blue: assets that tend to move "
+                "together; red: in opposite directions."
             )
 
             if 'covariance_matrix' in result and result['covariance_matrix']:
@@ -855,7 +883,10 @@ def main():
                 if full_range:
                     lines.append(f"**Price data:** {full_range[0]} to {full_range[1]} "
                                  "(dates with a price for every asset: expected returns, covariance "
-                                 "and share prices)")
+                                 "and share prices"
+                                 # The risk aversion reads SPY's own history (audit F1-10)
+                                 + ("; the risk aversion uses SPY's whole history)"
+                                    if not is_markowitz else ")"))
                 if result.get('backtest_range'):
                     bt_start, bt_end = result['backtest_range']
                     lines.append(f"**Backtest period:** {bt_start} to {bt_end} "
@@ -878,7 +909,7 @@ def main():
                 lines.append("**Covariance:** Ledoit-Wolf shrinkage")
                 if result.get('l2_gamma') is not None:
                     lines.append(f"**L2 regularization (gamma):** {result['l2_gamma']:.1f}")
-                lines.append(f"**Risk-free rate:** {result.get('risk_free_rate', 0.03)*100:.0f}%")
+                lines.append(f"**Risk-free rate:** {risk_free_text(result)}")
                 lines.append(f"**Run on:** {result.get('timestamp', 'N/A')[:10]}")
                 st.markdown("  \n".join(lines))
 

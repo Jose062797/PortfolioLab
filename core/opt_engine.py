@@ -16,7 +16,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from core.constants import (
-    RISK_FREE_RATE, MIN_DATA_POINTS,
+    RISK_FREE_RATE, MIN_DATA_POINTS, TRADING_DAYS_PER_YEAR,
     MIN_WEIGHT_THRESHOLD, BENCHMARK_TICKER,
     OptimizationError, DataDownloadError, InsufficientDataError
 )
@@ -266,8 +266,14 @@ def download_market_caps(tickers: list) -> dict:
     return mcaps
 
 
-def calculate_prior(prices, market_prices, mcaps):
-    """Calculate market-implied prior returns."""
+def calculate_prior(prices, market_prices, mcaps, frequency=TRADING_DAYS_PER_YEAR):
+    """Calculate market-implied prior returns.
+
+    `frequency` annualizes the covariance: 365 when every asset trades every
+    day (see utils/optimizer_wrapper.trading_days_per_year), 252 otherwise.
+    The risk aversion stays on SPY's own calendar (weekdays), as in the
+    cookbook.
+    """
     pp = _get_pypfopt()
 
     logger.info("Calculating market prior (%d days of price data)", len(prices))
@@ -280,7 +286,7 @@ def calculate_prior(prices, market_prices, mcaps):
         # utils/optimizer_wrapper passes complete rows (the dates where every
         # asset has a price). With gaps, PyPortfolioOpt's Ledoit-Wolf counts
         # missing returns as zeros.
-        S = pp.risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+        S = pp.risk_models.CovarianceShrinkage(prices, frequency=frequency).ledoit_wolf()
         logger.info("Covariance matrix calculated (Ledoit-Wolf shrinkage)")
 
         delta = pp.black_litterman.market_implied_risk_aversion(market_prices)
@@ -351,6 +357,7 @@ def calculate_markowitz_inputs(
     prices: pd.DataFrame,
     market_prices: pd.DataFrame = None,
     returns_estimator: str = "capm",
+    frequency: int = TRADING_DAYS_PER_YEAR,
 ) -> tuple[pd.Series, pd.DataFrame]:
     """
     Calculate standard Markowitz Mean-Variance Optimization inputs.
@@ -362,6 +369,11 @@ def calculate_markowitz_inputs(
             or "historical" (compounded mean historical return). Use
             "historical" for portfolios with non-equity assets (crypto,
             commodities), where an equity-market beta is not meaningful.
+        frequency: price rows per year, for annualizing: 252 (weekdays), or
+            365 when every asset trades every day (an all-crypto portfolio;
+            decision of 2026-10-08, audit F1-02). It applies to the covariance
+            and to the historical mean. CAPM keeps PyPortfolioOpt's 252: its
+            frequency only annualizes SPY's return, and SPY trades on weekdays.
 
     Returns:
         tuple containing:
@@ -375,7 +387,7 @@ def calculate_markowitz_inputs(
     try:
         if returns_estimator == "historical":
             # Compounded mean historical return — asset-class agnostic.
-            mu = pypfopt.expected_returns.mean_historical_return(prices)
+            mu = pypfopt.expected_returns.mean_historical_return(prices, frequency=frequency)
         else:
             # CAPM returns as recommended by the PyPortfolioOpt cookbook
             # (2-Mean-Variance-Optimisation.ipynb). More stable than raw
@@ -383,12 +395,30 @@ def calculate_markowitz_inputs(
             mu = pypfopt.expected_returns.capm_return(
                 prices, market_prices=market_prices, risk_free_rate=RISK_FREE_RATE
             )
-        S = pypfopt.risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+        S = pypfopt.risk_models.CovarianceShrinkage(prices, frequency=frequency).ledoit_wolf()
         logger.debug("[Engine] Markowitz inputs calculated successfully (estimator=%s).", returns_estimator)
         return mu, S
     except Exception as e:
         logger.error(f"[Engine] Error calculating Markowitz inputs: {str(e)}")
         raise OptimizationError(f"Failed to calculate Markowitz inputs: {str(e)}") from e
+
+def shrinkage_intensity(prices: pd.DataFrame) -> float:
+    """
+    How far Ledoit-Wolf pulls the covariance toward its neutral target
+    (equal variances, no correlation): 0 trusts the data, 1 ignores it.
+
+    With few rows it reaches 1 (AAPL, MSFT and KO: 1.0 with 63 days, 0.30
+    with 250, 0.11 with 751; measured 2026-10-08), and the optimizer then
+    sees equal risks and zero correlations: Lowest risk splits the budget
+    evenly. The page and the PDF say so above SHRINKAGE_NOTE_THRESHOLD
+    (decision of 2026-10-08, audit B2-01). The intensity does not depend on
+    the annualization.
+    """
+    pp = _get_pypfopt()
+    shrinkage = pp.risk_models.CovarianceShrinkage(prices)
+    shrinkage.ledoit_wolf()
+    return float(shrinkage.delta)
+
 
 def calculate_efficient_frontier(mu, S, points=100):
     """
@@ -582,9 +612,13 @@ def calculate_allocation(weights, prices, portfolio_value):
             method = "greedy"
 
         if allocation and len(allocation) > 0:
+            # Amounts at DEBUG only: invested plus remaining is the budget,
+            # the user's input, which stays out of the server log like the
+            # DEBUG line at the top of this function (this INFO line used to
+            # print both, audit F1-03)
             total_invested = sum(allocation[t] * latest_prices[t] for t in allocation)
-            logger.info("Allocated %d positions, $%.2f invested, $%.2f remaining",
-                        len(allocation), total_invested, leftover)
+            logger.info("Allocated %d positions (%s)", len(allocation), method)
+            logger.debug("$%.2f invested, $%.2f remaining", total_invested, leftover)
         else:
             logger.warning("No shares could be allocated (portfolio too small for share prices)")
             leftover = portfolio_value

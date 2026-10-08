@@ -103,7 +103,7 @@ pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest tests\ -v
 ```
 
-The suite (202 tests) runs fully offline against synthetic fixtures and covers:
+The suite (214 tests) runs fully offline against synthetic fixtures and covers:
 mathematical parity with raw PyPortfolioOpt, frozen numeric regression
 snapshots, numerical edge cases, data-layer failure modes, input validation,
 PDF/visualization outputs, and backtest conventions. It also runs automatically
@@ -122,7 +122,9 @@ own usage statistics are turned off in `.streamlit/config.toml`.
 
 The hosted app runs on Streamlit Community Cloud, so inputs entered there are
 processed on its servers. The app stores nothing: results stay in the server's
-memory for your session only. The platform keeps its own technical logs.
+memory for your session only. The platform keeps its own technical logs, which
+can include the ticker symbols of a request that failed, but not your budget,
+views or results.
 
 ---
 

@@ -33,7 +33,10 @@ from core.pdf_shared import (
     add_historical_header,
     add_historical_metrics,
 )
-from core.constants import MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, goal_text
+from core.constants import (
+    CALENDAR_DAYS_PER_YEAR, MIN_WEIGHT_THRESHOLD, OBJECTIVE_LABELS, SHRINKAGE_NOTE_THRESHOLD,
+    goal_text, risk_free_text,
+)
 from utils.text import fmt_price
 
 logger = logging.getLogger(__name__)
@@ -150,6 +153,17 @@ def generate_portfolio_pdf(result_data, logo_path=None):
     _add_metric_cards(pdf, expected_return, volatility, sharpe_ratio,
                       portfolio_value, num_assets)
     add_methodology(pdf, result_data)
+    # The same data notes as the web's notes box that change how to read
+    # the figures (audit B2-01, F1-02)
+    notes = result_data.get('data_notes') or {}
+    if (notes.get('shrinkage') or 0) >= SHRINKAGE_NOTE_THRESHOLD:
+        _add_note(pdf, f"Little data for the risk model: with {notes.get('common_days', 'few')} days of "
+                       f"prices in common, the Ledoit-Wolf risk model leans {notes['shrinkage']:.0%} on "
+                       "its neutral starting point (every asset equally risky, none correlated), so "
+                       "the weights drift toward equal shares and the correlations toward zero.")
+    if notes.get('trading_days_per_year') == CALENDAR_DAYS_PER_YEAR:
+        _add_note(pdf, "Every asset trades every day, so the annual figures use 365 days a year, "
+                       "not the 252 of stock markets.")
 
     # Optional sections never sink the whole report: a failure is logged and
     # leaves a line in the PDF, where it used to vanish or, uncaught, stop the
@@ -546,8 +560,10 @@ def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
 
     if full_start != 'N/A':
         pdf.cell(50, 6, 'Price data:', new_x=XPos.RIGHT)
+        bl_clause = ("; the risk aversion uses SPY's whole history"
+                     if result_data.get('model_type') == 'Black-Litterman' else "")
         pdf.multi_cell(0, 6, f'{full_start} to {full_end} (dates with a price for every asset: '
-                             'expected returns, covariance and share prices)',
+                             f'expected returns, covariance and share prices{bl_clause})',
                        new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.cell(50, 6, 'Backtest period:', new_x=XPos.RIGHT)
     if backtest_range:
@@ -581,7 +597,7 @@ def _add_detailed_breakdown(pdf, portfolio_value, leftover, num_assets,
     ]
     if result_data.get('l2_gamma') is not None:
         rows.append(('L2 regularization (gamma):', f"{result_data['l2_gamma']:.1f}"))
-    rows.append(('Risk-free rate:', f"{result_data.get('risk_free_rate', 0.03)*100:.0f}%"))
+    rows.append(('Risk-free rate:', risk_free_text(result_data)))
     timestamp = result_data.get('timestamp', 'N/A')
     rows.append(('Run on:', timestamp[:10] if timestamp != 'N/A' else 'N/A'))
     for label, value in rows:

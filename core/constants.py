@@ -17,6 +17,13 @@ RISK_FREE_RATE = 0.03  # 3.0% annual (standard risk-free rate for portfolio opti
 MIN_WEIGHT_THRESHOLD = 0.001  # Minimum portfolio weight to display (0.1%)
 MAX_VIEW_THRESHOLD = 2.0  # 200% sanity check for views
 TRADING_DAYS_PER_YEAR = 252  # Trading days for annualization
+# When every asset trades every day (an all-crypto portfolio), annual figures
+# use calendar days: 252 understated their volatility by about 17% (audit
+# F1-02, decision of 2026-10-08; see utils/optimizer_wrapper.trading_days_per_year)
+CALENDAR_DAYS_PER_YEAR = 365
+# Ledoit-Wolf shrinkage at or above this gets a note on the page and in the
+# PDF: the estimates lean mostly on the neutral target (audit B2-01)
+SHRINKAGE_NOTE_THRESHOLD = 0.5
 
 # Application Constants
 BENCHMARK_TICKER = "SPY"  # S&P 500 ETF for market data
@@ -50,6 +57,20 @@ def goal_text(obj_function: str, target_volatility=None, target_return=None) -> 
     elif obj_function == "Minimise Risk for a Given Return" and target_return is not None:
         text += f" of {target_return * 100:g}%"
     return text
+
+
+def risk_free_text(result: dict) -> str:
+    """
+    The risk-free rate as the Details tab and the PDF state it. Black-
+    Litterman's prior and risk aversion use PyPortfolioOpt's default of 0%,
+    as the cookbook does, while its optimizer uses 3%: "3%" alone was half
+    the story (audit F1-09; aligning the two rates is the user's open
+    decision, ESTADO.md).
+    """
+    rate = f"{result.get('risk_free_rate', RISK_FREE_RATE) * 100:g}%"
+    if result.get('model_type') == 'Black-Litterman':
+        return f"{rate} (optimizer); 0% in the market-implied prior"
+    return rate
 
 # Asset colors, ordered so neighboring pie slices differ, covering MAX_TICKERS
 # (20) with lighter and darker shades of the brand hues. The web charts
