@@ -7,16 +7,28 @@
 # run `pytest tests/ -v`. If all tests pass (especially parity + frozen
 # snapshots), the upgrade is mathematically inert and safe to deploy.
 streamlit==1.59.2
+# starlette is not used directly: Streamlit 1.59 serves the app with it and
+# asks only for >=0.40. Pinned for compatibility (2026-11-04): from 1.8.0
+# (2026-10-13) on, every file Streamlit 1.59 serves (the navbar logo, the
+# favicon) fails with a 500, "Expected ASGI message 'http.response.start',
+# but got 'http.response.body'" from Streamlit's gzip middleware. A rebuild
+# picked up the new release and production lost its logo. 1.7.0 works.
+# Revisit when bumping Streamlit.
+starlette==1.7.0
 # GitPython is not used by PortfolioLab directly: Streamlit installs it. Pinned
 # for security (2026-09-26): 3.1.58 had several advisories (one critical,
-# GHSA-284h-m62q-gf8w), fixed in 3.1.59 and 3.1.60; 3.1.62, the latest, has
-# none. Keep it at or above 3.1.62 when bumping Streamlit.
-GitPython==3.1.62
+# GHSA-284h-m62q-gf8w), fixed in 3.1.59 and 3.1.60. 3.1.62 got seven more
+# (five high) in late October 2026, fixed in 3.2.1. Keep it at or above 3.2.1.
+GitPython==3.2.1
 # urllib3 is not used directly either: requests installs it. Pinned for
 # security (2026-10-08): 2.7.0 had three advisories published 2026-09-30
 # (GHSA-8988-9cw3-xx77 and GHSA-vxq7-64xx-v4gw high, GHSA-gh4c-6fx4-qh6g
 # moderate), all fixed in 2.8.0. Keep it at or above 2.8.0.
 urllib3==2.8.0
+# certifi (installed by requests): 2026.7.22 trusts emSign root CAs whose
+# intermediate keys were compromised (critical advisory GHSA-6q48-6c7w-9gw2,
+# 2026-10-20), removed in 2026.10.18. Keep it at or above 2026.10.23.
+certifi==2026.10.23
 plotly==6.9.0
 pandas==3.0.3
 numpy==2.5.1
@@ -26,7 +38,11 @@ git+https://github.com/robertmartin8/PyPortfolioOpt.git@v1.5.6
 scikit-learn==1.9.0
 matplotlib==3.11.0
 seaborn==0.13.2
-fpdf2==2.8.7
+# fpdf2 2.8.8: two moderate advisories of 2.8.7 (2026-10-27) fixed.
+fpdf2==2.8.8
+# Pillow 12.3.0 has advisories (2026-10-19 to 23) fixed only in 13.0.0, and
+# Streamlit 1.59 requires pillow<13: it moves with the Streamlit upgrade.
+# The app only opens its own images (logo, charts), never a visitor's.
 Pillow==12.3.0
 cvxpy==1.9.2
 # ecos: needed on Streamlit Cloud for the exact LP allocation (ECOS_BB).

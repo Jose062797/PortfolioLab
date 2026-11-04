@@ -154,6 +154,78 @@ class TestSecuritySettings:
 
         assert version >= (2, 8, 0)
 
+    @pytest.mark.parametrize("package, minimum", [
+        ("GitPython", (3, 2, 1)),
+        ("certifi", (2026, 10, 23)),
+        ("fpdf2", (2, 8, 8)),
+    ])
+    def test_pins_past_the_advisories_of_october_2026(self, package, minimum):
+        lines = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        pin = next(line for line in lines if line.startswith(f"{package}=="))
+        version = tuple(int(p) for p in pin.split("==")[1].split("."))
+
+        assert version >= minimum
+
+    def test_starlette_is_pinned_below_the_release_that_broke_static_files(self):
+        # From 1.8.0 on, every file Streamlit 1.59 serves answers 500 (the
+        # navbar logo vanished in production). Unpinned, a rebuild takes the
+        # latest release again.
+        lines = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        streamlit = next(line for line in lines if line.startswith("streamlit=="))
+        pin = next(line for line in lines if line.startswith("starlette=="))
+        version = tuple(int(p) for p in pin.split("==")[1].split("."))
+
+        if streamlit == "streamlit==1.59.2":
+            assert version < (1, 8, 0)
+
+
+class TestStaticFiles:
+    """The installed server stack serves the navbar logo.
+
+    From starlette 1.8.0 on, Streamlit 1.59 answered 500 for every file it
+    serves, and production lost its logo (2026-11-04). The error comes from
+    uvicorn's checks on a real connection, so this starts the real server.
+    """
+
+    def test_the_navbar_logo_is_served(self, tmp_path):
+        import socket
+        import subprocess
+        import sys
+        import time
+        import urllib.request
+
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+
+        log = (tmp_path / "server.log").open("w")
+        server = subprocess.Popen(
+            [sys.executable, "-m", "streamlit", "run", "streamlit_app.py",
+             "--server.port", str(port), "--server.headless", "true"],
+            cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+        )
+        base = f"http://127.0.0.1:{port}"
+        try:
+            deadline = time.monotonic() + 90
+            while True:
+                try:
+                    with urllib.request.urlopen(f"{base}/_stcore/health", timeout=5) as r:
+                        if r.read() == b"ok":
+                            break
+                except OSError:
+                    pass
+                assert time.monotonic() < deadline, "the server did not start"
+                time.sleep(0.5)
+
+            with urllib.request.urlopen(
+                    f"{base}/app/static/portfoliolab-logo.png", timeout=10) as r:
+                body = r.read()
+                assert r.status == 200
+                assert body.startswith(b"\x89PNG")
+        finally:
+            server.terminate()
+            server.wait(timeout=30)
+            log.close()
 
 class TestSslFix:
 
