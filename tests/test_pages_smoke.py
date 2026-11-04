@@ -127,7 +127,7 @@ class TestAccessibility:
         # Tab panels and Streamlit's main scroll area (the first Tab stop)
         # take focus too, and showed none before 2026-10-08
         assert '[role="tabpanel"]:focus-visible' in css
-        main = re.search(r'section\[data-testid="stMain"\]:focus-visible \{([^}]*)\}', css).group(1)
+        main = re.search(r'\[data-testid="stMain"\]:focus-visible \{([^}]*)\}', css).group(1)
         assert "solid var(--color-accent)" in main
 
     def test_headings_follow_the_outline(self):
@@ -161,6 +161,15 @@ class TestAccessibility:
         assert "color: var(--color-text-secondary) !important" in rule
         container = re.search(r'\[data-testid="stCaptionContainer"\] \{([^}]*)\}', css).group(1)
         assert "opacity: 1 !important" in container, "Streamlit draws captions at 0.6"
+
+    def test_inactive_tabs_use_the_body_color(self):
+        """The secondary grey measured 4.34:1 on the tab track (axe, Streamlit
+        1.66, where this rule started to win over Streamlit's own color)."""
+        import re
+        from utils.styles import get_shared_css
+
+        rule = re.search(r'\.stTabs \[role="tab"\] \{([^}]*)\}', get_shared_css()).group(1)
+        assert "color: var(--color-text);" in rule
 
     def test_footer_link_is_a_44px_target(self):
         import re

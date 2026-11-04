@@ -155,9 +155,9 @@ class TestSecuritySettings:
         assert version >= (2, 8, 0)
 
     @pytest.mark.parametrize("package, minimum", [
-        ("GitPython", (3, 2, 1)),
         ("certifi", (2026, 10, 23)),
         ("fpdf2", (2, 8, 8)),
+        ("Pillow", (13, 0, 0)),
     ])
     def test_pins_past_the_advisories_of_october_2026(self, package, minimum):
         lines = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
@@ -166,24 +166,20 @@ class TestSecuritySettings:
 
         assert version >= minimum
 
-    def test_starlette_is_pinned_below_the_release_that_broke_static_files(self):
-        # From 1.8.0 on, every file Streamlit 1.59 serves answers 500 (the
-        # navbar logo vanished in production). Unpinned, a rebuild takes the
-        # latest release again.
+    def test_starlette_is_pinned(self):
+        # Streamlit asks only for a range; unpinned, a rebuild takes whatever
+        # starlette is newest (1.8.0 broke every file Streamlit 1.59 served,
+        # and production lost its logo). TestStaticFiles checks the pin works.
         lines = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
-        streamlit = next(line for line in lines if line.startswith("streamlit=="))
-        pin = next(line for line in lines if line.startswith("starlette=="))
-        version = tuple(int(p) for p in pin.split("==")[1].split("."))
 
-        if streamlit == "streamlit==1.59.2":
-            assert version < (1, 8, 0)
+        assert any(line.startswith("starlette==") for line in lines)
 
 
 class TestStaticFiles:
     """The installed server stack serves the navbar logo.
 
     From starlette 1.8.0 on, Streamlit 1.59 answered 500 for every file it
-    serves, and production lost its logo (2026-11-04). The error comes from
+    served, and production lost its logo (2026-11-04). The error came from
     uvicorn's checks on a real connection, so this starts the real server.
     """
 

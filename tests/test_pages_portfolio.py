@@ -52,7 +52,8 @@ def black_litterman(at):
 
 def notes_text(at):
     """The 'Notes about these results' box: its label and its text. It is an
-    st.expander with an icon, which AppTest lists under at.status."""
+    st.expander with an icon, which AppTest listed under at.status until
+    Streamlit 1.65 and under at.expander since; both are searched."""
     boxes = [e for e in list(at.expander) + list(at.status)
              if e.label.startswith("Notes about these results")]
     return "\n".join([e.label for e in boxes] + [joined(e.markdown) for e in boxes])

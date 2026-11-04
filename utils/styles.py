@@ -16,7 +16,8 @@ them first after any `streamlit` version bump):
       header[data-testid="stHeader"], [data-testid="stSidebar"],
       [data-testid="collapsedControl"], [data-testid="stToolbar"],
       section[data-testid="stSidebarNav"] — hide Streamlit chrome/sidebar.
-      In 1.59 (checked 2026-10-08) only stHeader exists: with
+      In 1.59 (checked 2026-10-08) and 1.66 (2026-11-04) only stHeader
+      exists: with
       showSidebarNavigation = false the sidebar, its controls, the toolbar
       and the sidebar nav are not rendered at all. The other selectors are
       kept on purpose, as a guard if a Streamlit update brings them back.
@@ -24,14 +25,16 @@ them first after any `streamlit` version bump):
       .block-container — full-width breakout (max-width: none, negative
       margins, 3rem side padding, 30px top gap).
   - get_shared_css():
-      [data-testid="stMetric*"] (metric cards); tabs, which Streamlit 1.59
-      renders with react-aria ([role="tablist"], [role="tab"][aria-selected],
+      [data-testid="stMetric*"] (metric cards); tabs, which Streamlit renders
+      with react-aria since 1.59 (same markup on 1.66; there our inactive-tab
+      color started to win over Streamlit's own, see the tabs rule) ([role="tablist"], [role="tab"][aria-selected],
       label in a <p>; the older data-baseweb="tab" selectors match nothing);
       button labels (a <p> nested in divs inside the button, reached by the
       global `p, li, div, label` color rule unless overridden);
       [data-testid="stHeaderActionElements"] (heading link icons, hidden in
-      designed blocks); section[data-testid="stMain"] (a Tab stop in 1.59:
-      the first one on every page, given a visible focus ring);
+      designed blocks); [data-testid="stMain"] (a Tab stop: the first one on
+      every page, given a visible focus ring; a <section> until 1.65 and a
+      <main> since 1.66, so the selector carries no tag);
       [data-testid="stCaptionContainer"] (captions, darkened for contrast);
       .stPlotlyChart
       (touch-action); [data-testid="stExpander"] details; plus the same
@@ -249,8 +252,9 @@ def get_shared_css() -> str:
 
     /* Streamlit makes its main scroll area a Tab stop (tabindex=0) so the
        keyboard can scroll it; it is the first stop on every page, so it gets
-       the same ring, drawn inside the edge. */
-    section[data-testid="stMain"]:focus-visible {
+       the same ring, drawn inside the edge. No tag in the selector: it was a
+       <section> until 1.65 and is a <main> landmark since 1.66. */
+    [data-testid="stMain"]:focus-visible {
         outline: 3px solid var(--color-accent) !important;
         outline-offset: -3px;
     }
@@ -767,7 +771,7 @@ def get_shared_css() -> str:
     }
 
     /* ===== Tabs: a segmented control ===== */
-    /* Streamlit 1.59 renders tabs with react-aria: a [role="tablist"] of
+    /* Streamlit (1.59 to 1.66) renders tabs with react-aria: a [role="tablist"] of
        div[role="tab"] (aria-selected), each label in a <p>. The BaseWeb
        selectors used before (data-baseweb="tab") no longer match anything,
        which left the active tab as dark text on a bare blue block. */
@@ -786,11 +790,14 @@ def get_shared_css() -> str:
         display: none !important;
     }
 
+    /* Inactive tabs use the body color: the secondary one measured 4.34:1 on
+       the tab track (axe, 2026-11-04, Streamlit 1.66, where this rule started
+       to win; on 1.59 Streamlit's own dark color won). */
     .stTabs [role="tab"] {
         height: auto !important;
         padding: 0.45rem 1rem !important;
         border-radius: var(--radius-sm);
-        color: var(--color-text-secondary);
+        color: var(--color-text);
         transition: color var(--transition-fast), background var(--transition-fast);
     }
 
